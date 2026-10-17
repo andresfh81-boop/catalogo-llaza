@@ -154,7 +154,34 @@ $("#secs").addEventListener("click",e=>{const b=e.target.closest("button[data-s]
   try{localStorage.setItem("cl_apartado",sec);}catch(_){}notFound=null;recog=null;confirmCode=null;$("#q").value="";chips();render();});
 $("#chips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;cur=b.dataset.c;marca="Todas";confirmCode=null;recog=null;chips();render();});
 $("#mchips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;marca=b.dataset.m;chips();render();});
-$("#q").addEventListener("input",()=>{notFound=null;recog=null;render();});
+$("#q").addEventListener("input",()=>{notFound=null;recog=null;fuzzyQ=false;render();});
+/* ---------- búsqueda aproximada ----------
+   Con la voz (y al escribir, si no hay ninguna coincidencia exacta) se busca por parecido: palabras sueltas en
+   cualquier orden, mal oídas o a medias («oblo» → Hoblo), palabras del día a día («mando» = emisor) y trozos de código.
+   Sale primero lo que más se parece. */
+let fuzzyQ=false;
+const STOP=new Set("el la los las de del un una unos unas para con que y o en al lo le mi me ese esa este esta eso busca buscar buscame quiero dame pon ponme ver".split(" "));
+const SYN={mando:"emisor",mandos:"emisor",telemando:"emisor",pulsador:"emisor",central:"centralita",centrales:"centralita",cuadro:"centralita",controlador:"centralita",
+  anemometro:"viento",veleta:"viento",enchufe:"toma",schuko:"toma",prolongador:"alargador",extension:"alargador",alargo:"alargador",alargadera:"alargador",
+  empalme:"conector",clavija:"conector",spot:"foco",ojo:"foco",bombilla:"foco",tira:"led",neon:"led",luz:"led",luces:"led",transformador:"fuente",trafo:"fuente",
+  alimentacion:"fuente",piston:"lineal",actuador:"lineal",estilo:"stl",stilo:"stl",blanco:"bl",blanca:"bl",negro:"ng",negra:"ng",aluminio:"al",calido:"calida",cien:"100",doscientos:"200",
+  uno:"1",dos:"2",tres:"3",cuatro:"4",cinco:"5",seis:"6",siete:"7",ocho:"8",nueve:"9",diez:"10",motores:"motor",sensores:"sensor",cables:"cable",conectores:"conector",focos:"foco"};
+/* Cómo suena: h muda, b = v, ll = y, c/k/qu, z/s, g/j; sin letras dobles (los números se dejan como están). */
+const fon=w=>norm(w).replace(/h/g,"").replace(/v/g,"b").replace(/ll/g,"y").replace(/qu|c(?=[aou])|k/g,"k").replace(/z|c(?=[ei])/g,"s").replace(/g(?=[ei])/g,"j").replace(/([a-z])\1+/g,"$1");
+function lev(a,b){if(a===b)return 0;let p=Array.from({length:b.length+1},(_,j)=>j);
+  for(let i=1;i<=a.length;i++){const c=[i];for(let j=1;j<=b.length;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c;}return p[b.length];}
+const sim=(a,b)=>{if(a===b)return 1;if(a.length>=3&&b.startsWith(a))return .95;if(a.length>=4&&b.includes(a))return .85;if(a.length<3)return 0;return 1-lev(a,b)/Math.max(a.length,b.length);};
+const itemWords=i=>i._w||(i._w=[...new Set(norm([i.desc,i.modelo,i.cat,marcaOf(i),i.medida,i.canal,secsOf(i).join(" ")].join(" ")).split(/[^a-z0-9]+/).filter(w=>w.length>1||/\d/.test(w)).map(fon))]);
+function fuzzy(qRaw,obs){const toks=norm(qRaw).split(/[^a-z0-9]+/).filter(w=>w&&!STOP.has(w));if(!toks.length)return [];
+  return items.filter(i=>obs?i.obsoleta:!i.obsoleta).map(i=>{const W=itemWords(i);let s=0,hit=0;
+    for(const t of toks){let b=0;
+      const tt=/^\d+$/.test(t)?t:/^\d+$/.test(SYN[t]||"")?SYN[t]:null;
+      /* Números: medida o potencia («200» → 200W) y, desde 4 cifras, trozo del código. */
+      if(tt)b=W.includes(tt)?1:W.some(w=>w.startsWith(tt))?.9:tt.length>=4&&i.code.includes(tt)?1:0;
+      else for(const x of SYN[t]?[fon(t),fon(SYN[t])]:[fon(t)])for(const w of W)b=Math.max(b,sim(x,w));
+      if(b>=.72){s+=b;hit++;}}
+    return {i,s,hit};}).filter(x=>x.hit&&x.hit>=Math.ceil(toks.length/2)).sort((a,b)=>b.hit-a.hit||b.s-a.s).slice(0,12).map(x=>x.i);}
+
 
 /* ---------- buscar por voz ----------
    Solo en la app instalable: dentro del /exec Google no deja usar el micrófono (la página va en un marco).
@@ -164,6 +191,8 @@ const NUMS={cero:0,uno:1,una:1,dos:2,tres:3,cuatro:4,cinco:5,seis:6,siete:7,ocho
 /* «cuatro ocho cero cero…» o «48 009 000 000» → 48009000000; lo demás se busca tal cual. */
 function voiceText(t){t=String(t||"").trim().replace(/[.,;]+$/,"");const w=norm(t).split(/\s+/).filter(Boolean);
   if(w.length&&w.every(x=>x in NUMS||/^\d+$/.test(x)))return w.map(x=>x in NUMS?NUMS[x]:x).join("");
+  /* Números dichos en medio de una frase («la de nueve cero cero cero»): dos o más seguidos se juntan en cifras. */
+  t=t.replace(/(?:\b(?:cero|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|\d+)\b[\s.-]*){2,}/gi,m=>m.trim().split(/[\s.-]+/).map(x=>NUMS[norm(x)]??x).join("")+" ").trim();
   return t.replace(/(\d)[\s.-]+(?=\d)/g,"$1");}
 function micState(){const b=$("#micBtn");b.hidden=!SR||!window.__pwa;b.disabled=!navigator.onLine;
   b.title=navigator.onLine?"Buscar por voz":"Sin conexión: buscar por voz necesita internet";}
@@ -171,9 +200,11 @@ window.addEventListener("online",micState);window.addEventListener("offline",mic
 $("#micBtn").onclick=()=>{if(rec){rec.stop();return;}
   const b=$("#micBtn");rec=new SR();rec.lang="es-ES";rec.interimResults=true;rec.maxAlternatives=1;
   b.classList.add("listen");b.setAttribute("aria-label","Dejar de escuchar");toast("Te escucho… di un código o el nombre de la pieza",8000);
-  rec.onresult=e=>{const r=e.results[e.results.length-1],t=voiceText(r[0].transcript);$("#q").value=t;notFound=null;recog=null;
+  rec.onresult=e=>{const r=e.results[e.results.length-1],t=voiceText(r[0].transcript);$("#q").value=t;notFound=null;recog=null;fuzzyQ=true;
     if(!r.isFinal){render();return;}
-    const c=pick(t);if(c&&itemOf(c))showCode(c);else{render();toast(`Buscando «${t}»`,2500);}};
+    const c=pick(t);if(c&&itemOf(c)){showCode(c);return;}
+    render();const f=fuzzy(t);if(f.length===1){openFicha(f[0].code);return;}
+    toast(f.length?`«${t}»: ${f.length} parecida${f.length>1?"s":""}, la primera es la que más se parece.`:`No encuentro nada parecido a «${t}».`,3500);};
   rec.onerror=e=>toast(e.error==="not-allowed"||e.error==="service-not-allowed"?"Chrome no tiene permiso para usar el micrófono. Toca el candado de la barra de direcciones → Permisos → Micrófono.":
     e.error==="no-speech"?"No te he oído. Toca 🎤 y habla cerca del móvil.":e.error==="network"?"Para buscar por voz hace falta conexión.":`No he podido usar el micrófono (${e.error}).`,5500);
   rec.onend=()=>{rec=null;b.classList.remove("listen");b.setAttribute("aria-label","Buscar por voz");};
@@ -186,7 +217,9 @@ function renderList(){
     $("#list").innerHTML=`<div class="nf"><b>${esc(notFound.code)}</b><p class="sub">Este código no está en ningún apartado.</p><button class="btn-l primary" id="nfAdd">Dar de alta con esta foto</button></div>`;
     $("#nfAdd").onclick=()=>openAdd(notFound.code,notFound.file);return;}
   const qRaw=$("#q").value.trim(),q=norm(qRaw),match=i=>norm([i.code,i.desc,i.modelo,i.medida,i.canal,i.cat,marcaOf(i)].join(" ")).includes(q);
-  if(q){const vis=items.filter(i=>(cur===OBS?i.obsoleta:!i.obsoleta)&&match(i));
+  if(q){let vis=items.filter(i=>(cur===OBS?i.obsoleta:!i.obsoleta)&&match(i));
+    if(fuzzyQ||!vis.length){const f=fuzzy(qRaw,cur===OBS);
+      if(f.length){$("#list").innerHTML=`<p class="note" style="margin:0 0 12px">${fuzzyQ?"Lo que más se parece":"Ninguna coincide exacta. Lo más parecido"} a «${esc(qRaw)}», de más a menos:</p>${grid(f)}`;return;}}
     if(!vis.length){$("#list").innerHTML=`<p class="empty">Ninguna referencia coincide con «${esc(qRaw)}».</p>`;return;}
     $("#list").innerHTML=SECS.flatMap(s=>catsOf(s.n).map(c=>[s.n,c])).filter(([s,c])=>vis.some(i=>inS(i,s)&&i.cat===c))
       .map(([s,c])=>`<section><h2>${esc(s)} · ${esc(c)}</h2>${grid(vis.filter(i=>inS(i,s)&&i.cat===c))}</section>`).join("");return;}
