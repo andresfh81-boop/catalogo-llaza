@@ -17,4 +17,5 @@ Enlace: https://andresfh81-boop.github.io/catalogo-llaza/elya/ (se instala como 
 
 - Carpeta `elya/`: `index.html` se genera con `python build_elya.py` en `catalogo-llaza-app` (a partir de `esquema/elya.html`): no editarlo aquí.
 - `elya/sw.js` usa cachés «elya-…» y el `sw.js` del catálogo solo borra las «cl-…», para que una app no borre la copia sin conexión de la otra.
+- `elya/lib/pdfjs/`: pdf.js 3.11.174 (npm pdfjs-dist, licencia Apache 2.0) para leer el PDF del plano sin conexión.
 - Icono: rayo blanco sobre naranja, generado con `python elya/icon/hacer_iconos.py`.

@@ -58,6 +58,14 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 input:disabled+span,label.chk:has(input:disabled){opacity:.5}
 .hint{font-size:12px;color:var(--muted);margin:0}
 .mods{display:grid;gap:10px}
+.drop{display:grid;gap:4px;text-align:center;padding:16px 12px;border:2px dashed var(--line);border-radius:6px;cursor:pointer;color:var(--muted);background:var(--bg)}
+.drop b{color:var(--ink);font-size:15px}
+.drop.on,.drop:hover{border-color:var(--accent);color:var(--ink)}
+.drop.busy{opacity:.6;pointer-events:none}
+.impres{display:grid;gap:8px;font-size:13px;border:1px solid var(--line);border-radius:4px;padding:10px;background:var(--bg)}
+.impres ul{margin:0;padding-left:18px}
+.impres .ok{color:var(--ok);font-weight:600}
+.impres .ko{color:var(--bad);font-weight:600}
 .mod{border:1px solid var(--line);border-radius:4px;padding:10px;display:grid;gap:8px;background:var(--bg)}
 .mod .mhd{display:flex;gap:8px;align-items:center}
 .mod .mhd input{font-weight:600}
@@ -128,6 +136,11 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
 
 <div class="wrap">
 <form id="f" autocomplete="off">
+  <fieldset>
+    <legend>Plano de fabricación</legend>
+    <label class="drop" id="drop"><input type="file" id="fPlano" accept="application/pdf,.pdf" hidden><b>Arrastra aquí el PDF del plano</b><span>o toca para elegirlo. Rellena los módulos, pilares, vigas, tiras y centralitas.</span></label>
+    <div id="impRes" class="impres" hidden></div>
+  </fieldset>
   <fieldset>
     <legend>Obra</legend>
     <label>Obra / cliente<input type="text" id="obra"></label>
@@ -701,6 +714,107 @@ function conexiones(cfg,r){
   return out.map(c=>`<section><h3>${esc(c.t)}</h3>${c.code?`<div class="tag" style="margin-top:4px">${esc(c.code)}</div>`:""}<ul>${c.li.map(l=>`<li>${esc(l)}</li>`).join("")}</ul><p class="src">Fuente: ${esc(c.src)}</p></section>`).join("");
 }
 
+/* ---------- importar el plano (PDF de la ficha de fabricación) ----------
+   Del texto del PDF se leen: «MÓDULO n», los números de pilar (letra grande), las vigas «Va-b», «CENTRALITA» y «TIRAS LED».
+   Las cotas y el motor van dibujados (no son texto): la escala sale de una cota que escribe el usuario. */
+const PDFJS="lib/pdfjs/";
+const loadScript=src=>new Promise((ok,ko)=>{const e=document.createElement("script");e.src=src;e.onload=ok;e.onerror=()=>ko(new Error("No se pudo cargar el lector de PDF. La primera vez hace falta conexión."));document.head.appendChild(e);});
+let pdfReady=null;
+/* El «worker» de pdf.js se carga en la página (pdfjsWorker): así no hace falta un Worker de otro origen. */
+const pdfjs=()=>pdfReady||(pdfReady=(async()=>{if(!window.pdfjsLib)await loadScript(PDFJS+"pdf.min.js");if(!globalThis.pdfjsWorker)await loadScript(PDFJS+"pdf.worker.min.js");return window.pdfjsLib;})().catch(e=>{pdfReady=null;throw e;}));
+async function textoPlano(buf){
+  const L=await pdfjs(),doc=await L.getDocument({data:buf}).promise,pg=await doc.getPage(1),vp=pg.getViewport({scale:1}),tc=await pg.getTextContent();
+  return tc.items.filter(it=>it.str&&it.str.trim()).map(it=>{
+    const t=L.Util.transform(vp.transform,it.transform),size=Math.hypot(t[0],t[1])||1,dx=t[0]/size,dy=t[1]/size;
+    /* centro del texto: inicio + medio ancho en su dirección + media altura hacia «arriba» del texto */
+    return {s:it.str.trim(),x:t[4]+dx*it.width/2+dy*size*0.35,y:t[5]+dy*it.width/2-dx*size*0.35,size,hor:Math.abs(dx)>=Math.abs(dy)};
+  });
+}
+function interpretaPlano(T){
+  const med=a=>{const b=[...a].sort((x,y)=>x-y);return b.length?b[b.length>>1]:0;};
+  const vs=T.filter(t=>/^V\d+-\d+$/i.test(t.s)),ref=med(vs.map(t=>t.size))||6;
+  const mods=[],pil={},cen=[],tir=[],avisos=[];
+  T.forEach(t=>{let m;
+    if((m=t.s.match(/^M[ÓO]DULO\s*(\d+)/i)))mods.push({n:+m[1],x:t.x,y:t.y});
+    else if(/^\d{1,3}$/.test(t.s)&&t.size>ref*1.8){if(!pil[t.s])pil[t.s]=t;}
+    else if(/CENTRALITA/i.test(t.s))cen.push(t);
+    else if(/TIRAS\s*LED/i.test(t.s))tir.push(t);
+  });
+  /* Vigas: el tramo va de un pilar a otro (los del nombre); su posición, la del rótulo. */
+  const vig=vs.map(t=>{const [,a,b]=t.s.match(/^V(\d+)-(\d+)$/i),pa=pil[a],pb=pil[b];
+    const hor=pa&&pb?Math.abs(pa.x-pb.x)>=Math.abs(pa.y-pb.y):t.hor;
+    const span=pa&&pb?(hor?[Math.min(pa.x,pb.x),Math.max(pa.x,pb.x)]:[Math.min(pa.y,pb.y),Math.max(pa.y,pb.y)]):[-1e9,1e9];
+    return {name:t.s.toUpperCase(),hor,span,x:t.x,y:t.y};});
+  const tol=8,cubre=(v,c)=>c>=v.span[0]-tol&&c<=v.span[1]+tol;
+  const out=[];
+  mods.sort((a,b)=>a.n-b.n).forEach(M=>{
+    const H=vig.filter(v=>v.hor&&cubre(v,M.x)),V=vig.filter(v=>!v.hor&&cubre(v,M.y));
+    const pick=(l,f,best)=>l.filter(f).sort(best)[0];
+    const sup=pick(H,v=>v.y<M.y,(a,b)=>b.y-a.y),inf=pick(H,v=>v.y>M.y,(a,b)=>a.y-b.y);
+    const izq=pick(V,v=>v.x<M.x,(a,b)=>b.x-a.x),der=pick(V,v=>v.x>M.x,(a,b)=>a.x-b.x);
+    if(!sup||!inf||!izq||!der){avisos.push(`Módulo ${M.n}: no encuentro sus 4 vigas en el plano; añádelo a mano.`);return;}
+    const box={xL:izq.x,xR:der.x,yS:sup.y,yI:inf.y},w=box.xR-box.xL,h=box.yI-box.yS;
+    const cp={si:[box.xL,box.yS],sd:[box.xR,box.yS],ii:[box.xL,box.yI],id:[box.xR,box.yI]};
+    const pl={};Object.entries(cp).forEach(([k,[x,y]])=>{let best=null,d=1e9;
+      Object.entries(pil).forEach(([n,p])=>{const dd=Math.hypot(p.x-x,p.y-y);if(dd<d){d=dd;best=n;}});
+      pl[k]=best&&d<Math.min(w,h)*0.4?best:"";});
+    const lados={sup:false,inf:false,izq:false,der:false};
+    tir.filter(t=>t.x>box.xL-tol&&t.x<box.xR+tol&&t.y>box.yS-tol&&t.y<box.yI+tol).forEach(t=>{
+      const d={sup:t.y-box.yS,inf:box.yI-t.y,izq:t.x-box.xL,der:box.xR-t.x};lados[Object.keys(d).sort((a,b)=>d[a]-d[b])[0]]=true;});
+    out.push({n:M.n,box,w,h,cp,pil:pl,vig:{sup:sup.name,inf:inf.name,izq:izq.name,der:der.name},lados,cent:[]});
+  });
+  /* Centralitas: a la viga más cercana con la misma orientación que el rótulo, y al módulo de esa viga que quede más cerca. */
+  cen.forEach(c=>{
+    let best=null,d=1e9;
+    vig.filter(v=>v.hor===c.hor&&cubre(v,c.hor?c.x:c.y)).forEach(v=>{const dd=c.hor?Math.abs(v.y-c.y):Math.abs(v.x-c.x);if(dd<d){d=dd;best=v;}});
+    if(!best)return;
+    const dueños=out.filter(m=>Object.values(m.vig).includes(best.name));
+    const m=dueños.sort((a,b)=>distBox(a.box,c)-distBox(b.box,c))[0];
+    if(m)m.cent.push({viga:best.name,compartida:dueños.length>1,x:c.x,y:c.y});
+  });
+  out.forEach(m=>{
+    if(!m.cent.length){avisos.push(`Módulo ${m.n}: el plano no marca centralita; elige la esquina a mano.`);m.c=null;return;}
+    if(m.cent.length>1){const k=m.cent.find(c=>!c.compartida)||m.cent[0];avisos.push(`Módulo ${m.n}: el plano marca ${m.cent.length} centralitas; me quedo con la de ${k.viga}. Revísalo.`);m.c=k;}
+    else m.c=m.cent[0];
+    m.c.corner=Object.keys(m.cp).sort((a,b)=>Math.hypot(m.cp[a][0]-m.c.x,m.cp[a][1]-m.c.y)-Math.hypot(m.cp[b][0]-m.c.x,m.cp[b][1]-m.c.y))[0];
+  });
+  return {mods:out,avisos,nPil:Object.keys(pil).length,nVig:vig.length,nCen:cen.length};
+}
+const distBox=(b,p)=>Math.hypot(Math.max(b.xL-p.x,0,p.x-b.xR),Math.max(b.yS-p.y,0,p.y-b.yI));
+/* Puntos del PDF por metro: se ajusta con la cota que escribe el usuario. 80 es lo que sale en las fichas de Llaza vistas. */
+let plano=null;
+function modulosDelPlano(){
+  const ref=plano.mods.find(m=>m.n===plano.refN)||plano.mods[0],ppm=ref.w/plano.refA;
+  const prev=readMods();
+  return plano.mods.map((m,i)=>({nombre:"Módulo "+m.n,A:Math.round(m.w/ppm*100)/100,P:Math.round(m.h/ppm*100)/100,
+    motor:(prev[i]&&prev[i].motor)||"der",cent:m.c?m.c.corner:"si",aloj:"viga",ref:m.c?m.c.viga:"",pil:m.pil,vig:m.vig,
+    luz:Object.values(m.lados).some(Boolean)?((prev[i]&&prev[i].luz!=="none"&&prev[i].luz)||"w3000"):"none",
+    lados:Object.values(m.lados).some(Boolean)?m.lados:{...LADOS_ALL},lamasN:(prev[i]&&prev[i].lamasN)||0}));
+}
+function pintaImport(){
+  const r=plano,box=$("impRes");box.hidden=false;
+  const opts=r.mods.map(m=>`<option value="${m.n}"${m.n===r.refN?" selected":""}>Módulo ${m.n}</option>`).join("");
+  box.innerHTML=`<div><span class="ok">Plano leído:</span> ${r.mods.length} módulo(s) · ${r.nPil} pilares · ${r.nVig} vigas · ${r.nCen} marca(s) de centralita</div>
+  ${r.avisos.length?`<ul>${r.avisos.map(a=>`<li>${esc(a)}</li>`).join("")}</ul>`:""}
+  <div>Las cotas van dibujadas y no se pueden leer del PDF. Escribe una y saco las demás a escala (salen con ±5 cm: corrígelas con las cotas del plano si hace falta):</div>
+  <div class="row"><label>Ancho A de<select id="impRef">${opts}</select></label><label>según el plano (m)<input type="number" id="impA" step="0.01" min="0.5" max="10" value="${r.refA}"></label></div>
+  <div class="hint">Marca también el lado del motor de cada módulo: en el plano va dibujado, no escrito.</div>`;
+}
+async function importaPlano(file){
+  const drop=$("drop");
+  if(!file||!/\.pdf$/i.test(file.name)&&file.type!=="application/pdf"){toast("Suelta el PDF del plano (una foto no se puede leer).");return;}
+  drop.classList.add("busy");
+  try{
+    const r=interpretaPlano(await textoPlano(await file.arrayBuffer()));
+    if(!r.mods.length){toast("No encuentro módulos en el PDF. ¿Es la ficha de fabricación?");return;}
+    plano=Object.assign(r,{refN:r.mods[0].n});plano.refA=Math.round(r.mods[0].w/80*100)/100;
+    if(!$("obra").value||$("obra").value===EJEMPLO.obra)$("obra").value=file.name.replace(/\.pdf$/i,"");
+    if($("of").value===EJEMPLO.of)$("of").value="";
+    writeMods(modulosDelPlano());pintaImport();render();toast("Plano importado: revisa la cota y el lado del motor");
+  }catch(e){console.warn(e);toast(e.message||"No se pudo leer el PDF");}
+  finally{drop.classList.remove("busy");}
+}
+
 /* ---------- pintar ---------- */
 let last=null;
 function render(){
@@ -749,6 +863,17 @@ writeForm(cfg0);
 $("f").addEventListener("input",render);
 $("f").addEventListener("change",e=>{if(e.target.id==="sistema")fillEmisores(e.target.value,$("emisor").value);render();});
 $("f").addEventListener("submit",e=>e.preventDefault());
+$("fPlano").addEventListener("change",e=>{const f=e.target.files[0];e.target.value="";importaPlano(f);});
+$("drop").addEventListener("dragover",e=>{e.preventDefault();$("drop").classList.add("on");});
+$("drop").addEventListener("dragleave",()=>$("drop").classList.remove("on"));
+/* Se puede soltar el PDF en cualquier parte de la página. */
+document.addEventListener("dragover",e=>e.preventDefault());
+document.addEventListener("drop",e=>{e.preventDefault();$("drop").classList.remove("on");const f=e.dataTransfer&&e.dataTransfer.files[0];if(f)importaPlano(f);});
+$("f").addEventListener("input",e=>{
+  if(!plano||(e.target.id!=="impA"&&e.target.id!=="impRef"))return;
+  if(e.target.id==="impRef"){const ppm=plano.mods.find(m=>m.n===plano.refN).w/plano.refA,m=plano.mods.find(m=>m.n===+e.target.value);plano.refN=m.n;$("impA").value=plano.refA=Math.round(m.w/ppm*100)/100;}
+  const a=parseFloat($("impA").value);if(!(a>0))return;plano.refA=a;writeMods(modulosDelPlano());render();
+});
 $("f").addEventListener("click",e=>{
   const d=e.target.closest("[data-del]");
   if(d){const ms=readMods();ms.splice(+d.dataset.del,1);writeMods(ms);render();return;}
