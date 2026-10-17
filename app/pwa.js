@@ -22,12 +22,13 @@
   /* ---------- sesión con Google ---------- */
   var tok = null; try { tok = JSON.parse(localStorage.getItem("cl_tok") || "null"); } catch (e) {}
   var valid = function () { return tok && tok.exp * 1000 > Date.now() + 60000; };
-  var waiters = [], gis = false, loginShown = false;
+  var waiters = [], gis = false, loginShown = false, rendered = false;
   function payload(t) { var s = t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"); return JSON.parse(decodeURIComponent(escape(atob(s)))); }
   function onCred(r) {
     var p = payload(r.credential);
     tok = { t: r.credential, exp: p.exp, email: p.email };
     try { localStorage.setItem("cl_tok", JSON.stringify(tok)); } catch (e) {}
+    rendered = false;
     if (loginShown) { loginShown = false; bar(""); }
     var w = waiters; waiters = []; w.forEach(function (f) { f(tok.t); });
   }
@@ -39,10 +40,12 @@
   }
   window.__gisReady = initGis;
   function showLogin() {
+    if (rendered) return; /* el botón ya está y Google ya lo ha intentado: llamar otra vez a prompt() cancela el primero */
     loginShown = true;
     bar('<span>Inicia sesión con tu cuenta de Google para ' + (hasCache ? "actualizar" : "cargar") + ' el catálogo.</span><span id="gBtn"></span>', "login");
     if (!gis) { if (!navigator.onLine) bar("<span>Sin conexión. Conéctate para iniciar sesión.</span>", "off"); return; }
     google.accounts.id.renderButton(document.getElementById("gBtn"), { theme: "filled_blue", size: "large", text: "signin_with", shape: "pill", locale: "es" });
+    rendered = true;
     google.accounts.id.prompt();
   }
   function getToken() {
