@@ -4,4 +4,4 @@ Página para instalar el Catálogo Llaza como app (con su nombre e icono). Solo 
 
 Enlace: https://andresfh81-boop.github.io/catalogo-llaza/
 
-Los iconos se generan con `icon/make_icon.py` del repositorio `catalogo-llaza-app`.
+Icono: el logo de Google Apps Script (el mismo del acceso directo del escritorio), generado con `python icon/hacer_iconos.py`.
