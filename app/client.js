@@ -160,7 +160,7 @@ $("#q").addEventListener("input",()=>{notFound=null;recog=null;fuzzyQ=false;rend
    cualquier orden, mal oídas o a medias («oblo» → Hoblo), palabras del día a día («mando» = emisor) y trozos de código.
    Sale primero lo que más se parece. */
 let fuzzyQ=false;
-const STOP=new Set("el la los las de del un una unos unas para con que y o en al lo le mi me ese esa este esta eso busca buscar buscame quiero dame pon ponme ver".split(" "));
+const STOP=new Set("el la los las de del un una unos unas para con que y o en al lo le mi me ese esa este esta eso busca buscar buscame quiero dame pon ponme ver coma punto metro metros mts m cm mm".split(" "));
 const SYN={mando:"emisor",mandos:"emisor",telemando:"emisor",pulsador:"emisor",central:"centralita",centrales:"centralita",cuadro:"centralita",controlador:"centralita",
   anemometro:"viento",veleta:"viento",enchufe:"toma",schuko:"toma",prolongador:"alargador",extension:"alargador",alargo:"alargador",alargadera:"alargador",
   empalme:"conector",clavija:"conector",spot:"foco",ojo:"foco",bombilla:"foco",tira:"led",neon:"led",luz:"led",luces:"led",transformador:"fuente",trafo:"fuente",
@@ -171,16 +171,30 @@ const fon=w=>norm(w).replace(/h/g,"").replace(/v/g,"b").replace(/ll/g,"y").repla
 function lev(a,b){if(a===b)return 0;let p=Array.from({length:b.length+1},(_,j)=>j);
   for(let i=1;i<=a.length;i++){const c=[i];for(let j=1;j<=b.length;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c;}return p[b.length];}
 const sim=(a,b)=>{if(a===b)return 1;if(a.length>=3&&b.startsWith(a))return .95;if(a.length>=4&&b.includes(a))return .85;if(a.length<3)return 0;return 1-lev(a,b)/Math.max(a.length,b.length);};
-const itemWords=i=>i._w||(i._w=[...new Set(norm([i.desc,i.modelo,i.cat,marcaOf(i),i.medida,i.canal,secsOf(i).join(" ")].join(" ")).split(/[^a-z0-9]+/).filter(w=>w.length>1||/\d/.test(w)).map(fon))]);
-function fuzzy(qRaw,obs){const toks=norm(qRaw).split(/[^a-z0-9]+/).filter(w=>w&&!STOP.has(w));if(!toks.length)return [];
-  return items.filter(i=>obs?i.obsoleta:!i.obsoleta).map(i=>{const W=itemWords(i);let s=0,hit=0;
-    for(const t of toks){let b=0;
-      const tt=/^\d+$/.test(t)?t:/^\d+$/.test(SYN[t]||"")?SYN[t]:null;
-      /* Números: medida o potencia («200» → 200W) y, desde 4 cifras, trozo del código. */
-      if(tt)b=W.includes(tt)?1:W.some(w=>w.startsWith(tt))?.9:tt.length>=4&&i.code.includes(tt)?1:0;
-      else for(const x of SYN[t]?[fon(t),fon(SYN[t])]:[fon(t)])for(const w of W)b=Math.max(b,sim(x,w));
+/* Decimales iguales en la hoja y en lo que se dice: «1.50 m», «1,5» y «uno coma cinco» → 1p5; «7.00» → 7. */
+const decs=t=>t.replace(/(\d+)\s*[.,]\s*(\d+)/g,(m,a,b)=>{b=b.replace(/0+$/,"");return b?a+"p"+b:a;});
+const NUMW={cero:"0",uno:"1",una:"1",dos:"2",tres:"3",cuatro:"4",cinco:"5",seis:"6",siete:"7",ocho:"8",nueve:"9",diez:"10",cien:"100",doscientos:"200"};
+const itemWords=i=>i._w||(i._w=[...new Set(decs(norm([i.desc,i.modelo,i.cat,marcaOf(i),i.medida,i.canal,secsOf(i).join(" ")].join(" "))).split(/[^a-z0-9]+/).filter(w=>w.length>1||/\d/.test(w)).map(fon))]);
+/* Palabras de la búsqueda; cada una con sus variantes. La voz a veces parte una palabra («a largo» = alargo): la letra suelta se prueba pegada a la siguiente. */
+function qToks(qRaw){let q=norm(qRaw).replace(/\b(cero|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|cien|doscientos)\b/g,m=>NUMW[m]);
+  q=decs(q.replace(/(\d)\s+(?:coma|punto|con)\s+(\d)/g,"$1,$2"));
+  const raw=q.split(/[^a-z0-9]+/).filter(Boolean),out=[];
+  for(let k=0;k<raw.length;k++){const t=raw[k];
+    if(/^[a-z]$/.test(t)&&k+1<raw.length&&/^[a-z]{2,}$/.test(raw[k+1])){out.push([raw[k+1],t+raw[k+1]]);k++;continue;}
+    if(!STOP.has(t))out.push([t]);}
+  return out;}
+function fuzzy(qRaw,obs){const toks=qToks(qRaw);if(!toks.length)return [];
+  const res=items.filter(i=>obs?i.obsoleta:!i.obsoleta).map(i=>{const W=itemWords(i);let s=0,hit=0;
+    for(const vs of toks){let b=0;
+      for(const t of vs){const tt=/^\d+$/.test(t)?t:/^\d+$/.test(SYN[t]||"")?SYN[t]:null;
+        /* Números: medida o potencia («200» → 200W) y, desde 4 cifras, trozo del código. */
+        if(tt)b=Math.max(b,W.includes(tt)?1:W.some(w=>w.startsWith(tt))?.9:tt.length>=4&&i.code.includes(tt)?1:0);
+        else for(const x of SYN[t]?[fon(t),fon(SYN[t])]:[fon(t)])for(const w of W)b=Math.max(b,sim(x,w));}
       if(b>=.72){s+=b;hit++;}}
-    return {i,s,hit};}).filter(x=>x.hit&&x.hit>=Math.ceil(toks.length/2)).sort((a,b)=>b.hit-a.hit||b.s-a.s).slice(0,12).map(x=>x.i);}
+    return {i,s,hit};}).filter(x=>x.hit).sort((a,b)=>b.hit-a.hit||b.s-a.s);
+  /* Primero las que encajan en la mitad de las palabras o más; si no hay ninguna, las que encajan en alguna. */
+  const need=Math.ceil(toks.length/2),best=res.filter(x=>x.hit>=need);
+  return (best.length?best:res).slice(0,12).map(x=>x.i);}
 
 
 /* ---------- buscar por voz ----------

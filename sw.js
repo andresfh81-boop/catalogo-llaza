@@ -1,6 +1,6 @@
 /* Catálogo Llaza instalable: guarda la app para abrirla sin conexión (los datos los guarda app/pwa.js en «cl-datos»).
    Archivos propios: primero la red (para coger los cambios) y, si no hay, la copia. Librerías y fuentes: la copia, y se renueva detrás. */
-const V = "cl-app-6";
+const V = "cl-app-7";
 const SHELL = ["./", "index.html", "manifest.json", "app/app.css", "app/pwa.css", "app/pwa.js", "app/client.js", "icon/icon-32.png", "icon/icon-192.png", "icon/icon-512.png"];
 const CDN = /^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\//;
 
