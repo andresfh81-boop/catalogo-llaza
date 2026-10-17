@@ -15,7 +15,7 @@ const docsOf=code=>manuales.filter(m=>m.codes.includes(code));
 const docIco=m=>DOC_ICO[m.tipo]||"📄";
 const docBtns=i=>{const L=docsOf(i.code);return L.length?`<div class="docs">${L.map(m=>m.url?`<a href="${esc(m.url)}" target="_blank" rel="noopener">${docIco(m)} ${esc(m.titulo)}</a>`:`<span class="tag" title="Falta guardar en el Drive el PDF ${esc(m.archivo)}">⏳ ${esc(m.titulo)}</span>`).join("")}</div>`:"";};
 const isSinRef=c=>/^SINREF-/.test(String(c||""));
-const DEFSEC=SECS[0].n, OBS="Obsoletas", INC="Incompletas", STK="Stock seguridad", DOC="Documentación";
+const DEFSEC=SECS[0].n, OBS="Obsoletas", INC="Incompletas", STK="Stock seguridad", DOC="Documentación", PROP="Fotos por confirmar";
 const faltas=i=>[!i.photos.length&&"foto de etiqueta",!i.prod.length&&"foto de producto",!String(i.desc||"").trim()&&"descripción"].filter(Boolean);
 const incompleta=i=>!i.obsoleta&&faltas(i).length>0;
 const XLSX_URL="https:\/\/cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
@@ -65,7 +65,7 @@ function marcaOf(i){if(!hasMarca(i.cat))return "";const m=String(i.marca||"").tr
 const guessMarca=t=>MARCAS.find(x=>norm(t).includes(norm(x)))||"";
 const marcasIn=L=>[...MARCAS,OTRAS].filter(m=>L.some(i=>marcaOf(i)===m));
 /* Tarjetas de una categoría; en las de marca, agrupadas en subcarpetas. */
-function catBody(c,L){const grid=x=>`<div class="grid">${x.map(i=>card(i)).join("")}</div>`;
+function catBody(c,L){
   if(!hasMarca(c)||marca!=="Todas")return grid(L);
   return marcasIn(L).map(m=>`<h3 class="msub">${esc(m)} <small>${L.filter(i=>marcaOf(i)===m).length}</small></h3>${grid(L.filter(i=>marcaOf(i)===m))}`).join("");}
 const itemOf=code=>code?items.find(i=>i.code===code):null;
@@ -104,8 +104,9 @@ function start(){api("boot").then(d=>{clearTimeout(bootTimer);S=d;window.__appOK
 
 function merge(){
   const own=f=>/^App/.test(f.origen||"");
-  const P=f=>({id:f.id,fileId:f.fileId,src:"data:image/jpeg;base64,"+f.mini,rot:f.rot||0,own:own(f),from:f.origen==="Web fabricante"?"web":"drive"});
-  items=refs.map(r=>({...r,photos:fotos.filter(f=>f.code===r.code&&f.tipo==="Etiqueta").map(P),prod:fotos.filter(f=>f.code===r.code&&f.tipo==="Producto").map(P)}));
+  const P=f=>({id:f.id,fileId:f.fileId,src:"data:image/jpeg;base64,"+f.mini,rot:f.rot||0,own:own(f),from:/^Web fabricante/.test(f.origen||"")?"web":"drive",page:String(f.origen||"").replace(/^Web fabricante · /,"")});
+  const of=(r,t)=>fotos.filter(f=>f.code===r.code&&f.tipo===t).map(P);
+  items=refs.map(r=>({...r,photos:of(r,"Etiqueta"),prod:of(r,"Producto"),ofi:of(r,"Oficial"),prop:of(r,"Propuesta")}));
   chips();render();
   if(!$("#lb").hidden&&lbItem){const n=itemOf(lbItem.code),was=lbList[lbI];
     if(n){lbItem=n;buildLb(n);const j=was?lbList.findIndex(p=>p.id===was.id):-1;lbI=j>=0?j:Math.min(lbI,lbList.length-1);if(!lbList.length)$("#lb").hidden=true;else showLb();}}
@@ -137,10 +138,12 @@ function chips(){
   $("#mode").textContent="";
   const cats=["Todas",...catsOf(sec).filter(c=>act.some(i=>i.cat===c))];
   const nInc=act.filter(incompleta).length,nStk=act.filter(hasStock).length,nDoc=act.filter(i=>docsOf(i.code).length).length;
-  if(cur!==OBS&&cur!==INC&&cur!==STK&&cur!==DOC&&cur!=="Todas"&&!cats.includes(cur))cur="Todas";if(cur===OBS&&!nObs)cur="Todas";if(cur===INC&&!nInc)cur="Todas";
+  const nProp=act.filter(i=>i.prop.length).length;
+  if(cur!==OBS&&cur!==INC&&cur!==STK&&cur!==DOC&&cur!==PROP&&cur!=="Todas"&&!cats.includes(cur))cur="Todas";if(cur===OBS&&!nObs)cur="Todas";if(cur===INC&&!nInc)cur="Todas";if(cur===PROP&&!nProp)cur="Todas";
   $("#chips").innerHTML=cats.map(c=>`<button class="chip" aria-pressed="${c===cur}" data-c="${esc(c)}">${esc(c)}<small>${c==="Todas"?act.length:act.filter(i=>i.cat===c).length}</small></button>`).join("")+
     `<button class="chip doc" aria-pressed="${cur===DOC}" data-c="${DOC}">📚 ${DOC}<small>${nDoc}</small></button>`+
     `<button class="chip stk" aria-pressed="${cur===STK}" data-c="${STK}">📦 ${STK}<small>${nStk}</small></button>`+
+    (nProp?`<button class="chip prop" aria-pressed="${cur===PROP}" data-c="${PROP}">📸 ${PROP}<small>${nProp}</small></button>`:"")+
     (nInc?`<button class="chip inc" aria-pressed="${cur===INC}" data-c="${INC}">⚠ ${INC}<small>${nInc}</small></button>`:"")+
     (nObs?`<button class="chip obs" aria-pressed="${cur===OBS}" data-c="${OBS}">${OBS}<small>${nObs}</small></button>`:"");
   const inCat=hasMarca(cur)?act.filter(i=>i.cat===cur):[],ms=marcasIn(inCat);if(!ms.includes(marca))marca="Todas";
@@ -153,7 +156,8 @@ $("#chips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b
 $("#mchips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;marca=b.dataset.m;chips();render();});
 $("#q").addEventListener("input",()=>{notFound=null;recog=null;render();});
 
-function render(){
+function render(){renderList();if(fichaCode)renderFicha();}
+function renderList(){
   if(recog){renderRecog();return;}
   if(notFound&&$("#q").value===notFound.code){
     $("#list").innerHTML=`<div class="nf"><b>${esc(notFound.code)}</b><p class="sub">Este código no está en ningún apartado.</p><button class="btn-l primary" id="nfAdd">Dar de alta con esta foto</button></div>`;
@@ -162,18 +166,21 @@ function render(){
   if(q){const vis=items.filter(i=>(cur===OBS?i.obsoleta:!i.obsoleta)&&match(i));
     if(!vis.length){$("#list").innerHTML=`<p class="empty">Ninguna referencia coincide con «${esc(qRaw)}».</p>`;return;}
     $("#list").innerHTML=SECS.flatMap(s=>catsOf(s.n).map(c=>[s.n,c])).filter(([s,c])=>vis.some(i=>inS(i,s)&&i.cat===c))
-      .map(([s,c])=>`<section><h2>${esc(s)} · ${esc(c)}</h2><div class="grid">${vis.filter(i=>inS(i,s)&&i.cat===c).map(x=>card(x)).join("")}</div></section>`).join("");return;}
+      .map(([s,c])=>`<section><h2>${esc(s)} · ${esc(c)}</h2>${grid(vis.filter(i=>inS(i,s)&&i.cat===c))}</section>`).join("");return;}
   const inSec=items.filter(i=>inS(i,sec));
   if(cur===OBS){const own=inSec.filter(i=>i.obsoleta&&i.sec===sec),oth=SECS.filter(x=>x.n!==sec);
     const mv=!own.length?"":moveAsk?`<p class="note" style="margin:0 0 12px"><b>¿Pasar las ${own.length} obsoletas de ${esc(sec)} a ${esc(moveAsk)}?</b> Siguen siendo obsoletas. <button class="btn-s" data-mv-no>No</button> <button class="btn-s yes" data-mv-yes="${esc(moveAsk)}">Sí, pasarlas</button></p>`
       :`<p style="margin:0 0 12px;display:flex;gap:8px;flex-wrap:wrap">${oth.map(x=>`<button class="btn-s" data-mv="${esc(x.n)}">➜ Pasar todas a ${esc(x.n)}</button>`).join("")}</p>`;
-    $("#list").innerHTML=mv+`<section><h2>Referencias obsoletas · no salen en el catálogo</h2><div class="grid">${inSec.filter(i=>i.obsoleta).map(x=>card(x)).join("")}</div></section>`;return;}
+    $("#list").innerHTML=mv+`<section><h2>Referencias obsoletas · no salen en el catálogo</h2>${grid(inSec.filter(i=>i.obsoleta))}</section>`;return;}
   if(cur===DOC){const L=inSec.filter(i=>!i.obsoleta&&docsOf(i.code).length);
     $("#list").innerHTML=`<p class="note" style="margin:0 0 12px">${L.length?`<b>${L.length}</b> referencia${L.length===1?"":"s"} con manuales, guías o vídeos.`:"Todavía no hay documentación en este apartado."} Para añadir más: «✏ Editar» en la ficha → 📚 Documentación.</p>`+
-      catsOf(sec).filter(c=>L.some(i=>i.cat===c)).map(c=>`<section><h2>${esc(c)}</h2><div class="grid">${L.filter(i=>i.cat===c).map(x=>card(x)).join("")}</div></section>`).join("");return;}
+      catsOf(sec).filter(c=>L.some(i=>i.cat===c)).map(c=>`<section><h2>${esc(c)}</h2>${grid(L.filter(i=>i.cat===c))}</section>`).join("");return;}
+  if(cur===PROP){const L=inSec.filter(i=>!i.obsoleta&&i.prop.length);
+    $("#list").innerHTML=`<p class="note" style="margin:0 0 12px"><b>${L.length}</b> referencia${L.length===1?"":"s"} con foto oficial del fabricante por confirmar. Toca cada una y elige «✓ Usar esta foto» o «✕ Descartar».</p>`+
+      catsOf(sec).filter(c=>L.some(i=>i.cat===c)).map(c=>`<section><h2>${esc(c)}</h2>${grid(L.filter(i=>i.cat===c))}</section>`).join("");return;}
   if(cur===STK){const L=inSec.filter(i=>!i.obsoleta&&hasStock(i));
     $("#list").innerHTML=`<p class="note" style="margin:0 0 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span>${L.length?`<b>${L.length}</b> referencia${L.length===1?"":"s"} con stock de seguridad fijado.`:"Ninguna referencia tiene todavía stock de seguridad. Ponlo en «✏ Editar» de cada ficha."}</span>${L.length?`<button class="btn-s" id="stkExp">⬇ Exportar lista</button>`:""}</p>`+
-      catsOf(sec).filter(c=>L.some(i=>i.cat===c)).map(c=>`<section><h2>${esc(c)}</h2><div class="grid">${L.filter(i=>i.cat===c).map(x=>card(x)).join("")}</div></section>`).join("");
+      catsOf(sec).filter(c=>L.some(i=>i.cat===c)).map(c=>`<section><h2>${esc(c)}</h2>${grid(L.filter(i=>i.cat===c))}</section>`).join("");
     const b=$("#stkExp");if(b)b.onclick=()=>openExp();return;}
   if(cur===INC){const L=inSec.filter(incompleta),n=k=>L.filter(i=>faltas(i).includes(k)).length;
     $("#list").innerHTML=`<p class="note" style="margin:0 0 12px">Referencias incompletas: <b>${n("foto de etiqueta")}</b> sin foto de etiqueta, <b>${n("foto de producto")}</b> sin foto de producto y <b>${n("descripción")}</b> sin descripción. Usa «Hacer foto» o «✏ Editar» para completarlas.</p>`+
@@ -215,6 +222,47 @@ function card(i,ex){
       <div class="foot">${foot}</div>
     </div></article>`;}
 
+/* ---------- lista (una foto por referencia) y ficha ----------
+   En la lista sale la foto oficial del fabricante; si no hay, la de producto (y si no, la de etiqueta).
+   Al tocar la referencia se abre la ficha con todas sus fotos. Para elegir y exportar sigue la tarjeta completa. */
+const listPic=i=>i.ofi[0]||i.prod.find(p=>p.from==="web")||i.prod[0]||i.photos[0]||null;
+const grid=L=>selMode?`<div class="grid">${L.map(i=>card(i)).join("")}</div>`:`<div class="grid gs">${L.map(cardS).join("")}</div>`;
+function cardS(i){const p=listPic(i),m=marcaOf(i),nd=docsOf(i.code).length,web=p&&(p===i.ofi[0]||p.from==="web");
+  return `<article class="card cs${i.obsoleta?" is-obs":""}" data-open="${esc(i.code)}" tabindex="0" aria-label="Ver la ficha de ${esc(i.desc)}">
+    <div class="csph">${p?`<img src="${p.src}" alt="" loading="lazy" class="${web?"web ":""}${p.rot?"r"+p.rot:""}">`:`<span>Sin foto</span>`}${i.prop.length?`<span class="csnew">📸 Por confirmar</span>`:""}</div>
+    <div class="body"><b class="cscode">${isSinRef(i.code)?"Sin código":esc(i.code)}</b><p class="desc">${esc(i.desc)}</p>
+      <div class="tags">${i.nueva?`<span class="tag new">Nueva</span>`:""}${i.obsoleta?`<span class="tag obs">Obsoleta</span>`:""}${m&&m!==OTRAS?`<span class="tag">${esc(m)}</span>`:""}${i.medida?`<span class="tag">${esc(i.medida)}</span>`:""}${i.canal?`<span class="tag">${esc(i.canal)}</span>`:""}${nd?`<span class="tag">📚 ${nd}</span>`:""}</div></div></article>`;}
+let fichaCode=null;
+const fichaBox=document.createElement("div");fichaBox.id="ficha";fichaBox.hidden=true;fichaBox.setAttribute("role","dialog");fichaBox.setAttribute("aria-modal","true");document.body.appendChild(fichaBox);
+const host=u=>{try{return new URL(u).hostname.replace(/^www\./,"");}catch(_){return "la web del fabricante";}};
+/* La ficha entra en el historial: el botón Atrás del móvil la cierra. */
+function openFicha(code){const was=!!fichaCode;fichaCode=code;confirmCode=null;renderFicha();fichaBox.hidden=false;fichaBox.scrollTop=0;if(!was)try{history.pushState({ficha:1},"");}catch(_){}}
+function closeFicha(){fichaCode=null;fichaBox.hidden=true;fichaBox.innerHTML="";}
+window.addEventListener("popstate",()=>{if(fichaCode)closeFicha();});
+function renderFicha(){const i=itemOf(fichaCode);if(!i){closeFicha();return;}
+  const of=i.ofi[0],pr=i.prop[0],src=x=>x.page?` <a class="linkout" href="${esc(x.page)}" target="_blank" rel="noopener">${esc(host(x.page))}</a>`:"";
+  const prop=pr?`<div class="fofi prop"><h3>📸 Foto del fabricante por confirmar</h3><img src="${pr.src}" alt="Foto propuesta para ${esc(i.desc)}">
+      <p class="note">Sacada de${src(pr)||" la web del fabricante"}. Si es esta pieza, será la foto que sale en la lista.</p>
+      <div class="acts2"><button class="btn-l" data-ofi-no="${esc(pr.id)}">✕ Descartar</button><button class="btn-l primary" data-ofi-ok="${esc(pr.id)}">✓ Usar esta foto</button></div></div>`:"";
+  const ofi=of?`<div class="fofi"><img src="${of.src}" alt="Foto oficial de ${esc(i.desc)}"><p class="note">Foto oficial del fabricante${of.page?" ·"+src(of):""}</p></div>`:"";
+  fichaBox.innerHTML=`<div class="fbar"><button class="btn-s" data-fclose>‹ Volver</button><b>${esc(secsOf(i).join(" + "))} · ${esc(i.cat)}</b></div><div class="fbody">${prop}${card(i)}${ofi}</div>`;
+  /* En la ficha, la foto del fabricante a buen tamaño (en la lista basta la miniatura). */
+  const big=pr||of,code=i.code;if(big)fullSrc(big).then(u=>{const im=fichaBox.querySelector(".fofi img");if(im&&fichaCode===code)im.src=u;}).catch(()=>{});}
+async function decideOfi(id,ok){const f=fotos.find(x=>x.id===id);if(!f)return;const code=f.code;
+  try{await api("setOficial",id,ok);
+    if(ok){fotos=fotos.filter(x=>!(x.code===code&&x.tipo==="Oficial"));f.tipo="Oficial";}else fotos=fotos.filter(x=>x.id!==id);
+    toast(ok?"Foto oficial guardada. Ya sale en la lista.":"Foto descartada.");}
+  catch(e){toast(errMsg(e),5000);return;}
+  merge();
+  /* Repasando «Fotos por confirmar»: pasa sola a la siguiente. */
+  const next=cur===PROP&&items.find(x=>x.prop.length&&!x.obsoleta&&inS(x,sec));if(next){fichaCode=next.code;renderFicha();fichaBox.scrollTop=0;}}
+fichaBox.addEventListener("click",e=>{const t=e.target;
+  if(t.closest("[data-fclose]")){if(history.state&&history.state.ficha)history.back();else closeFicha();return;}
+  const ok=t.closest("[data-ofi-ok]");if(ok){ok.disabled=true;decideOfi(ok.dataset.ofiOk,true);return;}
+  const no=t.closest("[data-ofi-no]");if(no){no.disabled=true;decideOfi(no.dataset.ofiNo,false);return;}
+  listClick(e);});
+fichaBox.addEventListener("change",listChange);
+
 /* ---------- acciones del catálogo ---------- */
 const CROP_JS="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js";
 function cropPhoto(file){return new Promise(async res=>{
@@ -234,8 +282,12 @@ async function addPhoto(code,kind,file,noCrop){if(!noCrop){file=await cropPhoto(
     fotos.push(f);toast("Foto guardada.");}
   catch(e){toast(errMsg(e),5000);}
   finally{busy.delete(key);merge();}}
-$("#list").addEventListener("change",async e=>{const f=e.target;if(f.type!=="file"||!f.files.length)return;const fs=[...f.files],c=f.dataset.code,k=f.dataset.k;f.value="";for(const x of fs)await addPhoto(c,k,x);});
-$("#list").addEventListener("click",async e=>{const t=e.target;
+async function listChange(e){const f=e.target;if(f.type!=="file"||!f.files.length)return;const fs=[...f.files],c=f.dataset.code,k=f.dataset.k;f.value="";for(const x of fs)await addPhoto(c,k,x);}
+$("#list").addEventListener("change",listChange);
+$("#list").addEventListener("click",listClick);
+$("#list").addEventListener("keydown",e=>{const o=e.target.closest&&e.target.closest("[data-open]");if(o&&(e.key==="Enter"||e.key===" ")&&e.target===o){e.preventDefault();openFicha(o.dataset.open);}});
+async function listClick(e){const t=e.target;
+  const op=t.closest("[data-open]");if(op&&!t.closest("a,button,label,input")){openFicha(op.dataset.open);return;}
   const cp=t.closest("[data-copy]");if(cp){const v=cp.dataset.copy;try{await navigator.clipboard.writeText(v);cp.textContent="Copiado";setTimeout(()=>cp.textContent="Copiar",1400);}
     catch(_){const r=document.createRange();r.selectNodeContents(cp.closest(".code").querySelector("b"));const s=getSelection();s.removeAllRanges();s.addRange(r);}return;}
   const sb=t.closest("[data-sel]");if(sb){const c=sb.dataset.sel,on=!selSet.has(c);on?selSet.add(c):selSet.delete(c);sb.setAttribute("aria-pressed",String(on));sb.closest(".card").classList.toggle("picked",on);updSel();return;}
@@ -254,7 +306,7 @@ $("#list").addEventListener("click",async e=>{const t=e.target;
   const pk=t.closest("[data-pick]");if(pk&&recog&&recog.file){const c=pk.dataset.pick,f=recog.file,it=itemOf(c);recog=null;if(it)sec=it.sec;$("#q").value=c;chips();addPhoto(c,"p",f);window.scrollTo({top:0});return;}
   if(t.closest("[data-rec-close]")){recog=null;render();return;}
   if(t.closest("[data-rec-add]")&&recog){const f=recog.file;recog=null;render();openAdd(undefined,undefined,f);return;}
-  const ph=t.closest("button.ph");if(ph)openLb(itemOf(ph.dataset.code),ph.dataset.k);});
+  const ph=t.closest("button.ph");if(ph)openLb(itemOf(ph.dataset.code),ph.dataset.k);}
 
 /* ---------- nueva referencia ---------- */
 /* Dos huecos de foto en la ficha; cada uno lleva su tipo (e = etiqueta, p = producto), que se puede cambiar con su casilla. */
@@ -279,7 +331,7 @@ function openEdit(code){const it=itemOf(code);if(!it)return;openAdd();editCode=c
   const mo=marcaOf(it);$("#fMarca").value=mo===OTRAS?(it.marca?OTRA:""):mo;syncMarca();
   $("#fAuto").textContent="Puedes añadir fotos nuevas aquí; se suman a las que ya tiene.";renderDocBox();(it.medida?$("#fMod"):$("#fMed")).focus();}
 function openAdd(code,file,prodFile){editCode=null;$("#fTitle").textContent="Nueva referencia";$("#fCode").disabled=false;$("#fCode").placeholder="48009000000";$("#fNoCodeL").hidden=false;$("#addForm").reset();slots[0]={f:null,k:"e"};slots[1]={f:null,k:"p"};SLOT_LAB.forEach(id=>$("#"+id).querySelector("img")?.remove());
-  $("#fErr").textContent="";$("#fSec").value=sec===ALL?SECS[0].n:sec;fillAlso([]);fillCats();$("#fCat").value=cur!=="Todas"&&cur!==OBS&&cur!==INC&&cur!==STK&&cur!==DOC?cur:"";syncCatSel();
+  $("#fErr").textContent="";$("#fSec").value=sec===ALL?SECS[0].n:sec;fillAlso([]);fillCats();$("#fCat").value=cur!=="Todas"&&cur!==OBS&&cur!==INC&&cur!==STK&&cur!==DOC&&cur!==PROP?cur:"";syncCatSel();
   $("#fMarca").value=MARCAS.includes(marca)?marca:"";syncMarca();
   secTouched=false;$("#fAuto").textContent="Consejo: haz primero la foto de la etiqueta y se rellenan solos el código y los datos.";
   if(typeof code==="string")$("#fCode").value=code;if(file instanceof Blob){slots[0].f=file;preview("fEtqL",file);fillFromLabel(file);}if(prodFile instanceof Blob){slots[1].f=prodFile;preview("fProdL",prodFile);}
@@ -369,7 +421,7 @@ async function readLabel(file){let code=null;try{code=await readBarcode(file);}c
     try{const r=await api("aiLabel",await blobB64(await shrink(file,2000,0.88)));code=pick(r&&r.codigo);}catch(e){toast(errMsg(e),5000);}}
   return code;}
 function showCode(code,file){const it=itemOf(code);$("#q").value=code;recog=null;window.scrollTo({top:0});
-  if(it){notFound=null;sec=it.sec;cur=it.obsoleta?OBS:"Todas";chips();render();toast(`${code} · ${it.desc}${it.obsoleta?" (obsoleta)":""}`,4000);}
+  if(it){notFound=null;sec=it.sec;cur=it.obsoleta?OBS:"Todas";chips();render();openFicha(code);toast(`${code} · ${it.desc}${it.obsoleta?" (obsoleta)":""}`,4000);}
   else{notFound={code,file};cur="Todas";chips();render();}}
 $("#scanFile").addEventListener("change",async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;const L=$("#scanL");L.classList.add("busy");toast("Leyendo el código de barras…",60000);
   const code=await readLabel(f);L.classList.remove("busy");
@@ -735,7 +787,7 @@ function renderWhat(val){const obs=$("#expObs").checked,it=itemOf(expOne);
 const curWhat=()=>(document.querySelector("input[name=expWhat]:checked")||{}).value||"mix";
 function updCount(){const n=scopeList(curWhat(),$("#expObs").checked).length;$("#expCount").textContent=n?`Se exportarán ${n} referencia${n===1?"":"s"}.`:"Marca al menos un subgrupo o una referencia.";$("#expGo").disabled=!n;}
 function openExp(one){expOne=one||null;$("#expMsg").textContent="";
-  if(!one&&!expCats.size&&view==="cat"&&cur!=="Todas"&&cur!==OBS&&cur!==INC&&cur!==STK&&cur!==DOC)(sec===ALL?SECS.map(x=>x.n):[sec]).forEach(x=>expCats.add(x+"|"+cur+(marca!=="Todas"?"|"+marca:"")));
+  if(!one&&!expCats.size&&view==="cat"&&cur!=="Todas"&&cur!==OBS&&cur!==INC&&cur!==STK&&cur!==DOC&&cur!==PROP)(sec===ALL?SECS.map(x=>x.n):[sec]).forEach(x=>expCats.add(x+"|"+cur+(marca!=="Todas"?"|"+marca:"")));
   renderWhat();let fm=null,sz=null;try{fm=localStorage.getItem("cl_expFmt");sz=localStorage.getItem("cl_expSize");}catch(_){}
   const setR=(n,v)=>{const r=v&&document.querySelector(`input[name=${n}][value="${v}"]`);if(r)r.checked=true;};setR("expFmt",fm||(expOne?"png":"tabla"));setR("expSize",sz);updFmt();
   if(!$("#expMailTo").value)$("#expMailTo").value="";$("#expSheet").hidden=false;}
@@ -884,7 +936,7 @@ async function expPng(list,name,allPh,msg){
   for(const i of list){msg.textContent=`Preparando las imágenes… ${++n} de ${list.length}`;zip.file(safeName(`${i.code} ${i.desc}`)+".png",await cardPng(i,allPh));}
   return {blob:await zip.generateAsync({type:"blob"}),name:name+".zip",mime:"application/zip"};}
 
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){$("#lb").hidden=true;$("#addSheet").hidden=true;$("#expSheet").hidden=true;}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(fichaCode&&$("#lb").hidden&&$("#addSheet").hidden&&$("#expSheet").hidden){if(history.state&&history.state.ficha)history.back();else closeFicha();}$("#lb").hidden=true;$("#addSheet").hidden=true;$("#expSheet").hidden=true;}
   if($("#lb").hidden)return;if(e.key==="ArrowRight")$("#lbNext").click();else if(e.key==="ArrowLeft")$("#lbPrev").click();});
 start();
 
