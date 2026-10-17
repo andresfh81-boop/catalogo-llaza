@@ -166,8 +166,8 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
       <option value="stl100">STL100 · 2 salidas</option>
     </select></label>
     <label class="chk"><input type="checkbox" id="indep"> Lamas y perímetro con encendido independiente</label>
-    <label>Consumo de la tira (W/m)<input type="number" id="wm" min="1" max="30" step="0.1"></label>
-    <p class="hint">Pon el consumo de la ficha de la tira; con él se comprueba la carga de cada salida.</p>
+    <div class="row"><label>Tira blanca (W/m)<input type="number" id="wm" min="1" max="30" step="0.1"></label><label>Tira RGB (W/m)<input type="number" id="wmRGB" min="1" max="30" step="0.1"></label></div>
+    <p class="hint">Consumo de la ficha de cada tira. Con él se calculan los vatios y la carga de cada salida. Motor: 3,6 A a 24 V.</p>
   </fieldset>
   <fieldset>
     <legend>Tomas en pilar</legend>
@@ -201,8 +201,14 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
   </section>
 
   <section class="sheet">
+    <div class="hd"><h2>Consumo</h2><span class="tag" id="sumW"></span></div>
+    <div class="bd scroll"><table id="consumo"></table></div>
+    <div class="bd" style="padding-top:0"><p class="hint">Potencia en 24 V DC: motor 3,6 A × 24 V y tiras según su W/m. En 230 V se estima con un rendimiento de fuente del 90 %. No incluye la calefacción del sensor de lluvia MT-R ni las tomas.</p></div>
+  </section>
+
+  <section class="sheet">
     <div class="hd"><h2>Planta y tiras LED</h2><span class="tag">Hoja 2</span></div>
-    <div class="bd"><div class="plantas" id="planta"></div><p class="hint" style="margin-top:8px">Cada módulo por separado, orientado como en el plano. Cuadro naranja = centralita · M = motor · flecha = caída de agua. Una tira por lado; las de la esquina contraria van con alargo.</p></div>
+    <div class="bd"><div class="plantas" id="planta"></div><p class="hint" style="margin-top:8px">Cada módulo por separado, orientado como en el plano. Cuadro naranja = centralita · M = motor · flecha = caída de agua. Cada lado con el nombre de su viga (del color de su tira) y los pilares con su número, como en el plano.</p></div>
     <div class="bd scroll" style="padding-top:0"><div id="tiras"></div></div>
   </section>
 
@@ -276,13 +282,13 @@ const EMISORES={nexta:["hoblo6","hobloMF","eco1","pop"],teleco_eu:["noonEU"],tel
 const LADOS_ALL={sup:true,inf:true,izq:true,der:true};
 /* Ejemplo: plano de fabricación de la obra 54007372 (7380 × 8640, inglete/mixta, 24-07-2026). */
 const EJEMPLO={obra:"54007372 · 7380 × 8640 inglete/mixta",of:"54007372",alto:2.5,sistema:"nexta",emisor:"hoblo6",viento:true,lluvia:true,
-  periProd:"rollo",ledCentral:"tkl",indep:true,wm:10,schuko:0,usb:0,
+  periProd:"rollo",ledCentral:"tkl",indep:true,wm:10,wmRGB:12,schuko:0,usb:0,
   modulos:[
-    {nombre:"Módulo 1",A:4.06,P:6.00,motor:"der",cent:"id",aloj:"viga",ref:"V2-4",luz:"w3000",lados:{...LADOS_ALL},lamasN:0},
-    {nombre:"Módulo 2",A:2.68,P:2.64,motor:"der",cent:"sd",aloj:"viga",ref:"V12-1",luz:"w3000",lados:{...LADOS_ALL},lamasN:0},
-    {nombre:"Módulo 3",A:4.00,P:2.64,motor:"der",cent:"si",aloj:"viga",ref:"V11-12",luz:"w3000",lados:{...LADOS_ALL},lamasN:0}
+    {nombre:"Módulo 1",A:4.06,P:6.00,motor:"der",cent:"id",aloj:"viga",ref:"V2-4",pil:{si:"5",sd:"1",id:"2",ii:"4"},vig:{},luz:"w3000",lados:{...LADOS_ALL},lamasN:0},
+    {nombre:"Módulo 2",A:2.68,P:2.64,motor:"der",cent:"sd",aloj:"viga",ref:"V12-1",pil:{si:"12",sd:"7",id:"8",ii:"9"},vig:{sup:"V12-1",inf:"V8-10"},luz:"w3000",lados:{...LADOS_ALL},lamasN:0},
+    {nombre:"Módulo 3",A:4.00,P:2.64,motor:"der",cent:"si",aloj:"viga",ref:"V11-12",pil:{si:"11",sd:"12",id:"9",ii:"10"},vig:{der:"V9-12",inf:"V8-10"},luz:"w3000",lados:{...LADOS_ALL},lamasN:0}
   ]};
-const NUEVO=n=>({nombre:"Módulo "+n,A:4,P:4,motor:"der",cent:"si",aloj:"viga",ref:"",luz:"w3000",lados:{...LADOS_ALL},lamasN:0});
+const NUEVO=n=>({nombre:"Módulo "+n,A:4,P:4,motor:"der",cent:"si",aloj:"viga",ref:"",pil:{si:"",sd:"",id:"",ii:""},vig:{},luz:"w3000",lados:{...LADOS_ALL},lamasN:0});
 const KEY="esquema-elya-v2";
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -291,7 +297,9 @@ const w0=n=>Math.round(n)+" W";
 const num=(v,d)=>{const n=parseFloat(v);return isFinite(n)&&n>0?n:d;};
 
 /* ---------- formulario ---------- */
-const FIELDS=["obra","of","alto","sistema","emisor","viento","lluvia","periProd","ledCentral","indep","wm","schuko","usb"];
+const FIELDS=["obra","of","alto","sistema","emisor","viento","lluvia","periProd","ledCentral","indep","wm","wmRGB","schuko","usb"];
+/* Motor lineal C-100 TM: 3,6 A a 24 V DC (dato SAT). */
+const MOTOR_W=3.6*24;
 const ESQ={si:"Sup. izq.",sd:"Sup. der.",ii:"Inf. izq.",id:"Inf. der."};
 const LUZ={none:"Sin tira",w3000:"Blanco cálido 3000 K",w4000:"Blanco neutro 4000 K",rgb:"RGB"};
 function modCard(m,i){
@@ -302,6 +310,12 @@ function modCard(m,i){
   <div class="row"><label>Ancho A (m)<input type="number" id="m${i}_A" step="0.01" min="1" max="6" value="${m.A}"></label><label>Salida P (m)<input type="number" id="m${i}_P" step="0.01" min="1" max="8" value="${m.P}"></label></div>
   <div class="row"><label>Motor / desagüe<select id="m${i}_motor">${opt({izq:"Lado izq.",der:"Lado der."},m.motor)}</select></label><label>Centralita (esquina)<select id="m${i}_cent">${opt(ESQ,m.cent)}</select></label></div>
   <div class="row"><label>Alojada en<select id="m${i}_aloj">${opt({viga:"Viga",pilar:"Pilar"},m.aloj||"viga")}</select></label><label>Nº viga / pilar<input type="text" id="m${i}_ref" value="${esc(m.ref||"")}" placeholder="V2-4 o 3"></label></div>
+  <div class="tag">Pilares (nº del plano)</div>
+  <div class="row"><input type="text" id="m${i}_p_si" value="${esc(m.pil.si)}" placeholder="sup. izq." aria-label="Pilar sup. izq."><input type="text" id="m${i}_p_sd" value="${esc(m.pil.sd)}" placeholder="sup. der." aria-label="Pilar sup. der."></div>
+  <div class="row"><input type="text" id="m${i}_p_ii" value="${esc(m.pil.ii)}" placeholder="inf. izq." aria-label="Pilar inf. izq."><input type="text" id="m${i}_p_id" value="${esc(m.pil.id)}" placeholder="inf. der." aria-label="Pilar inf. der."></div>
+  <div class="tag">Vigas (vacío = V + pilares de sus extremos)</div>
+  <div class="row"><label>Sup.<input type="text" id="m${i}_v_sup" value="${esc(m.vig.sup||"")}" placeholder="${esc(vigaAuto(m,"sup"))}"></label><label>Inf.<input type="text" id="m${i}_v_inf" value="${esc(m.vig.inf||"")}" placeholder="${esc(vigaAuto(m,"inf"))}"></label></div>
+  <div class="row"><label>Izq.<input type="text" id="m${i}_v_izq" value="${esc(m.vig.izq||"")}" placeholder="${esc(vigaAuto(m,"izq"))}"></label><label>Der.<input type="text" id="m${i}_v_der" value="${esc(m.vig.der||"")}" placeholder="${esc(vigaAuto(m,"der"))}"></label></div>
   <label>Tira perimetral<select id="m${i}_luz">${opt(LUZ,m.luz)}</select></label>
   <div class="lados">${lado("sup","Lado sup.")}${lado("inf","Lado inf.")}${lado("izq","Lado izq.")}${lado("der","Lado der.")}</div>
   <label>Lamas con LED (blanco cálido)<input type="number" id="m${i}_lamasN" min="0" max="40" step="1" value="${m.lamasN}"></label>
@@ -311,7 +325,9 @@ function readMods(){
   const out=[];
   for(let i=0;$(`m${i}_nombre`);i++){
     const g=k=>$(`m${i}_${k}`);
-    out.push({nombre:g("nombre").value||("Módulo "+(i+1)),A:num(g("A").value,4),P:num(g("P").value,4),motor:g("motor").value,cent:g("cent").value,aloj:g("aloj").value,ref:g("ref").value.trim(),luz:g("luz").value,
+    out.push({nombre:g("nombre").value||("Módulo "+(i+1)),A:num(g("A").value,4),P:num(g("P").value,4),motor:g("motor").value,cent:g("cent").value,aloj:g("aloj").value,ref:g("ref").value.trim(),
+      pil:{si:g("p_si").value.trim(),sd:g("p_sd").value.trim(),id:g("p_id").value.trim(),ii:g("p_ii").value.trim()},
+      vig:{sup:g("v_sup").value.trim(),inf:g("v_inf").value.trim(),izq:g("v_izq").value.trim(),der:g("v_der").value.trim()},luz:g("luz").value,
       lados:{sup:g("sup").checked,inf:g("inf").checked,izq:g("izq").checked,der:g("der").checked},lamasN:Math.max(0,Math.round(parseFloat(g("lamasN").value)||0))});
   }
   return out;
@@ -319,7 +335,7 @@ function readMods(){
 function readForm(){
   const o={};
   FIELDS.forEach(k=>{const el=$(k);o[k]=el.type==="checkbox"?el.checked:el.type==="number"?parseFloat(el.value):el.value;});
-  o.alto=num(o.alto,2.5);o.wm=num(o.wm,10);
+  o.alto=num(o.alto,2.5);o.wm=num(o.wm,10);o.wmRGB=num(o.wmRGB,12);
   ["schuko","usb"].forEach(k=>{o[k]=Math.max(0,Math.round(isFinite(o[k])?o[k]:0));});
   o.modulos=readMods();
   return o;
@@ -356,6 +372,10 @@ const SIDES=["izq","sup","der","inf"],CORN=["ii","si","sd","id"]; /* el lado k v
 const CN={ii:"esquina inf. izq.",si:"esquina sup. izq.",sd:"esquina sup. der.",id:"esquina inf. der."};
 const SN={izq:"izq.",sup:"sup.",der:"der.",inf:"inf."};
 const sideLen=(m,sd)=>sd==="izq"||sd==="der"?m.P:m.A;
+/* Extremos de cada lado (esquinas): izq ii→si · sup si→sd · der sd→id · inf id→ii. Viga = V + pilares de los extremos, salvo que el plano diga otra. */
+const EXT={izq:["ii","si"],sup:["si","sd"],der:["sd","id"],inf:["id","ii"]};
+function vigaAuto(m,sd){const p=m.pil||{},[a,b]=EXT[sd];return p[a]&&p[b]?`V${p[a]}-${p[b]}`:"lado "+SN[sd];}
+const vigaDe=(m,sd)=>(m.vig&&m.vig[sd])||vigaAuto(m,sd);
 function repartoModulo(m){
   const k0=CORN.indexOf(m.cent);
   const grupos=[
@@ -363,7 +383,7 @@ function repartoModulo(m){
     {g:"lejos",corner:CORN[(k0+2)%4],sides:[SIDES[(k0+1)%4],SIDES[(k0+2)%4]]}
   ];
   const out=[];let n=0;
-  grupos.forEach(G=>G.sides.filter(sd=>m.lados[sd]).forEach(sd=>out.push({n:"ABCD"[n++],sides:[sd],len:sideLen(m,sd),g:G.g,corner:G.corner})));
+  grupos.forEach(G=>G.sides.filter(sd=>m.lados[sd]).forEach(sd=>out.push({n:"ABCD"[n++],viga:vigaDe(m,sd),sides:[sd],len:sideLen(m,sd),g:G.g,corner:G.corner})));
   return out;
 }
 /* Alargos para llegar a una distancia (m): el más corto que llegue; si no hay, se empalman. */
@@ -389,7 +409,7 @@ function calcular(cfg){
   function splitters(o,rgbx,tag){
     o.forEach(x=>{const k=x.items.length;if(k===2)add(rgbx?"y3RGB":"y3",1,`${tag} OUT${x.s}`);else if(k>2)add(rgbx?"sp4RGB":"sp4W",Math.ceil((k-1)/3),`${tag} OUT${x.s}`,true);});
   }
-  function ledRight(o){return o.filter(x=>x.items.length).map(x=>({kind:"led",t:x.items.map(i=>i.n).join(" + "),s:`${m2(x.items.reduce((a,i)=>a+i.len,0))} m · ${w0(x.W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`}));}
+  function ledRight(o){return o.filter(x=>x.items.length).map(x=>({kind:"led",W:x.W,t:x.items.map(i=>i.n).join(" + "),s:`${m2(x.items.reduce((a,i)=>a+i.len,0))} m · ${w0(x.W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`}));}
 
   mods.forEach((m,mi)=>{
     const tag="M"+(mi+1),primero=mi===0;
@@ -407,7 +427,7 @@ function calcular(cfg){
 
     /* --- control del motor --- */
     if(sis==="nexta"){
-      const right=[{kind:"motor",t:`Motor ${tag}`,s:`${C.motor[0]} · 24 V DC`,wires:[["p","azul +"],["m","marrón −"]],pin:"Salida motor"}];
+      const right=[{kind:"motor",W:MOTOR_W,t:`Motor ${tag}`,s:`${C.motor[0]} · 24 V DC`,wires:[["p","azul +"],["m","marrón −"]],pin:"Salida motor"}];
       if(primero&&cfg.viento)right.push({kind:"sensor",t:"Anemómetro MT-W",s:C.mtw[0],wires:[["s",""]],pin:"Entrada sensores"});
       if(primero&&cfg.lluvia)right.push({kind:"sensor",t:"Sensor lluvia MT-R",s:C.mtr[0]+" · 230 V",wires:[["s",""]],pin:"Entrada sensores"});
       right.push({kind:"sensor",t:"Sonda de temperatura",s:"incluida en la TKM",wires:[["s",""]],pin:"Sonda"});
@@ -415,14 +435,14 @@ function calcular(cfg){
       dev.push({id:"tkm"+mi,t:`${tag} · TKM100 ONE · ${loc}`,code:C.tkm[0],model:C.tkm[2],feed:"230",right});
       add("tkm",1);
     }else if(sis==="teleco_eu"||ul){
-      const k=ul?"telUL":"telEU",right=[{kind:"motor",t:`Motor ${tag}`,s:`${C.motor[0]} · 24 V DC`,wires:[["p","+"],["m","−"]],pin:"M1"}];
+      const k=ul?"telUL":"telEU",right=[{kind:"motor",W:MOTOR_W,t:`Motor ${tag}`,s:`${C.motor[0]} · 24 V DC`,wires:[["p","+"],["m","−"]],pin:"M1"}];
       if(primero&&cfg.lluvia)right.push({kind:"sensor",t:"Sensor lluvia-temp. RAIN105H",s:C.rain[0],wires:[["s",""]],pin:"Sensor"});
       right.push({kind:"radio",t:C[emisor][1],s:C[emisor][0]+" · "+C[emisor][2],wires:[["r",""]],pin:"Radio"});
       dev.push({id:"tel"+mi,t:`${tag} · `+(ul?"Central PLA UL":"Central 2 Mot + LED")+` · ${loc}`,code:C[k][0],model:C[k][2],feed:"230",right});
       add(k,1);
     }else{
       dev.push({id:"som"+mi,t:`${tag} · Pergola io Louver Control · ${loc}`,code:C.somCtrl[0],model:C.somCtrl[2],feed:"230",
-        right:[{kind:"motor",t:`Motor ${tag}`,s:`${C.motor[0]} · 24 V DC`,wires:[["p","+"],["m","−"]],pin:"Actuador"},{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]});
+        right:[{kind:"motor",W:MOTOR_W,t:`Motor ${tag}`,s:`${C.motor[0]} · 24 V DC`,wires:[["p","+"],["m","−"]],pin:"Actuador"},{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]});
       add("somCtrl",1,"",true);
     }
 
@@ -432,9 +452,9 @@ function calcular(cfg){
     const loads=[];
     tiras.forEach(t=>{
       t.prod=rgb?"rgbP6":cfg.periProd==="neon"?(t.len<=4.5?"nP45":"nP6"):(m.luz==="w3000"?(t.len<=5?"rW5":"rW7"):(t.len<=5?"rN5":"rN7"));
-      t.W=t.len*cfg.wm;
-      add(t.prod,1,`${tag} tira ${t.n} ${m2(t.len)} m`);add("tapon",1);
-      if(t.len>maxLen+1e-6)av.push(["bad",`${m.nombre}, tira ${t.n} de ${m2(t.len)} m: el producto más largo es de ${maxLen} m.`]);
+      t.W=t.len*(rgb?cfg.wmRGB:cfg.wm);
+      add(t.prod,1,`${tag} ${t.viga} ${m2(t.len)} m`);add("tapon",1);
+      if(t.len>maxLen+1e-6)av.push(["bad",`${m.nombre}, tira de ${t.viga} (${m2(t.len)} m): el producto más largo es de ${maxLen} m.`]);
     });
     ["cerca","lejos"].forEach(g=>{
       const ts=tiras.filter(t=>t.g===g);if(!ts.length)return;
@@ -443,7 +463,7 @@ function calcular(cfg){
       if(ts.length===2)add(rgb?"y3RGB":"y3",1,`${tag} ${g==="cerca"?"esquina centralita":"esquina contraria"}`);
       const via=`alargo ${al.map(([l])=>m2(l).replace(",00","")+" m").join(" + ")}${al.length>1?" empalmados":""}${ts.length===2?" + cable 3 vías":""}`;
       ts.forEach(t=>t.from=(g==="cerca"?`Centralita (${m.loc})`:CN[t.corner][0].toUpperCase()+CN[t.corner].slice(1))+" · "+via);
-      loads.push({n:ts.map(t=>"Tira "+t.n).join(" + "),W:ts.reduce((a,t)=>a+t.W,0),grp:"peri",g,rgb,len:ts.reduce((a,t)=>a+t.len,0)});
+      loads.push({n:ts.map(t=>t.viga).join(" + "),W:ts.reduce((a,t)=>a+t.W,0),grp:"peri",g,rgb,len:ts.reduce((a,t)=>a+t.len,0)});
     });
     const lamaLen=Math.max(0,m.A-0.17);
     for(let i=0;i<m.lamasN;i++)loads.push({n:`Lama ${i+1}`,W:lamaLen*cfg.wm,grp:"lamas",rgb:false,len:lamaLen});
@@ -478,7 +498,7 @@ function calcular(cfg){
         av.push(["info",`${m.nombre}: la luz blanca va a la salida LED de la central Teleco (${w0(totW(white))}). Comprueba la potencia máxima en su etiqueta.`]);
       }else if(sis==="somfy"){
         const T=totW(white),tr=T<=120?"tr150":"tr200",o=reparte(white,[1]);splitters(o,false,tag);
-        dev.push({id:"tr"+mi,t:`${tag} · Transformador 24 V · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",right:[{kind:"note",t:"24 V DC → receptor io LED",s:w0(T),wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
+        dev.push({id:"tr"+mi,t:`${tag} · Transformador 24 V · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",right:[{kind:"note",W:T,t:"24 V DC → receptor io LED",s:w0(T),wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
         dev.push({id:"sl"+mi,t:`${tag} · Receptor io LED BL · ${loc}`,code:C.somLed[0],model:C.somLed[2],feed:"24",right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})),{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]});
         add(tr,1);add("somLed",1,"",true);
         if(T>160)av.push(["bad",`${m.nombre}: ${w0(T)} de luz, más de lo que da el transformador de 200 W con margen.`]);
@@ -497,7 +517,7 @@ function calcular(cfg){
         add("stick",1);
       }else if(ul){
         const all=[...rgbL,...white],T=totW(all),tr=T<=120?"tr150":"tr200",o=reparte(all,[1]);splitters(o,rgbL.length>0,tag);
-        dev.push({id:"tr"+mi,t:`${tag} · Transformador 24 V · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",right:[{kind:"note",t:"24 V DC → TVLRGBWW",s:w0(T),wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
+        dev.push({id:"tr"+mi,t:`${tag} · Transformador 24 V · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",right:[{kind:"note",W:T,t:"24 V DC → TVLRGBWW",s:w0(T),wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
         dev.push({id:"rgbww"+mi,t:`${tag} · Receptor RGB + blanco · ${loc}`,code:C.rgbww[0],model:C.rgbww[2],feed:"24",right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salidas"})),{kind:"radio",t:C.noonUL[1],s:"916 MHz",wires:[["r",""]],pin:"Radio"}]});
         add("rgbww",1);add(tr,1);
         if(T>160)av.push(["bad",`${m.nombre}: ${w0(T)} de luz, más de lo que da el transformador de 200 W con margen.`]);
@@ -523,6 +543,7 @@ function calcular(cfg){
     if(cfg.usb)av.push(["info","Toma USB: lleva cable de 2 polos macho. Confirma en la etiqueta si va a 230 V o a la línea de 24 V antes de conectarla."]);
   }
   av.push(["info","Línea de 230 V a cada centralita con magnetotérmico y diferencial de 30 mA en el cuadro del cliente. La hace el instalador eléctrico (REBT)."]);
+  dev.forEach(d=>d.W=d.right.reduce((a,it)=>a+(it.W||0),0));
   return {av,bom,dev,plan,outs};
 }
 
@@ -544,7 +565,7 @@ function dibujaUnifilar(cfg,r){
     body+=`<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="3" fill="var(--soft)" stroke="var(--ink)" stroke-width="1.5"/>`;
     body+=`<text x="${bx+12}" y="${by+22}" font-size="13" font-weight="600">${esc(trunc(d.t,32))}</text>`;
     if(d.code)body+=`<text x="${bx+12}" y="${by+40}" font-size="12" class="mono mut">${esc(d.code)}</text>`;
-    body+=`<text x="${bx+12}" y="${by+(d.code?56:40)}" font-size="12" class="mut">${esc(d.model)}</text>`;
+    body+=`<text x="${bx+12}" y="${by+(d.code?56:40)}" font-size="12" class="mut">${esc(trunc(d.model+(d.W?" · "+w0(d.W):""),36))}</text>`;
     const fy=by+18;
     if(d.feed==="230"){branches.push(fy);
       body+=`<line x1="40" y1="${fy}" x2="${bx}" y2="${fy}" stroke="${WC.l}" stroke-width="2"/><line x1="56" y1="${fy+8}" x2="${bx}" y2="${fy+8}" stroke="${WC.n}" stroke-width="2"/>`;
@@ -587,7 +608,7 @@ const trunc=(s,n)=>{s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;};
 /* ---------- dibujo: planta de cada módulo ---------- */
 const TCOL=["var(--t1)","var(--t2)","var(--t3)","var(--t4)"];
 function dibujaModulo(pm,cfg){
-  const {m,tiras}=pm,A=m.A,P=m.P,sc=Math.min(240/A,240/P),w=A*sc,h=P*sc,ox=34,oy=26;
+  const {m,tiras}=pm,A=m.A,P=m.P,sc=Math.min(240/A,240/P),w=A*sc,h=P*sc,ox=44,oy=32;
   const X=x=>ox+x*sc,Y=y=>oy+(P-y)*sc,ins=8;
   const seg={izq:[[0,0],[0,P],[ins,0]],sup:[[0,P],[A,P],[0,ins]],der:[[A,P],[A,0],[-ins,0]],inf:[[A,0],[0,0],[0,-ins]]};
   let s=`<rect x="${X(0)}" y="${Y(P)}" width="${w}" height="${h}" fill="var(--soft)" stroke="var(--ink)" stroke-width="2"/>`;
@@ -603,21 +624,30 @@ function dibujaModulo(pm,cfg){
       const sx=(px,py)=>[X(px)+dx+(sd==="sup"||sd==="inf"?(px===0?ins:-ins):0),Y(py)+dy+(sd==="izq"||sd==="der"?(py===0?-ins:ins):0)];
       const [a1,b1]=sx(x0,y0),[a2,b2]=sx(x1,y1);
       s+=`<line x1="${a1}" y1="${b1}" x2="${a2}" y2="${b2}" stroke="${TCOL[i%4]}" stroke-width="4" stroke-linecap="round"/>`;});
-    const sd=t.sides[Math.floor((t.sides.length-1)/2)],[[x0,y0],[x1,y1]]=seg[sd];
-    const mx=(x0+x1)/2,my=(y0+y1)/2,lx=X(mx)+(sd==="izq"?22:sd==="der"?-22:0),ly=Y(my)+(sd==="sup"?22:sd==="inf"?-22:0);
-    s+=`<circle cx="${lx}" cy="${ly}" r="10" fill="${TCOL[i%4]}"/><text x="${lx}" y="${ly+4}" text-anchor="middle" font-size="11" font-weight="700" style="fill:var(--paper)">${t.n}</text>`;
+  });
+  /* nombre de la viga en cada lado (del color de su tira; gris si no lleva) */
+  SIDES.forEach(sd=>{
+    const [[x0,y0],[x1,y1]]=seg[sd],t=tiras.find(t=>t.sides[0]===sd),i=tiras.indexOf(t),txt=vigaDe(m,sd),wpx=txt.length*6.6+12;
+    const lx=X((x0+x1)/2)+(sd==="izq"?24:sd==="der"?-24:0),ly=Y((y0+y1)/2)+(sd==="sup"?22:sd==="inf"?-22:0);
+    const fill=t?TCOL[i%4]:"var(--paper)",ink=t?"var(--paper)":"var(--muted)";
+    const rot=sd==="izq"||sd==="der"?` transform="rotate(-90 ${lx} ${ly})"`:"";
+    s+=`<g${rot}><rect x="${lx-wpx/2}" y="${ly-9}" width="${wpx}" height="18" rx="9" fill="${fill}" stroke="${t?fill:"var(--line)"}"/><text x="${lx}" y="${ly+4}" text-anchor="middle" font-size="11" font-weight="700" class="mono" style="fill:${ink}">${esc(txt)}</text></g>`;
   });
   /* pilares, centralita y motor */
-  [[0,0],[A,0],[A,P],[0,P]].forEach(([x,y])=>{s+=`<rect x="${X(x)-6}" y="${Y(y)-6}" width="12" height="12" fill="var(--ink)"/>`;});
+  [["ii",0,0],["id",A,0],["sd",A,P],["si",0,P]].forEach(([k,x,y])=>{
+    s+=`<rect x="${X(x)-6}" y="${Y(y)-6}" width="12" height="12" fill="var(--ink)"/>`;
+    const n=(m.pil||{})[k];
+    if(n)s+=`<text x="${X(x)+(x?16:-16)}" y="${Y(y)+(y?-8:18)}" text-anchor="middle" font-size="15" font-weight="700">${esc(n)}</text>`;
+  });
   const cx=m.cent[1]==="i"?0:A,cy=m.cent[0]==="i"?0:P;
   s+=`<rect x="${X(cx)-11}" y="${Y(cy)-11}" width="22" height="22" fill="none" stroke="var(--accent)" stroke-width="3"/>`;
   const mxp=m.motor==="izq"?0:A,myp=Math.min(0.6,P/4);
   s+=`<circle cx="${X(mxp)}" cy="${Y(myp)}" r="10" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/><text x="${X(mxp)}" y="${Y(myp)+4}" text-anchor="middle" font-size="10" font-weight="700">M</text>`;
   /* cotas */
-  s+=`<text x="${X(A/2)}" y="${Y(0)+22}" text-anchor="middle" font-size="12" class="mono">A ${m2(A)}</text>`;
-  s+=`<text x="${X(0)-12}" y="${Y(P/2)}" font-size="12" class="mono" text-anchor="middle" transform="rotate(-90 ${X(0)-12} ${Y(P/2)})">P ${m2(P)}</text>`;
+  s+=`<text x="${X(A/2)}" y="${Y(0)+28}" text-anchor="middle" font-size="12" class="mono">A ${m2(A)}</text>`;
+  s+=`<text x="${X(0)-20}" y="${Y(P/2)}" font-size="12" class="mono" text-anchor="middle" transform="rotate(-90 ${X(0)-20} ${Y(P/2)})">P ${m2(P)}</text>`;
   const defs=`<defs><marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" fill="var(--muted)"/></marker></defs>`;
-  return `<svg viewBox="0 0 ${ox+w+30} ${oy+h+34}" role="img" aria-label="Planta de ${esc(m.nombre)}">${defs}${s}</svg>`;
+  return `<svg viewBox="0 0 ${ox+w+40} ${oy+h+40}" role="img" aria-label="Planta de ${esc(m.nombre)}">${defs}${s}</svg>`;
 }
 
 /* ---------- conexiones (solo lo que dicen los manuales) ---------- */
@@ -626,7 +656,7 @@ function conexiones(cfg,r){
   if(sis==="nexta"){
     out.push({t:"TKM100 ONE (motor, una por módulo)",code:C.tkm[0],li:[
       "Alimentación 230 V: marrón = fase · azul = neutro.",
-      "Salida motor 24 V DC (1 motor, máx. 4 A): azul = + · marrón = −.",
+      "Salida motor 24 V DC (1 motor, máx. 4 A): azul = + · marrón = −. El motor C-100 TM consume 3,6 A (≈86 W).",
       "Entrada de sensores de lluvia y viento (MT-R / MT-W).",
       "Sonda de temperatura: sale de la propia central (alarma de nieve por debajo de 2 °C).",
       "Cable pulsador: blanco = cerrar · verde = común · marrón = abrir.",
@@ -688,10 +718,16 @@ function render(){
   const sisN={nexta:"Cherubini Nexta",teleco_eu:"Teleco EU",teleco_ul:"Teleco UL",somfy:"Somfy io"}[cfg.sistema];
   $("cajetin").innerHTML=[["Obra",cfg.obra||"—"],["OF",cfg.of||"—"],["Módulos",String(cfg.modulos.length)],["Alto",`${m2(cfg.alto)} m`],["Control",sisN],["Fecha",new Date().toLocaleDateString("es-ES")]].map(([b,s])=>`<div><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join("");
   const filas=r.plan.flatMap(pm=>[
-    ...pm.tiras.map((t,i)=>`<tr><td>${esc(pm.tag)}</td><td><span class="pill" style="background:${TCOL[i%4]}">${t.n}</span></td><td>${esc(t.from)}</td><td>${t.sides.map(x=>SN[x]).join(" → ")}</td><td class="qty">${m2(t.len)} m</td><td class="qty">${w0(t.W)}</td><td class="code">${C[t.prod][0]}</td></tr>`),
-    ...(pm.m.lamasN?[`<tr><td>${esc(pm.tag)}</td><td><span class="pill" style="background:var(--lama)">Lamas</span></td><td>Centralita (${esc(pm.m.loc)})</td><td>${pm.m.lamasN} lamas</td><td class="qty">${m2(pm.lamaLen)} m c/u</td><td class="qty">${w0(pm.m.lamasN*pm.lamaLen*cfg.wm)}</td><td class="code">${C.lamaW[0]}</td></tr>`]:[])]);
-  $("tiras").innerHTML=filas.length?`<table><thead><tr><th>Mód.</th><th>Tira</th><th>Sale de</th><th>Lados</th><th>Largo</th><th>Consumo</th><th>Producto</th></tr></thead><tbody>${filas.join("")}</tbody></table>`:`<p class="hint">Sin iluminación.</p>`;
+    ...pm.tiras.map((t,i)=>`<tr><td>${esc(pm.tag)}</td><td><span class="pill" style="background:${TCOL[i%4]}">${esc(t.viga)}</span></td><td>${esc(t.from)}</td><td class="qty">${m2(t.len)} m</td><td class="qty">${w0(t.W)}</td><td class="code">${C[t.prod][0]}</td></tr>`),
+    ...(pm.m.lamasN?[`<tr><td>${esc(pm.tag)}</td><td><span class="pill" style="background:var(--lama)">Lamas</span></td><td>Centralita (${esc(pm.m.loc)}) · ${pm.m.lamasN} lamas</td><td class="qty">${m2(pm.lamaLen)} m c/u</td><td class="qty">${w0(pm.m.lamasN*pm.lamaLen*cfg.wm)}</td><td class="code">${C.lamaW[0]}</td></tr>`]:[])]);
+  $("tiras").innerHTML=filas.length?`<table><thead><tr><th>Mód.</th><th>Viga</th><th>Sale de</th><th>Largo</th><th>Consumo</th><th>Producto</th></tr></thead><tbody>${filas.join("")}</tbody></table>`:`<p class="hint">Sin iluminación.</p>`;
   $("conx").innerHTML=conexiones(cfg,r);
+  /* Consumo: centrales alimentadas a 230 V (un receptor de 24 V ya cuenta en su transformador). */
+  const cw=r.dev.filter(d=>d.feed==="230"&&d.W>0),TW=cw.reduce((a,d)=>a+d.W,0),W230=TW/0.9;
+  $("sumW").textContent=`Total ${w0(TW)}`;
+  $("consumo").innerHTML=`<thead><tr><th>Central</th><th>Alimenta</th><th style="text-align:right">W (24 V)</th></tr></thead><tbody>${
+    cw.map(d=>`<tr><td>${esc(d.t)}<div class="hint">${esc(d.code)}</div></td><td>${esc(d.right.filter(it=>it.W).map(it=>it.t).join(" · "))}</td><td class="qty">${w0(d.W)}</td></tr>`).join("")
+  }</tbody><tfoot><tr><th colspan="2">Total en 24 V</th><th style="text-align:right" class="mono">${w0(TW)}</th></tr><tr><th colspan="2">Estimado en 230 V (fuentes al 90 %)</th><th style="text-align:right" class="mono">${w0(W230)} · ${(W230/230).toLocaleString("es-ES",{maximumFractionDigits:1})} A</th></tr></tfoot>`;
   $("bom").innerHTML=`<thead><tr><th>Código</th><th>Descripción</th><th>Modelo</th><th style="text-align:right">Cant.</th></tr></thead><tbody>${[...r.bom.values()].map(e=>{
     const c=C[e.k];
     return `<tr><td class="code">${c[0]}</td><td>${esc(c[1])}${e.rev?'<span class="rev">Revisar</span>':""}${e.notas.size?`<div class="hint">${esc([...e.notas].join(" · "))}</div>`:""}</td><td>${esc(c[2])}</td><td class="qty">${e.k==="mang"?"≈ "+e.q+" m":e.q}</td></tr>`;}).join("")}</tbody>`;
