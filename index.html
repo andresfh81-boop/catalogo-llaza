@@ -38,6 +38,7 @@ setTimeout(function(){if(!window.__appOK&&!window.__appStarted){window.__errs.pu
     <nav class="secs" id="secs" aria-label="Apartados"></nav>
     <div class="searchrow">
       <input id="q" type="search" placeholder="Buscar en todos los apartados" autocomplete="off" aria-label="Buscar referencia">
+      <button type="button" class="scan mic" id="micBtn" title="Buscar por voz" aria-label="Buscar por voz" hidden>🎤</button>
       <label class="scan" id="scanL" title="Buscar con foto: etiqueta o pieza"><span aria-hidden="true">📷</span><input id="scanFile" type="file" accept="image/*" capture="environment" data-pick aria-label="Buscar con foto de la etiqueta o de la pieza"></label>
       <label class="scan rec" id="recL" title="Reconocer un producto por su foto" hidden><span aria-hidden="true">📦</span><input id="recFile" type="file" accept="image/*" capture="environment" data-pick aria-label="Reconocer un producto por su foto"></label>
     </div>

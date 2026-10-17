@@ -126,6 +126,12 @@ textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--surface);
 .scan{flex:none;position:relative;width:50px;display:grid;place-items:center;border-radius:8px;background:var(--accent);color:var(--accent-ink);cursor:pointer;font-size:20px}
 .scan input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .scan.busy{opacity:.55;cursor:progress;pointer-events:none}
+/* Buscar por voz: rojo mientras escucha (tocar otra vez para parar) */
+.scan.mic{border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:20px}
+.scan.mic.listen{background:var(--falta);border-color:var(--falta);color:#fff}
+@media (prefers-reduced-motion:no-preference){.scan.mic.listen{animation:micpulse 1.2s ease-in-out infinite}}
+@keyframes micpulse{50%{box-shadow:0 0 0 6px rgba(184,50,42,.25)}}
+.scan.mic:disabled{opacity:.4;cursor:not-allowed}
 .nf{display:flex;flex-direction:column;align-items:center;gap:12px;padding:32px 0;text-align:center}
 .nf b{font-family:var(--mono);font-size:20px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:2px}

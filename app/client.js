@@ -156,6 +156,29 @@ $("#chips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b
 $("#mchips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;marca=b.dataset.m;chips();render();});
 $("#q").addEventListener("input",()=>{notFound=null;recog=null;render();});
 
+/* ---------- buscar por voz ----------
+   Solo en la app instalable: dentro del /exec Google no deja usar el micrófono (la página va en un marco).
+   Chrome pasa la voz a texto con los servidores de Google, así que necesita conexión. */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null;
+const NUMS={cero:0,uno:1,una:1,dos:2,tres:3,cuatro:4,cinco:5,seis:6,siete:7,ocho:8,nueve:9};
+/* «cuatro ocho cero cero…» o «48 009 000 000» → 48009000000; lo demás se busca tal cual. */
+function voiceText(t){t=String(t||"").trim().replace(/[.,;]+$/,"");const w=norm(t).split(/\s+/).filter(Boolean);
+  if(w.length&&w.every(x=>x in NUMS||/^\d+$/.test(x)))return w.map(x=>x in NUMS?NUMS[x]:x).join("");
+  return t.replace(/(\d)[\s.-]+(?=\d)/g,"$1");}
+function micState(){const b=$("#micBtn");b.hidden=!SR||!window.__pwa;b.disabled=!navigator.onLine;
+  b.title=navigator.onLine?"Buscar por voz":"Sin conexión: buscar por voz necesita internet";}
+window.addEventListener("online",micState);window.addEventListener("offline",micState);micState();
+$("#micBtn").onclick=()=>{if(rec){rec.stop();return;}
+  const b=$("#micBtn");rec=new SR();rec.lang="es-ES";rec.interimResults=true;rec.maxAlternatives=1;
+  b.classList.add("listen");b.setAttribute("aria-label","Dejar de escuchar");toast("Te escucho… di un código o el nombre de la pieza",8000);
+  rec.onresult=e=>{const r=e.results[e.results.length-1],t=voiceText(r[0].transcript);$("#q").value=t;notFound=null;recog=null;
+    if(!r.isFinal){render();return;}
+    const c=pick(t);if(c&&itemOf(c))showCode(c);else{render();toast(`Buscando «${t}»`,2500);}};
+  rec.onerror=e=>toast(e.error==="not-allowed"||e.error==="service-not-allowed"?"Chrome no tiene permiso para usar el micrófono. Toca el candado de la barra de direcciones → Permisos → Micrófono.":
+    e.error==="no-speech"?"No te he oído. Toca 🎤 y habla cerca del móvil.":e.error==="network"?"Para buscar por voz hace falta conexión.":`No he podido usar el micrófono (${e.error}).`,5500);
+  rec.onend=()=>{rec=null;b.classList.remove("listen");b.setAttribute("aria-label","Buscar por voz");};
+  try{rec.start();}catch(_){rec.onend();}};
+
 function render(){renderList();if(fichaCode)renderFicha();}
 function renderList(){
   if(recog){renderRecog();return;}
