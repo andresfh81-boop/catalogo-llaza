@@ -1,69 +1,174 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0b5c8a">
-  <title>Catálogo Llaza</title>
-  <link rel="manifest" href="./manifest.json">
-  <link rel="icon" href="icon/icon-32.png">
-  <link rel="apple-touch-icon" href="icon/icon-180.png">
-  <style>
-    html, body { margin: 0; height: 100%; background: #f2f4f5; font-family: system-ui, sans-serif; }
-    body { display: flex; flex-direction: column; }
-    iframe { flex: 1; width: 100%; border: 0; }
-    .barra { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #0b5c8a; color: #fff; font-size: 15px; }
-    .barra[hidden] { display: none; }
-    .barra img { width: 36px; height: 36px; border-radius: 8px; }
-    .barra span { flex: 1; }
-    .barra button { border: 0; border-radius: 999px; font-size: 15px; padding: 8px 14px; cursor: pointer; }
-    #instalar { background: #e0773a; color: #fff; font-weight: bold; }
-    #ahoraNo { background: transparent; color: #fff; padding: 8px 6px; }
-    #aviso { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px; background: #0b5c8a; color: #fff; font-size: 15px; text-align: center; }
-    #aviso a { color: #fff; font-weight: bold; }
-  </style>
+<meta charset="utf-8">
+<meta name="theme-color" content="#C9501C">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Catálogo Llaza</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon/icon-32.png">
+<link rel="apple-touch-icon" href="icon/icon-180.png">
+<link rel="stylesheet" href="app/app.css">
+<link rel="stylesheet" href="app/pwa.css">
+<script>window.__pwa=true;</script>
+<script>
+window.__errs=[];
+window.onerror=function(msg,src,line,col){window.__errs.push(msg+" (línea "+line+":"+col+")");show();};
+function show(){var b=document.getElementById("bootBox");if(!b||window.__appOK)return;
+  b.innerHTML="<h2>Error al arrancar</h2><p style='font-family:monospace;font-size:13px;text-align:left;max-width:700px;word-break:break-word'>"+
+  window.__errs.join("<br>").replace(/</g,"&lt;").replace(/&lt;br>/g,"<br>")+"</p><p>Mándale una captura de esta pantalla a Claude.</p>";}
+setTimeout(function(){if(!window.__appOK&&!window.__appStarted){window.__errs.push("El código principal no se ha ejecutado. google.script.run: "+(typeof google!=="undefined"&&google.script&&google.script.run?"disponible":"NO disponible"));show();}},15000);
+</script>
 </head>
 <body>
-  <!-- Barra para instalar: solo sale en el navegador, nunca dentro de la app ya instalada. -->
-  <div class="barra" id="barra" hidden>
-    <img src="icon/icon-192.png" alt="">
-    <span id="barraTxt">Instala el Catálogo como una app</span>
-    <button type="button" id="instalar">📲 Instalar</button>
-    <button type="button" id="ahoraNo" aria-label="Ahora no">✕</button>
+<!-- Generado con build_pwa.py (repositorio catalogo-llaza-app): no editar a mano. -->
+<div id="pwaBar" hidden></div>
+<div class="wrap">
+  <div id="bootBox" class="boot"><div class="spin"></div><p>Cargando el catálogo…</p></div>
+  <div id="app" hidden>
+  <header>
+    <div class="hrow"><h1 id="h1">Catálogo Llaza</h1><div class="hdr-btns"><button class="btn-s" id="expBtn">⬇ Exportar</button></div></div>
+    <p class="sub"><span id="count"></span> <span id="mode"></span></p>
+  </header>
+  <div class="tools" id="tools">
+    <nav class="secs" id="secs" aria-label="Apartados"></nav>
+    <div class="searchrow">
+      <input id="q" type="search" placeholder="Buscar en todos los apartados" autocomplete="off" aria-label="Buscar referencia">
+      <label class="scan" id="scanL" title="Buscar con foto: etiqueta o pieza"><span aria-hidden="true">📷</span><input id="scanFile" type="file" accept="image/*" capture="environment" data-pick aria-label="Buscar con foto de la etiqueta o de la pieza"></label>
+      <label class="scan rec" id="recL" title="Reconocer un producto por su foto" hidden><span aria-hidden="true">📦</span><input id="recFile" type="file" accept="image/*" capture="environment" data-pick aria-label="Reconocer un producto por su foto"></label>
+    </div>
+    <div class="chips" id="chips" role="group" aria-label="Categorías"></div>
+    <div class="chips mchips" id="mchips" role="group" aria-label="Marcas" hidden></div>
   </div>
-  <!-- La app de verdad es la de Apps Script (repositorio catalogo-llaza-app); esta página solo la muestra para que se pueda instalar con su icono. -->
-  <iframe id="app" src="https://script.google.com/macros/s/AKfycbyqeQNPmjtzhhU6pr4uA97C4o1Xq4tOZKgtxJ52k36JBoo7cncbaQXtrzK9bwJ39gz0IQ/exec" allow="clipboard-write; camera; web-share" title="Catálogo Llaza"></iframe>
-  <div id="aviso" hidden>¿No carga? <a href="https://script.google.com/macros/s/AKfycbyqeQNPmjtzhhU6pr4uA97C4o1Xq4tOZKgtxJ52k36JBoo7cncbaQXtrzK9bwJ39gz0IQ/exec" target="_blank" rel="noopener">Ábrelo en Chrome</a> y entra con tu cuenta de Google.</div>
-  <script>
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
-    var cargada = false;
-    document.getElementById('app').addEventListener('load', function () { cargada = true; });
-    setTimeout(function () { if (!cargada) document.getElementById('aviso').hidden = false; }, 15000);
+  <main id="list"></main>
+  <div id="rev" hidden></div>
+  <div id="cfg" hidden></div>
+  </div>
+</div>
 
-    /* ---------- botón Instalar ---------- */
-    var barra = document.getElementById('barra'), txt = document.getElementById('barraTxt'), btn = document.getElementById('instalar');
-    var instalada = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
-    var oculta = false; try { oculta = localStorage.getItem('catalogoLlazaNoInstalar') === '1'; } catch (e) {}
-    var aviso = null;
-    var esIphone = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    /* La barra sale siempre en el navegador: Chrome a veces no da el aviso de instalar (no cuenta lo que se toca dentro del Catálogo). */
-    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); aviso = e; });
-    if (!instalada && !oculta) {
-      barra.hidden = false;
-      /* iPhone no tiene botón de instalar: se explica cómo hacerlo. */
-      if (esIphone) { txt.textContent = 'Para instalarla: botón Compartir → «Añadir a pantalla de inicio»'; btn.hidden = true; }
-    }
-    btn.onclick = function () {
-      if (!aviso) { txt.textContent = 'Toca los tres puntos ⋮ de Chrome → «Instalar aplicación» (o «Añadir a pantalla de inicio»)'; return; }
-      aviso.prompt();
-      aviso.userChoice.then(function (r) { if (r.outcome === 'accepted') barra.hidden = true; aviso = null; });
-    };
-    window.addEventListener('appinstalled', function () {
-      barra.hidden = true; try { localStorage.setItem('catalogoLlazaNoInstalar', '1'); } catch (e) {}
-    });
-    document.getElementById('ahoraNo').onclick = function () {
-      barra.hidden = true; try { localStorage.setItem('catalogoLlazaNoInstalar', '1'); } catch (e) {}
-    };
-  </script>
+<button class="fab" id="addBtn" hidden>＋ Referencia</button>
+<nav class="bnav" id="bnav" aria-label="Secciones de la app" hidden style="grid-template-columns:1fr 1fr auto">
+  <button data-go="cat" aria-pressed="true">📚 Catálogo</button>
+  <button data-go="rev" aria-pressed="false">📋 Hojas <small id="bnavN" hidden></small></button>
+  <button data-go="cfg" aria-pressed="false" aria-label="Ajustes">⚙</button>
+</nav>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<div class="sheet" id="addSheet" hidden>
+  <form class="panel" id="addForm" novalidate>
+    <h3 id="fTitle">Nueva referencia</h3>
+    <label class="field"><span>Código (11 dígitos)</span><input id="fCode" inputmode="numeric" maxlength="11" placeholder="48009000000"></label>
+    <div class="also" id="fNoCodeL"><label><input type="checkbox" id="fNoCode"> Todavía no tiene código de Llaza</label></div>
+    <label class="field"><span>Descripción</span><input id="fDesc" placeholder="Ej. Alargador LED 3 m" required></label>
+    <div class="row2">
+      <label class="field"><span>Apartado</span><select id="fSec"></select></label>
+      <label class="field"><span>Categoría</span><select id="fCatSel"></select><input id="fCat" placeholder="Escribe la nueva categoría" hidden></label>
+    </div>
+    <div class="also" id="fAlso" aria-label="Otros apartados donde se usa"></div>
+    <label class="field" id="fMarcaL" hidden><span>Marca</span><select id="fMarca"></select></label>
+    <div class="row2">
+      <label class="field"><span>Medida / formato</span><input id="fMed" placeholder="3.00 m, Unidad…"></label>
+      <label class="field"><span>Canal / color</span><input id="fCanal" placeholder="RGB, 3.000 K…"></label>
+    </div>
+    <label class="field"><span>Modelo / notas</span><input id="fMod" placeholder="Modelo: SPT… (puedes pegar enlaces a instrucciones o vídeos)"></label>
+    <label class="field"><span>Stock de seguridad (unidades)</span><input id="fStock" type="number" min="0" step="1" inputmode="numeric" placeholder="Cantidad mínima que debe haber en almacén"></label>
+    <fieldset class="opt docbox" id="fDocs" hidden><legend>📚 Documentación</legend>
+      <div id="fDocList"></div>
+      <div class="row2">
+        <label class="field"><span>Tipo</span><select id="dTipo"></select></label>
+        <label class="field"><span>Título</span><input id="dTit" placeholder="Manual, vídeo emparejar emisor…"></label>
+      </div>
+      <label class="field"><span>Enlace (web del fabricante, YouTube, Drive)</span><input id="dUrl" type="url" inputmode="url" placeholder="https://…"></label>
+      <div class="docacts">
+        <button type="button" class="btn-s" id="dAdd">＋ Añadir enlace</button>
+        <label class="btn-s">📎 Subir PDF o foto<input id="dFile" type="file" accept="application/pdf,image/*" hidden></label>
+        <select id="dReuse"></select>
+      </div>
+      <p class="note" id="dMsg"></p>
+    </fieldset>
+    <div class="shots">
+      <div class="shot"><label class="btn" id="fEtqL"><input id="fEtq" type="file" accept="image/*" capture="environment" data-pick><span>📷 Foto etiqueta</span></label>
+        <div class="kind" data-slot="0" role="group" aria-label="Tipo de la foto 1"><button type="button" data-k="e" aria-pressed="true">🏷 Etiqueta</button><button type="button" data-k="p" aria-pressed="false">📦 Producto</button></div></div>
+      <div class="shot"><label class="btn" id="fProdL"><input id="fProd" type="file" accept="image/*" capture="environment" data-pick><span>📷 Foto producto</span></label>
+        <div class="kind" data-slot="1" role="group" aria-label="Tipo de la foto 2"><button type="button" data-k="e" aria-pressed="false">🏷 Etiqueta</button><button type="button" data-k="p" aria-pressed="true">📦 Producto</button></div></div>
+    </div>
+    <p class="note" id="fAuto">Consejo: haz primero la foto de la etiqueta y se rellenan solos el código y los datos.</p>
+    <p class="err" id="fErr"></p>
+    <div class="actions"><button type="button" class="btn-l" id="fCancel">Cancelar</button><button type="submit" class="btn-l primary" id="fSave">Guardar</button></div>
+  </form>
+</div>
+
+<div class="sheet" id="expSheet" hidden>
+  <div class="panel">
+    <h3>Exportar</h3>
+    <fieldset class="opt"><legend>Qué referencias</legend><div id="expWhat"></div>
+      <button class="btn-s" id="expPick" type="button">☑ Elegir referencias una a una en el catálogo</button></fieldset>
+    <fieldset class="opt"><legend>Formato</legend>
+      <label><input type="radio" name="expFmt" value="tabla2"><span><b>Word · tabla de 2 columnas</b><small>Izquierda: foto de la etiqueta con su referencia. Derecha: foto del producto. Varias por página</small></span></label>
+      <label><input type="radio" name="expFmt" value="tabla" checked><span><b>Word · tabla detallada (apaisada)</b><small>Foto de etiqueta, foto de producto, código, descripción y notas con enlaces</small></span></label>
+      <label><input type="radio" name="expFmt" value="stock4"><span><b>Word · tabla de stock (4 columnas)</b><small>Foto de etiqueta, foto de producto, descripción y stock de seguridad</small></span></label>
+      <label><input type="radio" name="expFmt" value="fichas"><span><b>Word · fichas</b><small>Una referencia por página, con las fotos grandes</small></span></label>
+      <label><input type="radio" name="expFmt" value="png"><span><b>Imagen (PNG)</b><small>Una tarjeta por referencia, para WhatsApp. Si son varias, van en un .zip</small></span></label>
+      <label><input type="radio" name="expFmt" value="xlsx"><span><b>Excel</b><small>Sin fotos, con filtros</small></span></label>
+    </fieldset>
+    <fieldset class="opt" id="expSizeF"><legend>Tamaño de las fotos (tablas)</legend>
+      <label><input type="radio" name="expSize" value="s"><span><b>Pequeñas</b><small>Unas 6 referencias por página</small></span></label>
+      <label><input type="radio" name="expSize" value="m" checked><span><b>Medianas</b><small>Unas 4 referencias por página</small></span></label>
+      <label><input type="radio" name="expSize" value="l"><span><b>Grandes</b><small>Unas 2 o 3 referencias por página</small></span></label>
+    </fieldset>
+    <fieldset class="opt"><legend>Opciones</legend>
+      <label><input type="checkbox" id="expAllPh"><span>Todas las fotos de cada referencia <small>Si no, solo la primera de etiqueta y la primera de producto</small></span></label>
+      <label><input type="checkbox" id="expObs"><span>Incluir referencias obsoletas</span></label>
+    </fieldset>
+    <fieldset class="opt"><legend>Qué hago con el archivo</legend>
+      <label><input type="radio" name="expDest" value="drive" checked><span><b>Guardarlo en mi Drive</b><small>Carpeta Exportaciones. Te doy el enlace para abrirlo o compartirlo</small></span></label>
+      <label><input type="radio" name="expDest" value="mail"><span><b>Enviarlo por correo</b><small>Sale desde tu Gmail con el archivo adjunto</small></span></label>
+      <input id="expMailTo" type="email" placeholder="correo@ejemplo.com" aria-label="Correo al que enviar">
+      <label><input type="radio" name="expDest" value="down"><span><b>Descargarlo en este aparato</b><small>Si tu móvil no lo permite, usa «Guardarlo en mi Drive»</small></span></label>
+    </fieldset>
+    <p class="note">Los archivos no llevan enlaces a tu Drive, nombres de archivo ni correos.</p>
+    <p class="err" id="expMsg"></p>
+    <div class="actions"><button class="btn-l" id="expClose" type="button">Cerrar</button><button class="btn-l primary" id="expGo" type="button">⬇ Exportar</button></div>
+  </div>
+</div>
+<div class="selbar" id="selBar" hidden><b id="selN">0 elegidas</b><button class="btn-s" id="selAll" type="button">Todas las visibles</button><button class="btn-s" id="selNone" type="button">Ninguna</button><button class="btn-s" id="selExit" type="button">Salir</button><button class="btn-l primary" id="selGo" type="button">⬇ Exportar</button></div>
+
+<div id="lb" hidden role="dialog" aria-modal="true" aria-label="Foto ampliada">
+  <div class="stage" id="lbStage"><img id="lbImg" alt=""></div>
+  <div class="cap" id="lbCap"></div>
+  <div id="lbThumbs" aria-label="Todas las fotos de esta referencia"></div>
+  <div class="nav" id="lbNav">
+    <button id="lbPrev" aria-label="Foto anterior">‹</button>
+    <button id="lbRot" hidden>⟳ Girar</button>
+    <label id="lbAdd" hidden><input id="lbFile" type="file" accept="image/*" capture="environment" data-pick data-multi="1">＋ Otra foto</label>
+    <button id="lbDel" class="danger" hidden>Borrar</button>
+    <button id="lbClose">Cerrar</button>
+    <button id="lbNext" aria-label="Foto siguiente">›</button>
+  </div>
+  <div class="nav" id="lbAsk" hidden><span class="q">¿Quitar esta foto del catálogo? El archivo se queda en tu Drive.</span><button id="lbNo">No</button><button id="lbYes" class="danger">Sí, quitar</button></div>
+</div>
+<div class="sheet" id="pickSheet" hidden>
+  <div class="panel">
+    <h3>Añadir foto</h3>
+    <div class="pickbtns">
+      <button class="btn-l primary" id="pickCam" type="button">📷 Hacer foto con la cámara</button>
+      <button class="btn-l" id="pickGal" type="button">🖼 Elegir de la galería</button>
+      <button class="btn-l" id="pickNo" type="button">Cancelar</button>
+    </div>
+  </div>
+</div>
+<div id="crop" hidden role="dialog" aria-modal="true" aria-label="Encuadrar la foto">
+  <p class="crophint">Mueve y ajusta el marco para encuadrar. Con dos dedos puedes acercar.</p>
+  <div class="cropstage"><img id="cropImg" alt="Foto para encuadrar"></div>
+  <div class="cropnav"><button type="button" id="cropRot">⟳ Girar</button><button type="button" id="cropAll">Toda la foto</button><button type="button" id="cropCancel">Cancelar</button><button type="button" id="cropOk" class="ok">✓ Usar foto</button></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js" defer></script>
+<script src="app/pwa.js"></script>
+<script src="app/client.js" defer></script>
+<script src="https://accounts.google.com/gsi/client" async onload="window.__gisReady&&window.__gisReady()"></script>
 </body>
 </html>

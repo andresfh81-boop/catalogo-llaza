@@ -1,0 +1,28 @@
+/* Solo para la app instalable. Fase 1 = consultar: se ocultan los botones de editar, añadir, revisar hojas y exportar
+   (se hacen en la «✏ App completa»). Las fases siguientes los irán activando. */
+#addBtn, #expBtn, #bnav, #selBar, #recL, #nfAdd, #stkExp,
+[data-edit], [data-obs], [data-restore], [data-exp1], [data-mv], [data-rec-add], .btn-s.pick,
+.addmini, #lbRot, #lbAdd, #lbDel { display: none !important; }
+/* Sin foto: se ve «Falta foto» en vez de «Hacer foto». */
+label.ph.take { pointer-events: none; }
+label.ph.take .cam, label.ph.take input, label.ph.take > span:not(.lab) { display: none; }
+label.ph.take::after { content: "Falta foto"; }
+body { padding-top: env(safe-area-inset-top); }
+
+#pwaBar { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px;
+  padding: 10px 14px; font: 500 15px var(--sans); background: var(--surface); color: var(--ink); border-bottom: 1px solid var(--line); }
+#pwaBar[hidden] { display: none; }
+#pwaBar.login { background: var(--accent); color: var(--accent-ink); padding: 16px 14px; }
+#pwaBar.off { background: #5A6570; color: #fff; font-size: 14px; padding: 6px 14px; }
+#pwaBar.new { background: var(--ok); color: #fff; }
+#pwaBar.new .btn-s { background: #fff; color: var(--ok); }
+#gBtn { min-height: 40px; }
+
+.pwaInst { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--accent); color: var(--accent-ink); font: 500 15px var(--sans); }
+.pwaInst[hidden] { display: none; }
+.pwaInst img { width: 36px; height: 36px; border-radius: 8px; background: #fff; }
+.pwaInst span { flex: 1; }
+.pwaInst button { border: 0; border-radius: 999px; font: 600 15px var(--sans); padding: 8px 14px; cursor: pointer; }
+#pwaInstBtn { background: #fff; color: var(--accent); }
+#pwaInstNo { background: transparent; color: inherit; padding: 8px 6px; }
+#pwaFull { text-decoration: none; }

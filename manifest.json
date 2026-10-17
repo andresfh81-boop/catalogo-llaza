@@ -1,14 +1,14 @@
 {
 "name": "Catálogo Llaza",
 "short_name": "Catálogo Llaza",
-"description": "Catálogo de referencias de Llaza (la app de Apps Script, abierta como una app).",
+"description": "Catálogo de referencias de Llaza: fichas, fotos y documentación, también sin conexión.",
 "id": "./",
 "start_url": "./index.html",
 "scope": "./",
 "display": "standalone",
 "orientation": "any",
-"background_color": "#f2f4f5",
-"theme_color": "#0b5c8a",
+"background_color": "#ECEEF0",
+"theme_color": "#C9501C",
 "lang": "es",
 "icons": [
   { "src": "icon/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
