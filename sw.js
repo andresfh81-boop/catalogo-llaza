@@ -5,8 +5,9 @@ const SHELL = ["./", "index.html", "manifest.json", "app/app.css", "app/pwa.css"
 const CDN = /^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\//;
 
 self.addEventListener("install", e => e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
+/* Solo borra copias viejas del catálogo («cl-…»): la app Esquema ELYA (carpeta elya/, caché «elya-…») comparte el mismo sitio. */
 self.addEventListener("activate", e => e.waitUntil(
-  caches.keys().then(ks => Promise.all(ks.filter(k => k !== V && k !== "cl-datos").map(k => caches.delete(k)))).then(() => self.clients.claim())));
+  caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith("cl-") && k !== V && k !== "cl-datos").map(k => caches.delete(k)))).then(() => self.clients.claim())));
 
 self.addEventListener("fetch", e => {
   const req = e.request, url = new URL(req.url);
