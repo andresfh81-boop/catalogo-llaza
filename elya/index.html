@@ -392,7 +392,9 @@ const ESQ={si:"Sup. izq.",sd:"Sup. der.",ii:"Inf. izq.",id:"Inf. der."};
 const LUZ={none:"Sin tira",w3000:"Blanco cálido 3000 K",w4000:"Blanco neutro 4000 K",rgb:"RGB"};
 /* Medidas de tira que hay en catálogo según la luz y el producto (rollo o neón). */
 /* Cables para las lamas con LED que se pueden poner a mano en cada módulo (catálogo «REFERENCIAS ELÉCTRICAS UMARA.»). */
-const LAMCAB=["cabEje","cabT","sp4Mi","ext05","conMM","c1m","y3","sp4W"];
+const LAMCAB=["cabEje","cabT","sp4Mi","ext05","conMM","c1m","y3","sp4W","conEje","conRGBW"];
+/* Los conectores no cuentan como «cables a mano»: con solo conectores, los cables en T siguen saliendo solos. */
+const LAMCON=["conEje","conRGBW"];
 const MEDIDAS=(luz,prod)=>luz==="rgb"?[6]:prod==="neon"?[4.5,6]:[5,7];
 const medOpts=(luz,prod,v)=>`<option value="auto">Auto</option>`+MEDIDAS(luz,prod).map(l=>`<option value="${l}"${String(l)===String(v)?" selected":""}>${m2(l).replace(",00","")} m</option>`).join("");
 /* Producto de la tira: la medida elegida en el lado, o la más corta que cubre el lado. */
@@ -424,8 +426,8 @@ function modCard(m,i){
   <label>Alargo a la esquina contraria, por<select id="m${i}_rut">${opt({auto:"Auto (sin pasar por las vigas del motor)",h:"Sentido horario",a:"Sentido antihorario"},m.rut||"auto")}</select></label>
   <div class="lados"><label class="chk"><input type="checkbox" id="m${i}_viento"${m.viento?" checked":""}> Anemómetro</label><label class="chk"><input type="checkbox" id="m${i}_lluvia"${m.lluvia?" checked":""}> Sensor lluvia</label></div>
   <label>Lamas con LED (blanco cálido)<input type="number" id="m${i}_lamasN" min="0" max="40" step="1" value="${m.lamasN}"></label>
-  <details class="lamcab"${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?" open":""}><summary>Cables de las lamas (a tu elección)</summary>
-    <p class="hint">Pon la cantidad de cada cable. Todo a 0 = la app pone 1 cable 3 m 2P + 2 micro en T por cada 2 lamas de cada salida, encadenados.</p>
+  <details class="lamcab"${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?" open":""}><summary>Cables y conectores de las lamas (a tu elección)</summary>
+    <p class="hint">Pon la cantidad de cada cable. Cables a 0 = la app pone 1 cable 3 m 2P + 2 micro en T por cada 2 lamas de cada salida, encadenados. Conector de eje a 0 = uno por lama.</p>
     ${LAMCAB.map(k=>`<label class="lc"><span>${esc(C[k][1])} <span class="mono mut">${C[k][0]}</span></span><input type="number" id="m${i}_lc_${k}" min="0" max="99" step="1" value="${(m.lamCab||{})[k]||""}" placeholder="0"></label>`).join("")}
   </details>
   <div class="tag">Posición en la planta de conjunto (m)</div>
@@ -654,12 +656,12 @@ function calcular(cfg){
       loads.push({n:ts.map(t=>t.viga).join(" + "),W:ts.reduce((a,t)=>a+t.W,0),grp:"peri",g:G.g,out:G.out,rgb,len:ts.reduce((a,t)=>a+t.len,0)});
     });
     const lamaLen=Math.max(0,m.A-0.17);
-    const lc=m.lamasN?(m.lamCab||{}):{},manual=LAMCAB.some(k=>lc[k]>0);
+    const lc=m.lamasN?(m.lamCab||{}):{},manual=LAMCAB.some(k=>!LAMCON.includes(k)&&lc[k]>0);
     for(let i=0;i<m.lamasN;i++)loads.push({n:`Lama ${i+1}`,W:lamaLen*cfg.wm,grp:"lamas",rgb:false,len:lamaLen,man:manual});
     /* cables de lamas puestos a mano: van tal cual al material y la app no añade divisores para las lamas */
     LAMCAB.forEach(k=>{if(lc[k]>0)add(k,lc[k],`${tag} lamas`);});
     if(m.lamasN){
-      add("lamaW",m.lamasN,`${tag} cortar a ≈${m2(lamaLen)} m`);add("conLama",m.lamasN);add("conEje",m.lamasN);add("tapon",m.lamasN);
+      add("lamaW",m.lamasN,`${tag} cortar a ≈${m2(lamaLen)} m`);add("conLama",m.lamasN);if(!(lc.conEje>0))add("conEje",m.lamasN);add("tapon",m.lamasN);
       if(lamaLen>4.5)av.push(["bad",`${m.nombre}: lama de ≈${m2(lamaLen)} m, la tira de lama es de 4,50 m.`]);
     }
     plan.push({m,tiras,lamaLen,tag,rm,run,rutas,sis});
