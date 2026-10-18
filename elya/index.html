@@ -530,6 +530,18 @@ function calcular(cfg){
   function splitters(o,rgbx,tag){
     o.forEach(x=>{const k=x.items.length;if(k===2)add(rgbx?"y3RGB":"y3",1,`${tag} OUT${x.s}`);else if(k>2)add(rgbx?"sp4RGB":"sp4W",Math.ceil((k-1)/3),`${tag} OUT${x.s}`,true);});
   }
+  /* Transformador 24 V + receptor (Somfy, Teleco UL). Un transformador por cada 160 W (80 % de uno de 200 W);
+     si hacen falta varios, cada uno alimenta su propio receptor y las tiras se reparten entre ellos. */
+  function trafoReceptor(lst,tag,loc,rgbx,rx,mkRx){
+    const nTr=nTrafos(totW(lst)),gr=nTr>1?reparte(lst,[...Array(nTr).keys()]):[{items:lst,W:totW(lst)}];
+    gr.forEach((g,k)=>{
+      const n=nTr>1?` ${k+1}/${nTr}`:"",id=`tr${tag}_${k}`,tr=g.W<=120?"tr150":"tr200",o=reparte(g.items,[1]);splitters(o,rgbx,tag);
+      dev.push({id,t:`${tag} · Transformador${n} · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",trafo:true,Wfix:g.W,alimenta:`Receptor${n} (24 V DC, cable hacia abajo)`,right:[]});
+      dev.push(Object.assign(mkRx(o,n,k),{feed:"24",from:id}));
+      add(tr,1,tag);add(rx,1,"",rx==="somLed");
+    });
+    return nTr;
+  }
   function ledRight(o){return o.filter(x=>x.items.length).map(x=>({kind:"led",W:x.W,t:x.items.map(i=>i.n).join(" + "),s:`${m2(x.items.reduce((a,i)=>a+i.len,0))} m · ${w0(x.W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`}));}
 
   mods.forEach((m,mi)=>{
@@ -624,11 +636,8 @@ function calcular(cfg){
         d.right.splice(d.right.length-1,0,...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})));
         av.push(["info",`${m.nombre}: la luz blanca va a la salida LED de la central Teleco (${w0(totW(white))}). Comprueba la potencia máxima en su etiqueta.`]);
       }else if(sis==="somfy"){
-        const T=totW(white),nTr=nTrafos(T),tr=T<=120?"tr150":"tr200",o=reparte(white,[1]);splitters(o,false,tag);
-        dev.push({id:"tr"+mi,t:`${tag} · ${nTr>1?nTr+" × ":""}Transformador 24 V · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",right:[{kind:"note",W:T,t:"Salida 24 V DC → receptor io LED (abajo)",s:w0(T),wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
-        dev.push({id:"sl"+mi,t:`${tag} · Receptor io LED BL · ${loc}`,code:C.somLed[0],model:C.somLed[2],feed:"24",from:"tr"+mi,right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})),{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]});
-        add(tr,nTr,tag);add("somLed",1,"",true);
-        if(nTr>1)av.push(["warn",`${m.nombre}: ${w0(T)} de luz → ${nTr} transformadores de 200 W. Reparte las tiras entre ellos y comprueba la carga máxima del receptor.`]);
+        const nTr=trafoReceptor(white,tag,loc,false,"somLed",(o,n,k)=>({id:`sl${mi}_${k}`,t:`${tag} · Receptor io LED${n} · ${loc}`,code:C.somLed[0],model:C.somLed[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})),{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]}));
+        if(nTr>1)av.push(["warn",`${m.nombre}: ${w0(totW(white))} de luz → ${nTr} transformadores, cada uno con su receptor io LED (se carga cada transformador como mucho al 80 %: 120 W el de 150 W, 160 W el de 200 W). Las tiras se reparten entre ellos; comprueba la carga máxima del receptor en su ficha.`]);
       }
     }
     if(rgbL.length||(ul&&white.length)){
@@ -643,11 +652,9 @@ function calcular(cfg){
         dev.push({id:"stick"+mi,t:`${tag} · Stick RGB TVSTICK · ${loc}`,code:C.stick[0],model:C.stick[2],feed:"230",psu:true,right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida RGB"})),{kind:"radio",t:C.noonEU[1],s:"canal 3 a 9 (no 1 ni 2)",wires:[["r",""]],pin:"Radio"}]});
         add("stick",1);
       }else if(ul){
-        const all=[...rgbL,...white],T=totW(all),nTr=nTrafos(T),tr=T<=120?"tr150":"tr200",o=reparte(all,[1]);splitters(o,rgbL.length>0,tag);
-        dev.push({id:"tr"+mi,t:`${tag} · ${nTr>1?nTr+" × ":""}Transformador 24 V · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",right:[{kind:"note",W:T,t:"Salida 24 V DC → receptor TVLRGBWW (abajo)",s:w0(T),wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
-        dev.push({id:"rgbww"+mi,t:`${tag} · Receptor RGB + blanco · ${loc}`,code:C.rgbww[0],model:C.rgbww[2],feed:"24",from:"tr"+mi,right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salidas"})),{kind:"radio",t:C.noonUL[1],s:"916 MHz",wires:[["r",""]],pin:"Radio"}]});
-        add("rgbww",1);add(tr,nTr,tag);
-        if(nTr>1)av.push(["warn",`${m.nombre}: ${w0(T)} de luz → ${nTr} transformadores de 200 W. Reparte las tiras entre ellos y comprueba la carga máxima del receptor.`]);
+        const all=[...rgbL,...white];
+        const nTr=trafoReceptor(all,tag,loc,rgbL.length>0,"rgbww",(o,n,k)=>({id:`rgbww${mi}_${k}`,t:`${tag} · Receptor RGB+BL${n} · ${loc}`,code:C.rgbww[0],model:C.rgbww[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salidas"})),{kind:"radio",t:C.noonUL[1],s:"916 MHz",wires:[["r",""]],pin:"Radio"}]}));
+        if(nTr>1)av.push(["warn",`${m.nombre}: ${w0(totW(all))} de luz → ${nTr} transformadores, cada uno con su receptor (se carga cada transformador como mucho al 80 %: 120 W el de 150 W, 160 W el de 200 W). Las tiras se reparten entre ellos; comprueba la carga máxima del receptor en su ficha.`]);
       }else av.push(["bad",`${m.nombre}: en el catálogo ELYA no hay receptor RGB Somfy. Elige luz blanca o cambia de sistema.`]);
     }
   });
@@ -674,7 +681,7 @@ function calcular(cfg){
       right:[{kind:"note",W:15*cfg.usb,t:`${cfg.usb} × toma USB A+C (15 W)`,s:C.usb[0]+" · 24 V DC",wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
     add("tr150",1,"tomas USB");add("usb",cfg.usb);
   }
-  dev.forEach(d=>d.W=d.right.reduce((a,it)=>a+(it.W||0),0));
+  dev.forEach(d=>d.W=d.Wfix!=null?d.Wfix:d.right.reduce((a,it)=>a+(it.W||0),0));
   /* Línea de 230 V: potencia de las centrales (fuentes al 90 %) y propuesta de protección y sección.
      Referencia: ITC-BT-25 (C1 10 A · 1,5 mm²; C2 16 A · 2,5 mm²) e ITC-BT-24/25 (diferencial 30 mA). La valida el técnico (SAT). */
   /* Lo que va por fuente de 24 V se divide por su rendimiento (90 %); lo que es directo a 230 V (MT-R), tal cual. */
@@ -698,13 +705,14 @@ function dibujaUnifilar(cfg,r){
   const W=780,bx=110,bw=230,ix=480,iw=280,itemH=46;
   let y=170,body="",branches=[],pes=[];const cajas={};
   r.dev.forEach(d=>{
-    const n=Math.max(1,d.right.length),h=Math.max(76,14+n*itemH);
+    const n=Math.max(1,d.right.length),h=Math.max(d.trafo?92:76,14+n*itemH);
     const by=y,bh=h-16;cajas[d.id]={by,bh};
     body+=`<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="3" fill="var(--soft)" stroke="var(--ink)" stroke-width="1.5"/>`;
     body+=`<text x="${bx+12}" y="${by+22}" font-size="13" font-weight="600">${esc(trunc(d.t,32))}</text>`;
     if(d.code)body+=`<text x="${bx+12}" y="${by+40}" font-size="12" class="mono mut">${esc(d.code)}</text>`;
     body+=`<text x="${bx+12}" y="${by+(d.code?56:40)}" font-size="12" class="mut">${esc(trunc(d.model+(d.W?" · "+w0(d.W):""),36))}</text>`;
     /* Fuente integrada: entra 230 V y sale 24 V DC dentro de la propia central. */
+    if(d.trafo)body+=`<text x="${bx+12}" y="${by+(d.code?74:58)}" font-size="11" class="mono" style="fill:var(--w-p)">230 V ~ → 24 V ⎓ · al receptor ↓</text>`;
     if(d.psu&&bh>=70)body+=`<text x="${bx+12}" y="${by+(d.code?74:58)}" font-size="11" class="mono" style="fill:var(--w-p)">230 V ~ → 24 V ⎓ (fuente integrada)</text>`;
     const fy=by+18;
     if(d.feed==="230"){branches.push(fy);
@@ -1301,7 +1309,7 @@ function render(){
   const cw=r.dev.filter(d=>d.feed==="230"&&d.W>0),TW=cw.reduce((a,d)=>a+d.W,0),W230=r.W230;
   $("sumW").textContent=`Total ${w0(TW)}`;
   $("consumo").innerHTML=`<thead><tr><th>Central</th><th>Alimenta</th><th style="text-align:right">W</th></tr></thead><tbody>${
-    cw.map(d=>`<tr><td>${esc(d.t)}<div class="hint">${esc(d.code)}</div></td><td>${esc(d.right.filter(it=>it.W).map(it=>it.t).join(" · "))}</td><td class="qty">${w0(d.W)}</td></tr>`).join("")
+    cw.map(d=>`<tr><td>${esc(d.t)}<div class="hint">${esc(d.code)}</div></td><td>${esc(d.alimenta||d.right.filter(it=>it.W).map(it=>it.t).join(" · "))}</td><td class="qty">${w0(d.W)}</td></tr>`).join("")
   }</tbody><tfoot><tr><th colspan="2">Total de las cargas</th><th style="text-align:right" class="mono">${w0(TW)}</th></tr><tr><th colspan="2">Estimado en 230 V (fuentes de 24 V al 90 %)</th><th style="text-align:right" class="mono">${w0(W230)} · ${(W230/230).toLocaleString("es-ES",{maximumFractionDigits:1})} A</th></tr></tfoot>`;
   pintaMaterial(r);
 }
