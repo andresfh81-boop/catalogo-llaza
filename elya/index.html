@@ -150,7 +150,6 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
     <button type="button" id="bCopy">Copiar material</button>
     <button type="button" id="bPrint" hidden>Imprimir / PDF</button>
     <button type="button" id="bNueva">Nueva obra</button>
-    <button type="button" id="bReset">Cargar ejemplo (obra 54007372)</button>
   </div>
 </header>
 
@@ -347,18 +346,13 @@ const MAT0=()=>({sw:{},q:{},del:[],extra:[]});
 let mat=MAT0();
 const EMISORES={nexta:["hoblo6","hobloMF","eco1","pop"],teleco_eu:["noonEU"],teleco_ul:["noonUL"],somfy:["situo"]};
 const LADOS_ALL={sup:true,inf:true,izq:true,der:true};
-/* Ejemplo: plano de fabricación de la obra 54007372 (7380 × 8640, inglete/mixta, 24-07-2026). */
-const EJEMPLO={obra:"54007372 · 7380 × 8640 inglete/mixta",of:"54007372",alto:2.5,sistema:"nexta",emisor:"hoblo6",
-  periProd:"rollo",ledCentral:"tkl",indep:true,wm:10,wmRGB:12,schuko:0,usb:0,
-  modulos:[
-    {nombre:"Módulo 1",A:4.06,P:6.00,motor:"der",cent:"id",aloj:"viga",ref:"V2-4",pil:{si:"5",sd:"1",id:"2",ii:"4"},vig:{},viento:true,lluvia:true,luz:"w3000",lados:{...LADOS_ALL},lamasN:0},
-    {nombre:"Módulo 2",A:2.68,P:2.64,motor:"der",cent:"sd",aloj:"viga",ref:"V12-1",pil:{si:"12",sd:"7",id:"8",ii:"9"},vig:{sup:"V12-1",inf:"V8-10"},luz:"w3000",lados:{...LADOS_ALL},lamasN:0},
-    {nombre:"Módulo 3",A:4.00,P:2.64,motor:"der",cent:"si",aloj:"viga",ref:"V11-12",pil:{si:"11",sd:"12",id:"9",ii:"10"},vig:{der:"V9-12",inf:"V8-10"},luz:"w3000",lados:{...LADOS_ALL},lamasN:0}
-  ]};
+/* Valores por defecto de una obra nueva; el resto sale del plano que se carga. */
+const BASE={obra:"",of:"",alto:2.5,sistema:"nexta",emisor:"hoblo6",
+  periProd:"rollo",ledCentral:"tkl",indep:true,wm:10,wmRGB:12,schuko:0,usb:0,modulos:[]};
 /* Obra en blanco: un módulo sin medidas de plano, sin luz, sin sensores ni tomas. */
-const VACIA=()=>Object.assign(clone(EJEMPLO),{obra:"",of:"",modulos:[Object.assign(NUEVO(1),{luz:"none"})]});
+const VACIA=()=>Object.assign(clone(BASE),{modulos:[Object.assign(NUEVO(1),{luz:"none"})]});
 const NUEVO=n=>({nombre:"Módulo "+n,A:4,P:4,motor:"der",cent:"si",aloj:"viga",ref:"",pil:{si:"",sd:"",id:"",ii:""},vig:{},luz:"w3000",lados:{...LADOS_ALL},lamasN:0});
-const KEY="esquema-elya-v2";
+const KEY="esquema-elya-v3";
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const m2=n=>(Math.round(n*100)/100).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -1111,8 +1105,7 @@ async function importaPlano(file){
       toast("Plano leído: revisa los datos");return;
     }
     plano=Object.assign(r,{refN:r.mods[0].n});plano.refA=Math.round(r.mods[0].w/80*100)/100;
-    if(!$("obra").value||$("obra").value===EJEMPLO.obra)$("obra").value=file.name.replace(/\.pdf$/i,"");
-    if($("of").value===EJEMPLO.of)$("of").value="";
+    if(!$("obra").value)$("obra").value=file.name.replace(/\.pdf$/i,"");
     writeMods(modulosDelPlano());pintaImport();render();toast("Plano importado: revisa la cota y el lado del motor");
   }catch(e){console.warn(e);toast(e.message||"No se pudo leer el plano");const b=$("impRes");if(b&&/Leyendo/.test(b.textContent)){b.innerHTML=`<div class="ko">${esc(e.message||"No se pudo leer el plano")}</div>`;}}
   finally{drop.classList.remove("busy");}
@@ -1240,7 +1233,7 @@ async function abrirDeDrive(){
         }
         const o=JSON.parse(txt);if(!o||!o.cfg||!Array.isArray(o.cfg.modulos))throw {msg:"El archivo de la obra no es válido."};
         plano=null;planoFile=null;$("impRes").hidden=true;
-        writeForm(Object.assign(clone(EJEMPLO),o.cfg));render();
+        writeForm(Object.assign(clone(BASE),o.cfg));render();
         box.innerHTML=`<div><span class="ok">Abierta</span> ${esc(nom)} (guardada el ${esc(new Date(o.guardado).toLocaleString("es-ES"))}).</div>`;
       }catch(e){console.warn(e);box.innerHTML=`<div class="ko">${esc(e.msg||gdMsg(e))}</div>`;}
     };
@@ -1330,7 +1323,7 @@ function toast(t){const d=document.createElement("div");d.className="toast";d.te
 /* ---------- arranque ---------- */
 const clone=o=>JSON.parse(JSON.stringify(o));
 let cfg0=VACIA();
-try{const s=JSON.parse(localStorage.getItem(KEY)||"null");if(s&&typeof s==="object"&&Array.isArray(s.modulos))cfg0=Object.assign(clone(EJEMPLO),s);}catch(e){}
+try{const s=JSON.parse(localStorage.getItem(KEY)||"null");if(s&&typeof s==="object"&&Array.isArray(s.modulos))cfg0=Object.assign(clone(BASE),s);}catch(e){}
 writeForm(cfg0);
 $("f").addEventListener("input",render);
 $("f").addEventListener("change",e=>{if(e.target.id==="sistema")fillEmisores(e.target.value,$("emisor").value);render();});
@@ -1351,7 +1344,6 @@ $("f").addEventListener("click",e=>{
   if(d){const ms=readMods();ms.splice(+d.dataset.del,1);writeMods(ms);render();return;}
   if(e.target.id==="bAdd"){const ms=readMods();ms.push(NUEVO(ms.length+1));writeMods(ms);render();}
 });
-$("bReset").addEventListener("click",()=>{plano=null;planoFile=null;$("impRes").hidden=true;$("drive").hidden=true;writeForm(clone(EJEMPLO));render();toast("Ejemplo cargado");});
 /* Nueva obra: lo borra todo (pide pulsar dos veces para no borrar sin querer). */
 let nuevaT=null;
 $("bNueva").addEventListener("click",()=>{
