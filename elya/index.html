@@ -425,7 +425,7 @@ function modCard(m,i){
   <div class="lados"><label class="chk"><input type="checkbox" id="m${i}_viento"${m.viento?" checked":""}> Anemómetro</label><label class="chk"><input type="checkbox" id="m${i}_lluvia"${m.lluvia?" checked":""}> Sensor lluvia</label></div>
   <label>Lamas con LED (blanco cálido)<input type="number" id="m${i}_lamasN" min="0" max="40" step="1" value="${m.lamasN}"></label>
   <details class="lamcab"${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?" open":""}><summary>Cables de las lamas (a tu elección)</summary>
-    <p class="hint">Pon la cantidad de cada cable. Todo a 0 = la app pone cable de 3 vías o de 4 salidas según las lamas de cada salida.</p>
+    <p class="hint">Pon la cantidad de cada cable. Todo a 0 = la app pone 1 cable 3 m 2P + 2 micro en T por cada 2 lamas de cada salida, encadenados.</p>
     ${LAMCAB.map(k=>`<label class="lc"><span>${esc(C[k][1])} <span class="mono mut">${C[k][0]}</span></span><input type="number" id="m${i}_lc_${k}" min="0" max="99" step="1" value="${(m.lamCab||{})[k]||""}" placeholder="0"></label>`).join("")}
   </details>
   <div class="tag">Posición en la planta de conjunto (m)</div>
@@ -568,7 +568,11 @@ function calcular(cfg){
     return o;
   }
   function splitters(o,rgbx,tag){
-    o.forEach(x=>{const k=x.items.filter(i=>!(i.grp==="lamas"&&i.man)).length;if(k===2)add(rgbx?"y3RGB":"y3",1,`${tag} OUT${x.s}`);else if(k>2)add(rgbx?"sp4RGB":"sp4W",Math.ceil((k-1)/3),`${tag} OUT${x.s}`,true);});
+    /* Lamas: un cable 3 m 2P + 2 micro en T alimenta 2 lamas y se encadena con otro por cada 2 más (dato SAT).
+       La cadena de lamas cuenta como una sola derivación de la salida. Con cables puestos a mano no se añade nada. */
+    o.forEach(x=>{const lam=x.items.filter(i=>i.grp==="lamas"),auto=lam.length&&!lam.some(i=>i.man);
+      if(auto)add("cabT",Math.ceil(lam.length/2),`${tag} OUT${x.s} · ${lam.length===1?"1 lama":lam.length+" lamas encadenadas"}`);
+      const k=x.items.length-lam.length+(auto?1:0);if(k===2)add(rgbx?"y3RGB":"y3",1,`${tag} OUT${x.s}`);else if(k>2)add(rgbx?"sp4RGB":"sp4W",Math.ceil((k-1)/3),`${tag} OUT${x.s}`,true);});
   }
   /* Transformador 24 V + receptor (Somfy, Teleco UL). Un transformador por cada 160 W (80 % de uno de 200 W);
      si hacen falta varios, cada uno alimenta su propio receptor y las tiras se reparten entre ellos. */
@@ -931,7 +935,7 @@ function recorridos(pm,cfg){
     if(G.corner===m.cent)L.push(`${tt}: alargo de 1,5 m${y3} desde la centralita (${esc(cp)})${out("OUT"+G.out)}.`);
     else{const R=(pm.rutas||[]).find(r=>r.g===G.g);if(R)L.push(`${tt}: alargo ${R.al.map(([l])=>m2c(l)+" m").join(" + ")}${R.al.length>1?" empalmados":""} (recorrido ≈ ${m2(R.ruta.len)} m) por encima de ${esc(vigasDe(m,R.ruta.sides))} hasta la esquina ${esc(esq(G.corner))}${y3}${out("OUT"+G.out)}.`);}
   });
-  if(m.lamasN)L.push(`<b style="color:var(--c-lam)">Lamas LED (${m.lamasN})</b>: unir los dos conectores de cada lama (conector de lama + conector de eje) y llevar los cables por el mecanizado de la viga ${esc(vigaDe(m,m.cent[1]==="i"?"izq":"der"))} hasta la centralita${out("OUT2 / OUT4")}.${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?` Cables: ${LAMCAB.filter(k=>m.lamCab[k]>0).map(k=>`${m.lamCab[k]} × ${esc(C[k][1])}`).join(", ")}.`:""}`);
+  if(m.lamasN)L.push(`<b style="color:var(--c-lam)">Lamas LED (${m.lamasN})</b>: unir los dos conectores de cada lama (conector de lama + conector de eje) y llevar los cables por el mecanizado de la viga ${esc(vigaDe(m,m.cent[1]==="i"?"izq":"der"))} hasta la centralita${out("OUT2 / OUT4")}.${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?` Cables: ${LAMCAB.filter(k=>m.lamCab[k]>0).map(k=>`${m.lamCab[k]} × ${esc(C[k][1])}`).join(", ")}.`:` Cable 3 m 2P + 2 micro en T: uno por cada 2 lamas, encadenados.`}`);
   if(m.viento)L.push(`<b>Anemómetro</b>: cable de 4 m a la entrada de sensores de la central de motor. Colocarlo despejado, sin obstáculos.`);
   if(m.lluvia)L.push(`<b>Sensor de lluvia</b>: alimentación 230 V y contacto del relé (NA) a la entrada de sensores de la central de motor.`);
   return L;
