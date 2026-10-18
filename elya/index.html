@@ -381,10 +381,10 @@ function modCard(m,i){
   <div class="row"><label>Ancho A (m)<input type="number" id="m${i}_A" step="0.01" min="1" max="6" value="${m.A}"></label><label>Salida P (m)<input type="number" id="m${i}_P" step="0.01" min="1" max="8" value="${m.P}"></label></div>
   <div class="row"><label>Motor / desagüe<select id="m${i}_motor">${opt({izq:"Lado izq.",der:"Lado der."},m.motor)}</select></label><label>Centralita (esquina)<select id="m${i}_cent">${opt(ESQ,m.cent)}</select></label></div>
   <div class="row"><label>Alojada en<select id="m${i}_aloj">${opt({viga:"Viga",pilar:"Pilar"},m.aloj||"viga")}</select></label><label>Nº viga / pilar<input type="text" id="m${i}_ref" value="${esc(m.ref||"")}" placeholder="V2-4 o 3"></label></div>
-  <div class="tag">Nodos / pilares de cada esquina (como en el plano: 1, P1 o PA)</div>
+  <div class="tag">Pilares</div>
   <div class="row"><input type="text" id="m${i}_p_si" value="${esc(m.pil.si)}" placeholder="sup. izq." aria-label="Pilar sup. izq."><input type="text" id="m${i}_p_sd" value="${esc(m.pil.sd)}" placeholder="sup. der." aria-label="Pilar sup. der."></div>
   <div class="row"><input type="text" id="m${i}_p_ii" value="${esc(m.pil.ii)}" placeholder="inf. izq." aria-label="Pilar inf. izq."><input type="text" id="m${i}_p_id" value="${esc(m.pil.id)}" placeholder="inf. der." aria-label="Pilar inf. der."></div>
-  <div class="tag">Vigas (vacío = V + nodos de sus extremos, en el sentido de las agujas del reloj)</div>
+  <div class="tag">Vigas</div>
   <div class="row"><label>Sup.<input type="text" id="m${i}_v_sup" value="${esc(m.vig.sup||"")}" placeholder="${esc(vigaAuto(m,"sup"))}"></label><label>Inf.<input type="text" id="m${i}_v_inf" value="${esc(m.vig.inf||"")}" placeholder="${esc(vigaAuto(m,"inf"))}"></label></div>
   <div class="row"><label>Izq.<input type="text" id="m${i}_v_izq" value="${esc(m.vig.izq||"")}" placeholder="${esc(vigaAuto(m,"izq"))}"></label><label>Der.<input type="text" id="m${i}_v_der" value="${esc(m.vig.der||"")}" placeholder="${esc(vigaAuto(m,"der"))}"></label></div>
   <label>Tira perimetral<select id="m${i}_luz">${opt(LUZ,m.luz)}</select></label>
@@ -512,7 +512,7 @@ function calcular(cfg){
   mods.forEach((m,mi)=>{
     const tag="M"+(mi+1);
     const loc=m.ref?(m.aloj==="pilar"?"pilar "+pilNom(m.ref):m.ref.toUpperCase()):(m.aloj==="pilar"?"pilar ?":"viga ?");m.loc=loc;
-    if(!m.ref)av.push(["warn",`${m.nombre}: falta el número de ${m.aloj==="pilar"?"pilar":"viga"} donde va la centralita (míralo en la ficha de fabricación).`]);
+    if(!m.ref)av.push(["warn",`${m.nombre}: falta el número de ${m.aloj==="pilar"?"pilar":"viga"} donde va la centralita (míralo en el plano firmado).`]);
     /* Medidas máximas de un módulo: manual ELYA Autoportante 2.1 */
     if(m.A>4.5)av.push(["bad",`${m.nombre}: ancho ${m2(m.A)} m, el máximo por módulo es 4,50 m.`]);
     if(m.P>6)av.push(["bad",`${m.nombre}: salida ${m2(m.P)} m, el máximo es 6,00 m.`]);
@@ -954,7 +954,9 @@ function modulosDelPlano(){
   const ref=plano.mods.find(m=>m.n===plano.refN)||plano.mods[0],ppm=ref.w/plano.refA;
   const prev=readMods();
   return plano.mods.map((m,i)=>({nombre:"Módulo "+m.n,A:Math.round(m.w/ppm*100)/100,P:Math.round(m.h/ppm*100)/100,
-    motor:(prev[i]&&prev[i].motor)||"der",cent:m.c?m.c.corner:"si",aloj:"viga",ref:m.c?m.c.viga:"",pil:m.pil,vig:m.vig,
+    /* Los nombres de pilares y vigas del plano eléctrico son los del plano firmado, no los nodos de la ficha:
+       de la ficha solo se toma la geometría, las tiras y la esquina de la centralita. */
+    motor:(prev[i]&&prev[i].motor)||"der",cent:m.c?m.c.corner:"si",aloj:"viga",ref:"",pil:{si:"",sd:"",ii:"",id:""},vig:{},
     luz:Object.values(m.lados).some(Boolean)?((prev[i]&&prev[i].luz!=="none"&&prev[i].luz)||"w3000"):"none",
     lados:Object.values(m.lados).some(Boolean)?m.lados:{...LADOS_ALL},lamasN:(prev[i]&&prev[i].lamasN)||0,viento:!!(prev[i]&&prev[i].viento),lluvia:!!(prev[i]&&prev[i].lluvia)}));
 }
@@ -963,6 +965,7 @@ function pintaImport(){
   const opts=r.mods.map(m=>`<option value="${m.n}"${m.n===r.refN?" selected":""}>Módulo ${m.n}</option>`).join("");
   box.innerHTML=`<div><span class="ok">Plano leído:</span> ${r.mods.length} módulo(s) · ${r.nPil} pilares · ${r.nVig} vigas · ${r.nCen} marca(s) de centralita</div>
   ${r.avisos.length?`<ul>${r.avisos.map(a=>`<li>${esc(a)}</li>`).join("")}</ul>`:""}
+  <div><b>Nombres:</b> los pilares y vigas del esquema tienen que ser los del plano firmado. Escríbelos en cada módulo (pilares y viga de la centralita) o importa el plano firmado.</div>
   <div>Las cotas van dibujadas y no se pueden leer del PDF. Escribe una y saco las demás a escala (salen con ±5 cm: corrígelas con las cotas del plano si hace falta):</div>
   <div class="row"><label>Ancho A de<select id="impRef">${opts}</select></label><label>según el plano (m)<input type="number" id="impA" step="0.01" min="0.5" max="10" value="${r.refA}"></label></div>
   <div class="hint">Marca también el lado del motor de cada módulo: en el plano va dibujado, no escrito.</div>`;
@@ -984,7 +987,7 @@ Léelas con cuidado y devuelve SOLO un objeto JSON con esta forma (null si un da
    "lamas_led": número de lamas con LED de ese módulo (0 si no lleva; el cajetín puede decir p. ej. «LAMAS LED: 8 · Modulo 1 (5,12,19,26) · Modulo 2/3 (4,9)», que son 4 en el módulo 1 y 2 en cada uno de los módulos 2 y 3),
    "motor": "izq" | "der",
    "pilares": {"si": "", "sd": "", "ii": "", "id": ""},
-   "centralita": {"esquina": "si" | "sd" | "ii" | "id", "alojada": "pilar" | "viga", "ref": "nombre del pilar o viga"} | null,
+   "centralita": {"esquina": "si" | "sd" | "ii" | "id", "alojada": "pilar" | "viga", "ref": "si va en un pilar, su nombre (P3); si va en una viga, V + los números de los pilares de sus extremos leídos en el sentido de las agujas del reloj (V3-4)"} | null,
    "pared": "sup" | "inf" | "izq" | "der" | null}],
  "dudas": ["lo que no se lee bien o hay que comprobar"]}
 En la ELYA las lamas van paralelas a la pared (abren hacia la pared) y el motor va en uno de los lados perpendiculares a la pared.
