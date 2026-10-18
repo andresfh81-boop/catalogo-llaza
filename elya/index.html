@@ -135,6 +135,8 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
   body{padding:0}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
+[hidden]{display:none!important}
 </style>
 </head><!--std-->
 <body><!--std-->
@@ -211,6 +213,10 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
 </form>
 
 <main>
+  <section class="sheet" id="vacio">
+    <div class="hd"><h2>Obra en blanco</h2></div>
+    <div class="bd"><p>Arrastra aquí el plano firmado (o la ficha de fabricación) en PDF, o pulsa «+ Añadir módulo» para meter los datos a mano. El esquema, la planta, las conexiones y el material salen en cuanto haya un módulo.</p></div>
+  </section>
   <section class="sheet">
     <div class="hd"><h2>Avisos</h2><span class="tag" id="sumAv"></span></div>
     <div class="bd"><ul class="avisos" id="avisos"></ul></div>
@@ -349,10 +355,10 @@ const LADOS_ALL={sup:true,inf:true,izq:true,der:true};
 /* Valores por defecto de una obra nueva; el resto sale del plano que se carga. */
 const BASE={obra:"",of:"",alto:2.5,sistema:"nexta",emisor:"hoblo6",
   periProd:"rollo",ledCentral:"tkl",indep:true,wm:10,wmRGB:12,schuko:0,usb:0,modulos:[]};
-/* Obra en blanco: un módulo sin medidas de plano, sin luz, sin sensores ni tomas. */
-const VACIA=()=>Object.assign(clone(BASE),{modulos:[Object.assign(NUEVO(1),{luz:"none"})]});
+/* Obra en blanco: sin módulos ni alto; todo sale del plano que se carga. */
+const VACIA=()=>Object.assign(clone(BASE),{alto:""});
 const NUEVO=n=>({nombre:"Módulo "+n,A:4,P:4,motor:"der",cent:"si",aloj:"viga",ref:"",pil:{si:"",sd:"",id:"",ii:""},vig:{},luz:"w3000",lados:{...LADOS_ALL},lamasN:0});
-const KEY="esquema-elya-v3";
+const KEY="esquema-elya-v4";
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const m2=n=>(Math.round(n*100)/100).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -401,7 +407,7 @@ function readMods(){
 function readForm(){
   const o={};
   FIELDS.forEach(k=>{const el=$(k);o[k]=el.type==="checkbox"?el.checked:el.type==="number"?parseFloat(el.value):el.value;});
-  o.alto=num(o.alto,2.5);o.wm=num(o.wm,10);o.wmRGB=num(o.wmRGB,12);
+  o.altoFalta=!(o.alto>0);o.alto=num(o.alto,2.5);o.wm=num(o.wm,10);o.wmRGB=num(o.wmRGB,12);
   ["schuko","usb"].forEach(k=>{o[k]=Math.max(0,Math.round(isFinite(o[k])?o[k]:0));});
   o.modulos=readMods();
   o.material=mat;
@@ -412,7 +418,7 @@ function fillEmisores(sis,sel){
   $("emisor").value=EMISORES[sis].includes(sel)?sel:EMISORES[sis][0];
 }
 function writeMods(mods){
-  $("mods").innerHTML=mods.map(modCard).join("");
+  $("mods").innerHTML=mods.length?mods.map(modCard).join(""):`<p class="hint">Sin módulos. Carga el plano arriba o añádelos a mano.</p>`;
   $("bAdd").disabled=mods.length>=6;
 }
 function writeForm(o){
@@ -491,6 +497,7 @@ function calcular(cfg){
   const add=(k,q,nota,rev)=>{if(q<=0)return;const e=bom.get(k)||{k,q:0,notas:new Set(),rev:false};e.q+=q;if(nota)e.notas.add(nota);if(rev)e.rev=true;bom.set(k,e);};
   const sis=cfg.sistema,ul=sis==="teleco_ul",H=cfg.alto,emisor=cfg.emisor,mods=cfg.modulos;
   if(!mods.length)av.push(["bad","Añade al menos un módulo."]);
+  if(cfg.altoFalta)av.push(["warn","Falta el alto H de la pérgola: se calcula con 2,50 m. Ponlo del plano."]);
   if(H>3)av.push(["warn",`Altura ${m2(H)} m: por encima de 3,00 m hay que consultar a fábrica.`]);
   const totW=l=>l.reduce((a,b)=>a+b.W,0);
   function reparte(lst,salidas){
@@ -1246,6 +1253,8 @@ function render(){
   syncForm();
   const cfg=readForm();
   try{localStorage.setItem(KEY,JSON.stringify(cfg));}catch(e){}
+  const vacia=!cfg.modulos.length;document.querySelector("main").classList.toggle("vacia",vacia);
+  if(vacia){last=null;return;}
   const r=calcular(cfg);last={cfg,r};
   const order={bad:0,warn:1,info:2},lbl={bad:"Error",warn:"Ojo",info:"Nota"};
   r.av.sort((a,b)=>order[a[0]]-order[b[0]]);
