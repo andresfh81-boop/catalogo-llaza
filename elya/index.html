@@ -405,17 +405,18 @@ function prodTira(m,cfg,len,med){
   return m.luz==="w3000"?(corto?"rW5":"rW7"):(corto?"rN5":"rN7");
 }
 function modCard(m,i){
+  m=Object.assign({},m,{_i:i});
   const opt=(o,v)=>Object.entries(o).map(([k,t])=>`<option value="${k}"${k===v?" selected":""}>${esc(t)}</option>`).join("");
   const md=m.med||{},pp=($("periProd")&&$("periProd").value)||"rollo";
-  const lado=(k,t)=>`<div class="lado"><label class="chk"><input type="checkbox" id="m${i}_${k}"${m.lados[k]?" checked":""}> ${t}</label><select id="m${i}_md_${k}" aria-label="Medida de la tira, ${t}">${medOpts(m.luz,pp,md[k])}</select></div>`;
+  const lado=(k,t)=>`<div class="lado"><label class="chk"><input type="checkbox" id="m${i}_${k}"${m.lados[k]?" checked":""}> <b id="m${i}_t_${k}" class="mono">${esc(vigaDe(m,k))}</b></label><select id="m${i}_md_${k}" aria-label="Medida de la tira, ${t}">${medOpts(m.luz,pp,md[k])}</select></div>`;
   return `<div class="mod">
   <div class="mhd"><input type="text" id="m${i}_nombre" value="${esc(m.nombre)}" aria-label="Nombre del módulo"><button type="button" class="del" data-del="${i}">Quitar</button></div>
   <div class="row"><label>Ancho A (m)<input type="number" id="m${i}_A" step="0.01" min="1" max="6" value="${m.A}"></label><label>Salida P (m)<input type="number" id="m${i}_P" step="0.01" min="1" max="8" value="${m.P}"></label></div>
   <div class="row"><label>Motor / desagüe<select id="m${i}_motor">${opt({izq:"Lado izq.",der:"Lado der."},m.motor)}</select></label><label>Centralita (esquina)<select id="m${i}_cent">${opt(ESQ,m.cent)}</select></label></div>
   <div class="row"><label>Alojada en<select id="m${i}_aloj">${opt({viga:"Viga",pilar:"Pilar"},m.aloj||"viga")}</select></label><label>Nº viga / pilar<input type="text" id="m${i}_ref" value="${esc(m.ref||"")}" placeholder="V2-4 o 3"></label></div>
   <div class="tag">Pilares</div>
-  <div class="row"><input type="text" id="m${i}_p_si" value="${esc(m.pil.si)}" placeholder="sup. izq." aria-label="Pilar sup. izq."><input type="text" id="m${i}_p_sd" value="${esc(m.pil.sd)}" placeholder="sup. der." aria-label="Pilar sup. der."></div>
-  <div class="row"><input type="text" id="m${i}_p_ii" value="${esc(m.pil.ii)}" placeholder="inf. izq." aria-label="Pilar inf. izq."><input type="text" id="m${i}_p_id" value="${esc(m.pil.id)}" placeholder="inf. der." aria-label="Pilar inf. der."></div>
+  <div class="row"><input type="text" id="m${i}_p_si" value="${esc(m.pil.si)}" placeholder="P${pilDe(m,"si")} · sup. izq." aria-label="Pilar sup. izq."><input type="text" id="m${i}_p_sd" value="${esc(m.pil.sd)}" placeholder="P${pilDe(m,"sd")} · sup. der." aria-label="Pilar sup. der."></div>
+  <div class="row"><input type="text" id="m${i}_p_ii" value="${esc(m.pil.ii)}" placeholder="P${pilDe(m,"ii")} · inf. izq." aria-label="Pilar inf. izq."><input type="text" id="m${i}_p_id" value="${esc(m.pil.id)}" placeholder="P${pilDe(m,"id")} · inf. der." aria-label="Pilar inf. der."></div>
   <div class="tag">Vigas</div>
   <div class="row"><label>Sup.<input type="text" id="m${i}_v_sup" value="${esc(m.vig.sup||"")}" placeholder="${esc(vigaAuto(m,"sup"))}"></label><label>Inf.<input type="text" id="m${i}_v_inf" value="${esc(m.vig.inf||"")}" placeholder="${esc(vigaAuto(m,"inf"))}"></label></div>
   <div class="row"><label>Izq.<input type="text" id="m${i}_v_izq" value="${esc(m.vig.izq||"")}" placeholder="${esc(vigaAuto(m,"izq"))}"></label><label>Der.<input type="text" id="m${i}_v_der" value="${esc(m.vig.der||"")}" placeholder="${esc(vigaAuto(m,"der"))}"></label></div>
@@ -439,7 +440,7 @@ function readMods(){
   const out=[];
   for(let i=0;$(`m${i}_nombre`);i++){
     const g=k=>$(`m${i}_${k}`);
-    out.push({nombre:g("nombre").value||("Módulo "+(i+1)),A:num(g("A").value,4),P:num(g("P").value,4),motor:g("motor").value,cent:g("cent").value,aloj:g("aloj").value,ref:g("ref").value.trim(),
+    out.push({_i:i,nombre:g("nombre").value||("Módulo "+(i+1)),A:num(g("A").value,4),P:num(g("P").value,4),motor:g("motor").value,cent:g("cent").value,aloj:g("aloj").value,ref:g("ref").value.trim(),
       pil:{si:g("p_si").value.trim(),sd:g("p_sd").value.trim(),id:g("p_id").value.trim(),ii:g("p_ii").value.trim()},
       vig:{sup:g("v_sup").value.trim(),inf:g("v_inf").value.trim(),izq:g("v_izq").value.trim(),der:g("v_der").value.trim()},luz:g("luz").value,
       lados:{sup:g("sup").checked,inf:g("inf").checked,izq:g("izq").checked,der:g("der").checked},
@@ -506,7 +507,11 @@ const EXT={izq:["ii","si"],sup:["si","sd"],der:["sd","id"],inf:["id","ii"]};
    leídos siempre en el sentido de las agujas del reloj (por eso la de P4 a P1 es V4-1). EXT ya va en ese sentido. */
 const pilId=v=>String(v||"").trim().replace(/^P\s*/i,"");
 const pilNom=v=>pilId(v)?"P"+pilId(v):"";
-function vigaAuto(m,sd){const p=m.pil||{},[a,b]=EXT[sd];return pilId(p[a])&&pilId(p[b])?`V${pilId(p[a])}-${pilId(p[b])}`:"lado "+SN[sd];}
+/* Pilar de una esquina: el escrito; si está vacío, se numera solo en sentido horario desde la esquina sup. izq.
+   (M1: 1, 2, 3, 4 · M2: 5, 6, 7, 8…), para que las vigas siempre tengan nombre (V1-2 … V4-1). */
+const PILORD=["si","sd","id","ii"];
+const pilDe=(m,k)=>pilId((m.pil||{})[k])||(Number.isInteger(m._i)?String(4*m._i+PILORD.indexOf(k)+1):"");
+function vigaAuto(m,sd){const [a,b]=EXT[sd],pa=pilDe(m,a),pb=pilDe(m,b);return pa&&pb?`V${pa}-${pb}`:"V?";}
 const vigaDe=(m,sd)=>(m.vig&&m.vig[sd])||vigaAuto(m,sd);
 /* Entrada de las tiras (cables de 3 vías): por defecto en la esquina de la centralita y en la contraria;
    o en las otras dos esquinas, cada una con su alargo desde la centralita. out = salida de la TKL (1 o 3). */
@@ -644,7 +649,7 @@ function calcular(cfg){
     });
     gruposTira(m,cfg.periProd).forEach(G=>{
       const ts=tiras.filter(t=>t.g===G.g);if(!ts.length)return;
-      const enCent=G.corner===m.cent,pn=pilNom(m.pil[G.corner]),dn=enCent?"esquina centralita":pn?"esquina "+pn:CN[G.corner];
+      const enCent=G.corner===m.cent,pn=pilNom(pilDe(m,G.corner)),dn=enCent?"esquina centralita":pn?"esquina "+pn:CN[G.corner];
       /* El alargo a la esquina contraria evita las vigas del motor, salvo que se elija el recorrido a mano. */
       const rl=enCent?null:rutaEsquinas(m,m.cent,G.corner,G.g==="lejos"?rm.sides:[],G.g==="lejos"?{h:1,a:-1}[m.rut]:0);
       const d=enCent?1.5:rl.len+0.3,al=alargos(d,rgb);
@@ -870,14 +875,14 @@ function pintaModulo(pm,cfg,X,Y,o){
     cab+=`<line x1="${xx}" y1="${Y(k0[0]==="s"?yi:yl)}" x2="${xx}" y2="${cy+iy*14}" stroke="${CC.lam}" stroke-width="3" stroke-dasharray="5 3"/>`;}
   /* pilares y su nombre */
   CORN.forEach(k=>{const [x,y]=SP(k);base+=`<rect x="${x-6}" y="${y-6}" width="12" height="12" fill="var(--wall)"/>`;
-    const n=pilNom((m.pil||{})[k]),key="P:"+n;if(!n||vistos.has(key))return;vistos.add(key);
+    const n=pilNom(pilDe(m,k)),key="P:"+n;if(!n||vistos.has(key))return;vistos.add(key);
     const dx=k[1]==="i"?-1:1,dy=k[0]==="i"?1:-1;txt+=rotulo(x+dx*20,y+dy*16,n,{fs:12});});
   /* centralita y motor */
   txt+=`<rect x="${cx-10}" y="${cy-10}" width="20" height="20" fill="var(--ink)"/><text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="11" font-weight="700" style="fill:var(--paper)">C</text>`;
   const mxp=m.motor==="izq"?0:A,myp=Math.min(0.6,P/4);
   txt+=`<circle cx="${X(mxp)}" cy="${Y(myp)}" r="10" fill="var(--paper)" stroke="${CC.mot}" stroke-width="2.5"/><text x="${X(mxp)}" y="${Y(myp)+4}" text-anchor="middle" font-size="10" font-weight="700" style="fill:${CC.mot}">M</text>`;
   /* marca de cada viga, por dentro del módulo */
-  SIDES.forEach(sd=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=o.fuera?26:44,v=vigaDe(m,sd),sin=/^lado /.test(v);
+  SIDES.forEach(sd=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=o.fuera?26:44,v=vigaDe(m,sd),sin=false;
     const mx=(x1+x2)/2-nx*d,my=(y1+y2)/2-ny*d,key="V:"+v+":"+Math.round((x1+x2)/2)+":"+Math.round((y1+y2)/2);
     if(vistos.has(key))return;vistos.add(key);
     /* en el conjunto no hay cotas aparte: la medida va con el nombre de la viga */
@@ -927,8 +932,8 @@ function dibujaConjunto(plan,cfg){
 
 /* Recorrido de cada cable de un módulo, por escrito (lo mismo que se dibuja en la planta). */
 function recorridos(pm,cfg){
-  const {m,tiras}=pm,cp=pilNom((m.pil||{})[m.cent])||CN[m.cent],nexta=pm.sis==="nexta"&&cfg.ledCentral==="tkl",out=n=>nexta?` → ${n}`:"";
-  const L=[],esq=k=>pilNom((m.pil||{})[k])||CN[k];
+  const {m,tiras}=pm,cp=pilNom(pilDe(m,m.cent))||CN[m.cent],nexta=pm.sis==="nexta"&&cfg.ledCentral==="tkl",out=n=>nexta?` → ${n}`:"";
+  const L=[],esq=k=>pilNom(pilDe(m,k))||CN[k];
   if(pm.rm)L.push(`<b style="color:var(--c-mot)">Motor</b> (lado ${m.motor==="izq"?"izquierdo":"derecho"}): manguera 2×0,75 de ≈${Math.ceil(pm.run)} m por encima de ${esc(vigasDe(m,pm.rm.sides))} (entre la viga y la tapa) hasta la centralita.`);
   gruposTira(m,cfg.periProd).forEach(G=>{const ts=tiras.filter(t=>t.g===G.g);if(!ts.length)return;
     const una=ts[0].una&&ts[0].sides.length>1;
@@ -1377,8 +1382,10 @@ async function abrirDeDrive(){
 let last=null,plantaH="";
 /* Los desplegables de entrada y recorrido dicen por qué pilares y vigas va cada opción. */
 function etiquetasMod(m,i,pp){
-  const esq=k=>pilNom((m.pil||{})[k])||CN[k].replace("esquina ",""),k0=CORN.indexOf(m.cent),c=n=>CORN[(k0+n)%4];
+  const esq=k=>pilNom(pilDe(m,k))||CN[k].replace("esquina ",""),k0=CORN.indexOf(m.cent),c=n=>CORN[(k0+n)%4];
   const se=$(`m${i}_ent`),sr=$(`m${i}_rut`);if(!se||!sr)return;
+  SIDES.forEach(sd=>{const t=$(`m${i}_t_${sd}`),v=$(`m${i}_v_${sd}`);if(t)t.textContent=vigaDe(m,sd);if(v)v.placeholder=vigaAuto(m,sd);});
+  CORN.forEach(k=>{const p=$(`m${i}_p_${k}`);if(p)p.placeholder=`P${pilDe(m,k)} · ${ESQ[k].toLowerCase()}`;});
   const una=gruposTira(Object.assign({},m,{ent:"auto"}),pp).some(G=>G.una);
   se.options[0].text=una?`Auto: una tira por cada dos lados, desde la centralita (${esq(m.cent)})`:`Auto: centralita (${esq(m.cent)}) + contraria (${esq(c(2))})`;
   se.options[1].text=`Centralita (${esq(m.cent)}) + contraria (${esq(c(2))}), con cable de 3 vías`;
