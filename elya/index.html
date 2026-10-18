@@ -237,7 +237,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
         <span><i style="background:var(--w-s)"></i>Señal / sensor</span>
         <span><i style="background:repeating-linear-gradient(90deg,var(--w-r) 0 4px,transparent 4px 7px)"></i>Radio</span>
       </div>
-      <p class="hint" style="margin-top:8px">Símbolos: rectángulo con diagonal = aparato de protección (PIA, diferencial) · M = motor · zigzag = tira LED · triángulo = sensor · antena = emisor. Colores de conductores según ITC-BT-19 (fase marrón/negro/gris, neutro azul, protección verde-amarillo). Lado de 24 V DC = muy baja tensión (ITC-BT-36).</p>
+      <p class="hint" style="margin-top:8px">Símbolos: M = motor · zigzag = tira LED · triángulo = sensor · antena = emisor. Colores de conductores según ITC-BT-19 (fase marrón/negro/gris, neutro azul, protección verde-amarillo). Lado de 24 V DC = muy baja tensión (ITC-BT-36).</p>
     </div>
     <div class="cajetin" id="cajetin"></div>
   </section>
@@ -682,14 +682,10 @@ function calcular(cfg){
     add("tr150",1,"tomas USB");add("usb",cfg.usb);
   }
   dev.forEach(d=>d.W=d.Wfix!=null?d.Wfix:d.right.reduce((a,it)=>a+(it.W||0),0));
-  /* Línea de 230 V: potencia de las centrales (fuentes al 90 %) y propuesta de protección y sección.
-     Referencia: ITC-BT-25 (C1 10 A · 1,5 mm²; C2 16 A · 2,5 mm²) e ITC-BT-24/25 (diferencial 30 mA). La valida el técnico (SAT). */
   /* Lo que va por fuente de 24 V se divide por su rendimiento (90 %); lo que es directo a 230 V (MT-R), tal cual. */
   const W24=dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0),0),W230=dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0)/(d.directo?1:0.9),0),I230=W230/230;
-  const linea=I230<=8?{In:10,s:"1,5"}:I230<=13?{In:16,s:"2,5"}:null;
-  if(!linea)av.push(["bad",`La pérgola pide ≈${I230.toLocaleString("es-ES",{maximumFractionDigits:1})} A en 230 V: más de lo que da una línea de 16 A. Repártela en dos líneas.`]);
   if(cfg.schuko)av.push(["info","Las tomas de 230 V llevan conductor de protección (verde-amarillo) y en exterior han de ser IPX4 como mínimo (ITC-BT-30). La toma Schuko del catálogo es IP54."]);
-  return {av,bom,dev,plan,outs,W24,W230,I230,linea};
+  return {av,bom,dev,plan,outs,W24,W230,I230};
 }
 
 /* ---------- dibujo: esquema unifilar ---------- */
@@ -703,7 +699,7 @@ function icon(kind,x,y){
 }
 function dibujaUnifilar(cfg,r){
   const W=780,bx=110,bw=230,ix=480,iw=280,itemH=46;
-  let y=170,body="",branches=[],pes=[];const cajas={};
+  let y=78,body="",branches=[],pes=[];const cajas={};
   r.dev.forEach(d=>{
     const n=Math.max(1,d.right.length),h=Math.max(d.trafo?92:76,14+n*itemH);
     const by=y,bh=h-16;cajas[d.id]={by,bh};
@@ -744,24 +740,15 @@ function dibujaUnifilar(cfg,r){
     });
     y+=h;
   });
-  const busEnd=branches.length?Math.max(...branches)+8:170;
-  const ul=cfg.sistema==="teleco_ul",L=r.linea,nf=n=>n.toLocaleString("es-ES",{maximumFractionDigits:1});
-  const sup=ul?"Cuadro del cliente · red del país (UL)":"Cuadro del cliente · 230 V ~ 50 Hz";
-  /* Unifilar (una línea con los aparatos en serie) hasta la caja de la pérgola; desde ahí, conductores separados. */
-  const sym=(yy,t1,t2)=>`<rect x="40" y="${yy}" width="16" height="22" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/><line x1="40" y1="${yy+22}" x2="56" y2="${yy}" stroke="var(--ink)" stroke-width="1.5"/>
-  <text x="66" y="${yy+10}" font-size="12" font-weight="600">${t1}</text><text x="66" y="${yy+24}" font-size="11" class="mut">${t2}</text>`;
-  const head=`<rect x="10" y="8" width="330" height="30" rx="3" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text x="22" y="28" font-size="13" font-weight="600">${esc(sup)}</text>
-  <line x1="48" y1="38" x2="48" y2="140" stroke="var(--ink)" stroke-width="2.5"/>
-  ${sym(48,L?`PIA 2P ${L.In} A · curva C`:"PIA: más de 16 A",`Magnetotérmico (sobrecargas y cortocircuitos)`)}
-  ${sym(84,"ID 2P 40 A · 30 mA","Diferencial (ITC-BT-24 / ITC-BT-25)")}
-  <text x="66" y="124" font-size="11" class="mono">${L?`Línea 3G${L.s} mm² (L + N + PE)`:"Repartir en 2 líneas"} · ≈${Math.round(r.W230)} W · ${nf(r.I230)} A</text>
-  <text x="66" y="138" font-size="10" class="mut">Calculada con el consumo de la pérgola · validar en obra</text>
-  <line x1="36" y1="140" x2="76" y2="140" stroke="var(--ink)" stroke-width="3"/>
-  <line x1="40" y1="140" x2="40" y2="${busEnd}" stroke="${WC.l}" stroke-width="2.5"/>
-  <line x1="56" y1="140" x2="56" y2="${busEnd+8}" stroke="${WC.n}" stroke-width="2.5"/>
-  ${pes.length?`<line x1="72" y1="140" x2="72" y2="${Math.max(...pes)}" stroke="var(--w-pe)" stroke-width="2.5" stroke-dasharray="7 3"/>`:""}
-  <text x="84" y="160" font-size="11" class="mono mut">Caja estanca IPX4 en la pérgola · una derivación por centralita</text>`;
+  /* El esquema empieza en las centrales: la acometida de 230 V y sus protecciones las decide el cliente. */
+  const busEnd=branches.length?Math.max(...branches)+8:78;
+  const head=`<text x="22" y="22" font-size="13" font-weight="600">230 V ~ a cada central</text>
+  <text x="22" y="38" font-size="11" class="mut">La acometida y sus protecciones las pone el cliente; aquí se parte de las centrales.</text>
+  <circle cx="40" cy="56" r="3" fill="${WC.l}"/><circle cx="56" cy="56" r="3" fill="${WC.n}"/>
+  <text x="84" y="60" font-size="10" class="mono mut">L · N${pes.length?" · PE":""}</text>
+  <line x1="40" y1="56" x2="40" y2="${busEnd}" stroke="${WC.l}" stroke-width="2.5"/>
+  <line x1="56" y1="56" x2="56" y2="${busEnd+8}" stroke="${WC.n}" stroke-width="2.5"/>
+  ${pes.length?`<circle cx="72" cy="56" r="3" fill="var(--w-pe)"/><line x1="72" y1="56" x2="72" y2="${Math.max(...pes)}" stroke="var(--w-pe)" stroke-width="2.5" stroke-dasharray="7 3"/>`:""}`;
   return `<svg viewBox="0 0 ${W} ${y+10}" width="${W}" role="img" aria-label="Esquema unifilar de la pérgola">${head}${body}</svg>`;
 }
 const trunc=(s,n)=>{s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;};
@@ -906,11 +893,8 @@ function conexiones(cfg,r){
     "Exterior = local mojado (ITC-BT-30): canalizaciones estancas; empalmes, cajas, aparamenta y tomas con IPX4 como mínimo (o dentro de cajas que lo den); luminarias de clase distinta de 0.",
     "Colores (ITC-BT-19): fase marrón o negro (gris si hay tres fases), neutro azul, protección verde-amarillo.",
     "Caída de tensión máxima (ITC-BT-19): 3 % en alumbrado y 5 % en el resto; en viviendas, 3 %.",
-    "Protección: magnetotérmico por circuito y diferencial de 30 mA como máximo (ITC-BT-24 y, en viviendas, ITC-BT-25).",
-    "Motores (ITC-BT-47): la línea, para el 125 % de la intensidad del motor mayor más la del resto; protección contra sobrecargas y cortocircuitos.",
     "24 V DC (ITC-BT-36): muy baja tensión, hasta 75 V en continua. Sin puesta a tierra si es MBTS.",
-    "Documentación (ITC-BT-04): la memoria técnica de diseño lleva esquema unifilar con aparatos de corte y protección, puntos de utilización y secciones, más croquis y cálculos. La firma la empresa instaladora habilitada, que también emite el certificado."
-  ],src:"REBT: ITC-BT-04, 19, 24, 25, 30, 36 y 47 (copias no oficiales; contrastar con el BOE vigente)"});
+  ],src:"REBT: ITC-BT-19, 30 y 36 (copias no oficiales; contrastar con el BOE vigente)"});
   return out.map(c=>`<section><h3>${esc(c.t)}</h3>${c.code?`<div class="tag" style="margin-top:4px">${esc(c.code)}</div>`:""}<ul>${c.li.map(l=>`<li>${esc(l)}</li>`).join("")}</ul><p class="src">Fuente: ${esc(c.src)}</p></section>`).join("");
 }
 
