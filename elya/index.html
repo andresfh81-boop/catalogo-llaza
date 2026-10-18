@@ -60,6 +60,7 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 input:disabled+span,label.chk:has(input:disabled){opacity:.5}
 .hint{font-size:12px;color:var(--muted);margin:0}
 .mods{display:grid;gap:10px}
+.rutas{margin:6px 0 0;padding-left:18px;font-size:13px;display:grid;gap:3px}
 #bom select.prod{width:100%;max-width:420px;padding:5px 7px;font-size:14px}
 #bom input.cant{width:72px;padding:5px 6px;text-align:right}
 #bom tr.cambiado td{background:color-mix(in srgb,var(--accent) 7%,transparent)}
@@ -148,6 +149,7 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
     <button type="button" id="bOpen" hidden>Abrir de Drive</button>
     <button type="button" id="bCopy">Copiar material</button>
     <button type="button" id="bPrint" hidden>Imprimir / PDF</button>
+    <button type="button" id="bNueva">Nueva obra</button>
     <button type="button" id="bReset">Cargar ejemplo (obra 54007372)</button>
   </div>
 </header>
@@ -241,7 +243,7 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
 
   <section class="sheet">
     <div class="hd"><h2>Planta y tiras LED</h2><span class="tag">Hoja 2</span></div>
-    <div class="bd"><div class="plantas" id="planta"></div><p class="hint" style="margin-top:8px">Cada módulo por separado, orientado como en el plano. Cuadro naranja = centralita · M = motor · flecha = caída de agua. Cada lado con el nombre de su viga (del color de su tira) y los pilares con su número, como en el plano.</p></div>
+    <div class="bd"><div class="plantas" id="planta"></div><p class="hint" style="margin-top:8px">Cada módulo por separado, orientado como en el plano. Cuadro naranja = centralita · M = motor · flecha = caída de agua · Y = cable de 3 vías. Por fuera del módulo, los cables que van por encima de las vigas: marrón = 230 V, negro discontinuo = motor, naranja de puntos = alargo a la esquina contraria; dorado = cables de las lamas LED. Debajo, cada recorrido por escrito.</p></div>
     <div class="bd scroll" style="padding-top:0"><div id="tiras"></div></div>
   </section>
 
@@ -353,6 +355,8 @@ const EJEMPLO={obra:"54007372 · 7380 × 8640 inglete/mixta",of:"54007372",alto:
     {nombre:"Módulo 2",A:2.68,P:2.64,motor:"der",cent:"sd",aloj:"viga",ref:"V12-1",pil:{si:"12",sd:"7",id:"8",ii:"9"},vig:{sup:"V12-1",inf:"V8-10"},luz:"w3000",lados:{...LADOS_ALL},lamasN:0},
     {nombre:"Módulo 3",A:4.00,P:2.64,motor:"der",cent:"si",aloj:"viga",ref:"V11-12",pil:{si:"11",sd:"12",id:"9",ii:"10"},vig:{der:"V9-12",inf:"V8-10"},luz:"w3000",lados:{...LADOS_ALL},lamasN:0}
   ]};
+/* Obra en blanco: un módulo sin medidas de plano, sin luz, sin sensores ni tomas. */
+const VACIA=()=>Object.assign(clone(EJEMPLO),{obra:"",of:"",modulos:[Object.assign(NUEVO(1),{luz:"none"})]});
 const NUEVO=n=>({nombre:"Módulo "+n,A:4,P:4,motor:"der",cent:"si",aloj:"viga",ref:"",pil:{si:"",sd:"",id:"",ii:""},vig:{},luz:"w3000",lados:{...LADOS_ALL},lamasN:0});
 const KEY="esquema-elya-v2";
 const $=id=>document.getElementById(id);
@@ -461,6 +465,24 @@ function repartoModulo(m){
   grupos.forEach(G=>G.sides.filter(sd=>m.lados[sd]).forEach(sd=>out.push({n:"ABCD"[n++],viga:vigaDe(m,sd),sides:[sd],len:sideLen(m,sd),g:G.g,corner:G.corner})));
   return out;
 }
+/* ---------- recorridos de cables por las vigas (coordenadas del módulo, en m) ----------
+   Esquinas en sentido horario: ii → si → sd → id. Los cables van por encima de las vigas, entre la viga y la tapa. */
+const CPOS=(m,k)=>[k[1]==="i"?0:m.A,k[0]==="i"?0:m.P];
+const ladoEntre=(a,b)=>{for(const sd of SIDES){const [x,y]=EXT[sd];if((x===a&&y===b)||(x===b&&y===a))return sd;}return null;};
+function caminoEsquinas(a,b,dir){const seq=[a];let i=CORN.indexOf(a);while(CORN[i]!==b){i=(i+dir+4)%4;seq.push(CORN[i]);}return seq;}
+const largo=pts=>pts.slice(1).reduce((a,p,i)=>a+Math.hypot(p[0]-pts[i][0],p[1]-pts[i][1]),0);
+/* Desde un punto de un lado (el motor) hasta una esquina, por el camino más corto. */
+function rutaDesde(m,pt,side,dest){
+  const [e1,e2]=EXT[side];
+  return [[e2,1],[e1,-1]].map(([e,dir])=>{const seq=caminoEsquinas(e,dest,dir),pts=[pt,...seq.map(k=>CPOS(m,k))];
+    return {pts,sides:[side,...seq.slice(1).map((k,i)=>ladoEntre(seq[i],k))],len:largo(pts)};}).sort((a,b)=>a.len-b.len)[0];
+}
+/* De esquina a esquina; si hay dos caminos iguales, el que no comparte vigas con «evitar». */
+function rutaEsquinas(m,a,b,evitar){
+  return [1,-1].map(dir=>{const seq=caminoEsquinas(a,b,dir),pts=seq.map(k=>CPOS(m,k)),sides=seq.slice(1).map((k,i)=>ladoEntre(seq[i],k));
+    return {pts,sides,len:largo(pts),choque:sides.filter(x=>evitar.includes(x)).length};}).sort((x,y)=>x.choque-y.choque||x.len-y.len)[0];
+}
+const vigasDe=(m,sides)=>[...new Set(sides)].map(sd=>vigaDe(m,sd)).join(", ");
 /* Alargos para llegar a una distancia (m): el más corto que llegue; si no hay, se empalman. */
 function alargos(d,rgb){
   const L=rgb?[[5,"alRGB5"],[7,"alRGB7"]]:[[1.5,"alW15"],[5,"alW5"],[7,"alW7"]],r=[];
@@ -495,8 +517,9 @@ function calcular(cfg){
     if(m.P>6)av.push(["bad",`${m.nombre}: salida ${m2(m.P)} m, el máximo es 6,00 m.`]);
     /* Motor en su lado, cerca de la esquina inferior (como en el plano); cable por los largueros hasta la centralita. */
     const motorPos={x:m.motor==="izq"?0:m.A,y:Math.min(0.6,m.P/4)};
+    const rm=rutaDesde(m,[motorPos.x,motorPos.y],m.motor,m.cent);
     const cx=m.cent[1]==="i"?0:m.A,cy=m.cent[0]==="i"?0:m.P;
-    const run=(motorPos.x===cx?Math.abs(motorPos.y-cy):Math.min(motorPos.y+cy,2*m.P-motorPos.y-cy)+m.A)+1;
+    const run=rm.len+1; /* + 1 m para bajar a la centralita y holgura */
     add("motor",1);add("mang",Math.ceil(run),`${tag} motor → centralita`,true);
     if((m.motor==="izq"&&m.cent[1]==="i")||(m.motor==="der"&&m.cent[1]==="d"))av.push(["info",`${m.nombre}: centralita en el mismo lado que el motor. El manual la pone en el lado contrario (el desagüe va en el lado motor); si el plano lo marca así, vale.`]);
 
@@ -507,13 +530,13 @@ function calcular(cfg){
       if(m.lluvia)right.push({kind:"sensor",t:"Sensor lluvia MT-R",s:C.mtr[0]+" · contacto NA del relé",wires:[["s",""]],pin:"Entrada sensores"});
       right.push({kind:"sensor",t:"Sonda de temperatura",s:"incluida en la TKM",wires:[["s",""]],pin:"Sonda"});
       right.push({kind:"radio",t:C[emisor][1],s:C[emisor][0]+" · 433 MHz",wires:[["r",""]],pin:"Radio"});
-      dev.push({id:"tkm"+mi,t:`${tag} · TKM100 ONE · ${loc}`,code:C.tkm[0],model:C.tkm[2],feed:"230",right});
+      dev.push({id:"tkm"+mi,t:`${tag} · TKM100 ONE · ${loc}`,code:C.tkm[0],model:C.tkm[2],feed:"230",psu:true,right});
       add("tkm",1);
     }else if(sis==="teleco_eu"||ul){
       const k=ul?"telUL":"telEU",right=[{kind:"motor",W:MOTOR_W,t:`Motor ${tag}`,s:`${C.motor[0]} · 24 V DC`,wires:[["p","+"],["m","−"]],pin:"M1"}];
       if(m.lluvia)right.push({kind:"sensor",t:"Sensor lluvia-temp. RAIN105H",s:C.rain[0],wires:[["s",""]],pin:"Sensor"});
       right.push({kind:"radio",t:C[emisor][1],s:C[emisor][0]+" · "+C[emisor][2],wires:[["r",""]],pin:"Radio"});
-      dev.push({id:"tel"+mi,t:`${tag} · `+(ul?"Central PLA UL":"Central 2 Mot + LED")+` · ${loc}`,code:C[k][0],model:C[k][2],feed:"230",right});
+      dev.push({id:"tel"+mi,t:`${tag} · `+(ul?"Central PLA UL":"Central 2 Mot + LED")+` · ${loc}`,code:C[k][0],model:C[k][2],feed:"230",psu:true,right});
       add(k,1);
     }else{
       dev.push({id:"som"+mi,t:`${tag} · Pergola io Louver Control · ${loc}`,code:C.somCtrl[0],model:C.somCtrl[2],feed:"230",
@@ -524,6 +547,7 @@ function calcular(cfg){
     /* --- iluminación del módulo --- */
     const rgb=m.luz==="rgb",maxLen=rgb||(m.luz!=="none"&&cfg.periProd==="neon")?6:7;
     const tiras=m.luz==="none"?[]:repartoModulo(m);
+    let lejos=null;
     const loads=[];
     tiras.forEach(t=>{
       t.prod=rgb?"rgbP6":cfg.periProd==="neon"?(t.len<=4.5?"nP45":"nP6"):(m.luz==="w3000"?(t.len<=5?"rW5":"rW7"):(t.len<=5?"rN5":"rN7"));
@@ -533,10 +557,12 @@ function calcular(cfg){
     });
     ["cerca","lejos"].forEach(g=>{
       const ts=tiras.filter(t=>t.g===g);if(!ts.length)return;
-      const d=g==="cerca"?1.5:m.A+m.P+0.3,al=alargos(d,rgb);
+      const rl=g==="cerca"?null:rutaEsquinas(m,m.cent,ts[0].corner,rm.sides);
+      const d=g==="cerca"?1.5:rl.len+0.3,al=alargos(d,rgb);
+      if(rl)lejos={ruta:rl,al,corner:ts[0].corner};
       al.forEach(([l,k])=>add(k,1,`${tag} ${g==="cerca"?"esquina centralita":"esquina contraria"}`));
       if(ts.length===2)add(rgb?"y3RGB":"y3",1,`${tag} ${g==="cerca"?"esquina centralita":"esquina contraria"}`);
-      const via=`alargo ${al.map(([l])=>m2(l).replace(",00","")+" m").join(" + ")}${al.length>1?" empalmados":""}${ts.length===2?" + cable 3 vías":""}`;
+      const via=`alargo ${al.map(([l])=>m2(l).replace(",00","")+" m").join(" + ")}${al.length>1?" empalmados":""}${rl?" por "+vigasDe(m,rl.sides):""}${ts.length===2?" + cable 3 vías":""}`;
       ts.forEach(t=>t.from=(g==="cerca"?`Centralita (${m.loc})`:CN[t.corner][0].toUpperCase()+CN[t.corner].slice(1))+" · "+via);
       loads.push({n:ts.map(t=>t.viga).join(" + "),W:ts.reduce((a,t)=>a+t.W,0),grp:"peri",g,rgb,len:ts.reduce((a,t)=>a+t.len,0)});
     });
@@ -546,7 +572,7 @@ function calcular(cfg){
       add("lamaW",m.lamasN,`${tag} cortar a ≈${m2(lamaLen)} m`);add("conLama",m.lamasN);add("conEje",m.lamasN);add("tapon",m.lamasN);
       if(lamaLen>4.5)av.push(["bad",`${m.nombre}: lama de ≈${m2(lamaLen)} m, la tira de lama es de 4,50 m.`]);
     }
-    plan.push({m,tiras,lamaLen,tag});
+    plan.push({m,tiras,lamaLen,tag,rm,run,lejos,sis});
     const white=loads.filter(l=>!l.rgb),rgbL=loads.filter(l=>l.rgb);
     if(white.length){
       if(sis==="nexta"){
@@ -564,7 +590,7 @@ function calcular(cfg){
         else if(M>maxM*0.9)av.push(["warn",`${m.nombre}: ${m2(M)} m de LED blanco, cerca del máximo de ${maxM} m de la central.`]);
         if(maxO)o.forEach(x=>{if(x.W>maxO)av.push(["bad",`${m.nombre}: OUT${x.s} con ${w0(x.W)}, el máximo por salida de la TKL250 es ${maxO} W.`]);});
         outs.push({k:kc,modo,o,tag,nombre:m.nombre});
-        dev.push({id:"led"+mi,t:`${tag} · `+(tkl?"TKL250 ONE":kc==="stl250"?"STL250":"STL100")+` · ${loc}`,code:C[kc][0],model:C[kc][2],feed:"230",right:[...ledRight(o),{kind:"radio",t:C[emisor][1],s:"mismo emisor",wires:[["r",""]],pin:"Radio"}]});
+        dev.push({id:"led"+mi,t:`${tag} · `+(tkl?"TKL250 ONE":kc==="stl250"?"STL250":"STL100")+` · ${loc}`,code:C[kc][0],model:C[kc][2],feed:"230",psu:true,right:[...ledRight(o),{kind:"radio",t:C[emisor][1],s:"mismo emisor",wires:[["r",""]],pin:"Radio"}]});
         add(kc,1);
       }else if(sis==="teleco_eu"){
         const o=reparte(white,[1]);splitters(o,false,tag);
@@ -573,8 +599,8 @@ function calcular(cfg){
         av.push(["info",`${m.nombre}: la luz blanca va a la salida LED de la central Teleco (${w0(totW(white))}). Comprueba la potencia máxima en su etiqueta.`]);
       }else if(sis==="somfy"){
         const T=totW(white),nTr=nTrafos(T),tr=T<=120?"tr150":"tr200",o=reparte(white,[1]);splitters(o,false,tag);
-        dev.push({id:"tr"+mi,t:`${tag} · ${nTr>1?nTr+" × ":""}Transformador 24 V · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",right:[{kind:"note",W:T,t:"24 V DC → receptor io LED",s:w0(T),wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
-        dev.push({id:"sl"+mi,t:`${tag} · Receptor io LED BL · ${loc}`,code:C.somLed[0],model:C.somLed[2],feed:"24",right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})),{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]});
+        dev.push({id:"tr"+mi,t:`${tag} · ${nTr>1?nTr+" × ":""}Transformador 24 V · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",right:[{kind:"note",W:T,t:"Salida 24 V DC → receptor io LED (abajo)",s:w0(T),wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
+        dev.push({id:"sl"+mi,t:`${tag} · Receptor io LED BL · ${loc}`,code:C.somLed[0],model:C.somLed[2],feed:"24",from:"tr"+mi,right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})),{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]});
         add(tr,nTr,tag);add("somLed",1,"",true);
         if(nTr>1)av.push(["warn",`${m.nombre}: ${w0(T)} de luz → ${nTr} transformadores de 200 W. Reparte las tiras entre ellos y comprueba la carga máxima del receptor.`]);
       }
@@ -583,17 +609,17 @@ function calcular(cfg){
       if(sis==="nexta"){
         const o=reparte(rgbL,[1]);splitters(o,true,tag);
         if(totW(rgbL)>250)av.push(["bad",`${m.nombre}: RGB ${w0(totW(rgbL))}, supera los 250 W de la TKL RGBW.`]);
-        dev.push({id:"rgbw"+mi,t:`${tag} · TKL RGBW 250 W · ${loc}`,code:C.tklrgbw[0],model:C.tklrgbw[2],feed:"230",right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Conector RGBW"})),{kind:"radio",t:C[emisor][1],s:"mismo emisor",wires:[["r",""]],pin:"Radio"}]});
+        dev.push({id:"rgbw"+mi,t:`${tag} · TKL RGBW 250 W · ${loc}`,code:C.tklrgbw[0],model:C.tklrgbw[2],feed:"230",psu:true,right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Conector RGBW"})),{kind:"radio",t:C[emisor][1],s:"mismo emisor",wires:[["r",""]],pin:"Radio"}]});
         add("tklrgbw",1);add("conRGBW",1);
       }else if(sis==="teleco_eu"){
         const o=reparte(rgbL,[1]);splitters(o,true,tag);
         if(totW(rgbL)>150)av.push(["bad",`${m.nombre}: RGB ${w0(totW(rgbL))}, supera los 150 W del stick TVSTICK.`]);
-        dev.push({id:"stick"+mi,t:`${tag} · Stick RGB TVSTICK · ${loc}`,code:C.stick[0],model:C.stick[2],feed:"230",right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida RGB"})),{kind:"radio",t:C.noonEU[1],s:"canal 3 a 9 (no 1 ni 2)",wires:[["r",""]],pin:"Radio"}]});
+        dev.push({id:"stick"+mi,t:`${tag} · Stick RGB TVSTICK · ${loc}`,code:C.stick[0],model:C.stick[2],feed:"230",psu:true,right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida RGB"})),{kind:"radio",t:C.noonEU[1],s:"canal 3 a 9 (no 1 ni 2)",wires:[["r",""]],pin:"Radio"}]});
         add("stick",1);
       }else if(ul){
         const all=[...rgbL,...white],T=totW(all),nTr=nTrafos(T),tr=T<=120?"tr150":"tr200",o=reparte(all,[1]);splitters(o,rgbL.length>0,tag);
-        dev.push({id:"tr"+mi,t:`${tag} · ${nTr>1?nTr+" × ":""}Transformador 24 V · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",right:[{kind:"note",W:T,t:"24 V DC → TVLRGBWW",s:w0(T),wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
-        dev.push({id:"rgbww"+mi,t:`${tag} · Receptor RGB + blanco · ${loc}`,code:C.rgbww[0],model:C.rgbww[2],feed:"24",right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salidas"})),{kind:"radio",t:C.noonUL[1],s:"916 MHz",wires:[["r",""]],pin:"Radio"}]});
+        dev.push({id:"tr"+mi,t:`${tag} · ${nTr>1?nTr+" × ":""}Transformador 24 V · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",right:[{kind:"note",W:T,t:"Salida 24 V DC → receptor TVLRGBWW (abajo)",s:w0(T),wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
+        dev.push({id:"rgbww"+mi,t:`${tag} · Receptor RGB + blanco · ${loc}`,code:C.rgbww[0],model:C.rgbww[2],feed:"24",from:"tr"+mi,right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salidas"})),{kind:"radio",t:C.noonUL[1],s:"916 MHz",wires:[["r",""]],pin:"Radio"}]});
         add("rgbww",1);add(tr,nTr,tag);
         if(nTr>1)av.push(["warn",`${m.nombre}: ${w0(T)} de luz → ${nTr} transformadores de 200 W. Reparte las tiras entre ellos y comprueba la carga máxima del receptor.`]);
       }else av.push(["bad",`${m.nombre}: en el catálogo ELYA no hay receptor RGB Somfy. Elige luz blanca o cambia de sistema.`]);
@@ -644,23 +670,27 @@ function icon(kind,x,y){
 }
 function dibujaUnifilar(cfg,r){
   const W=780,bx=110,bw=230,ix=480,iw=280,itemH=46;
-  let y=170,body="",branches=[],pes=[];
+  let y=170,body="",branches=[],pes=[];const cajas={};
   r.dev.forEach(d=>{
     const n=Math.max(1,d.right.length),h=Math.max(76,14+n*itemH);
-    const by=y,bh=h-16;
+    const by=y,bh=h-16;cajas[d.id]={by,bh};
     body+=`<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="3" fill="var(--soft)" stroke="var(--ink)" stroke-width="1.5"/>`;
     body+=`<text x="${bx+12}" y="${by+22}" font-size="13" font-weight="600">${esc(trunc(d.t,32))}</text>`;
     if(d.code)body+=`<text x="${bx+12}" y="${by+40}" font-size="12" class="mono mut">${esc(d.code)}</text>`;
     body+=`<text x="${bx+12}" y="${by+(d.code?56:40)}" font-size="12" class="mut">${esc(trunc(d.model+(d.W?" · "+w0(d.W):""),36))}</text>`;
+    /* Fuente integrada: entra 230 V y sale 24 V DC dentro de la propia central. */
+    if(d.psu&&bh>=70)body+=`<text x="${bx+12}" y="${by+(d.code?74:58)}" font-size="11" class="mono" style="fill:var(--w-p)">230 V ~ → 24 V ⎓ (fuente integrada)</text>`;
     const fy=by+18;
     if(d.feed==="230"){branches.push(fy);
       body+=`<line x1="40" y1="${fy}" x2="${bx}" y2="${fy}" stroke="${WC.l}" stroke-width="2"/><line x1="56" y1="${fy+8}" x2="${bx}" y2="${fy+8}" stroke="${WC.n}" stroke-width="2"/>`;
       body+=`<circle cx="40" cy="${fy}" r="3" fill="${WC.l}"/><circle cx="56" cy="${fy+8}" r="3" fill="${WC.n}"/>`;
       if(d.pe){body+=`<line x1="72" y1="${fy+16}" x2="${bx}" y2="${fy+16}" stroke="var(--w-pe)" stroke-width="2" stroke-dasharray="7 3"/><circle cx="72" cy="${fy+16}" r="3" fill="var(--w-pe)"/>`;pes.push(fy+16);}
       body+=`<text x="${bx-6}" y="${fy-5}" font-size="10" text-anchor="end" class="mono mut">${d.pe?"L · N · PE":"L · N"}</text>`;
-    }else if(d.feed==="24"){
-      body+=`<line x1="78" y1="${fy}" x2="${bx}" y2="${fy}" stroke="${WC.p}" stroke-width="2"/><line x1="78" y1="${fy+8}" x2="${bx}" y2="${fy+8}" stroke="${WC.m}" stroke-width="2"/>`;
-      body+=`<text x="${bx-6}" y="${fy-5}" font-size="10" text-anchor="end" class="mono mut">24 V DC ↑ trafo</text>`;
+    }else if(d.feed==="24"&&d.from&&cajas[d.from]){
+      /* 24 V DC desde el transformador de arriba hasta este receptor. */
+      const t=cajas[d.from],y0=t.by+t.bh,x1=bx+bw-46,x2=bx+bw-36;
+      body+=`<line x1="${x1}" y1="${y0}" x2="${x1}" y2="${by}" stroke="${WC.p}" stroke-width="2.5"/><line x1="${x2}" y1="${y0}" x2="${x2}" y2="${by}" stroke="${WC.m}" stroke-width="2.5"/>`;
+      body+=`<text x="${x1-6}" y="${(y0+by)/2+4}" font-size="10" text-anchor="end" class="mono" style="fill:var(--w-p)">24 V DC + / −</text>`;
     }
     d.right.forEach((it,i)=>{
       const cy=by+8+i*itemH+itemH/2-6;
@@ -705,7 +735,7 @@ const trunc=(s,n)=>{s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;};
 /* ---------- dibujo: planta de cada módulo ---------- */
 const TCOL=["var(--t1)","var(--t2)","var(--t3)","var(--t4)"];
 function dibujaModulo(pm,cfg){
-  const {m,tiras}=pm,A=m.A,P=m.P,sc=Math.min(240/A,240/P),w=A*sc,h=P*sc,ox=44,oy=32;
+  const {m,tiras}=pm,A=m.A,P=m.P,sc=Math.min(240/A,240/P),w=A*sc,h=P*sc,ox=78,oy=56;
   const X=x=>ox+x*sc,Y=y=>oy+(P-y)*sc,ins=8;
   const seg={izq:[[0,0],[0,P],[ins,0]],sup:[[0,P],[A,P],[0,ins]],der:[[A,P],[A,0],[-ins,0]],inf:[[A,0],[0,0],[0,-ins]]};
   let s=`<rect x="${X(0)}" y="${Y(P)}" width="${w}" height="${h}" fill="var(--soft)" stroke="var(--ink)" stroke-width="2"/>`;
@@ -737,14 +767,51 @@ function dibujaModulo(pm,cfg){
     if(pilId(n))s+=`<text x="${X(x)+(x?18:-18)}" y="${Y(y)+(y?-8:18)}" text-anchor="middle" font-size="14" font-weight="700">${esc(pilNom(n))}</text>`;
   });
   const cx=m.cent[1]==="i"?0:A,cy=m.cent[0]==="i"?0:P;
+  /* ---- recorridos de cables (por fuera del módulo = por encima de las vigas, bajo la tapa) ---- */
+  const N={izq:[-1,0],der:[1,0],sup:[0,-1],inf:[0,1]};
+  const linea=(r,dlt)=>r.pts.map((p,i)=>{let ox_=0,oy_=0;[r.sides[i-1],r.sides[i]].forEach(sd=>{if(sd){ox_+=N[sd][0];oy_+=N[sd][1];}});return [X(p[0])+ox_*dlt,Y(p[1])+oy_*dlt];});
+  const etiqueta=(pts,txt,col,dy)=>{let best=0,bi=0;pts.slice(1).forEach((p,i)=>{const l=Math.hypot(p[0]-pts[i][0],p[1]-pts[i][1]);if(l>best){best=l;bi=i;}});
+    const a=pts[bi],b=pts[bi+1],mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,ver=Math.abs(b[0]-a[0])<1;
+    return `<text x="${mx}" y="${my+(ver?0:dy)}" font-size="10" font-weight="600" text-anchor="middle" style="fill:${col}"${ver?` transform="rotate(-90 ${mx} ${my}) translate(0 ${dy})"`:""}>${esc(txt)}</text>`;};
+  if(pm.rm){const pts=linea(pm.rm,14);
+    s+=`<polyline points="${pts.map(p=>p.join(",")).join(" ")}" fill="none" stroke="var(--ink)" stroke-width="2" stroke-dasharray="6 3"/>`;
+    s+=etiqueta(pts,`Motor ≈ ${Math.ceil(pm.run)} m`,"var(--ink)",-5);}
+  if(pm.lejos){const pts=linea(pm.lejos.ruta,26);
+    s+=`<polyline points="${pts.map(p=>p.join(",")).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="3 3"/>`;
+    s+=etiqueta(pts,`Alargo ${pm.lejos.al.map(([l])=>m2(l).replace(",00","")).join(" + ")} m`,"var(--accent)",12);
+    const [fx,fy]=CPOS(m,pm.lejos.corner);
+    s+=`<circle cx="${X(fx)+(fx?-22:22)}" cy="${Y(fy)+(fy?22:-22)}" r="9" fill="var(--paper)" stroke="var(--accent)" stroke-width="2"/><text x="${X(fx)+(fx?-22:22)}" y="${Y(fy)+(fy?22:-22)+4}" text-anchor="middle" font-size="10" font-weight="700" style="fill:var(--accent)">Y</text>`;}
+  if(tiras.some(t=>t.g==="cerca"))s+=`<circle cx="${X(cx)+(cx?-22:22)}" cy="${Y(cy)+(cy?22:-22)}" r="9" fill="var(--paper)" stroke="var(--accent)" stroke-width="2"/><text x="${X(cx)+(cx?-22:22)}" y="${Y(cy)+(cy?22:-22)+4}" text-anchor="middle" font-size="10" font-weight="700" style="fill:var(--accent)">Y</text>`;
+  /* lamas con LED: por el mecanizado de la viga lateral de la centralita */
+  if(m.lamasN){const xs=cx?A:0,yl=P*m.lamasN/(m.lamasN+1),yi=P/(m.lamasN+1),dx=cx?-16:16;
+    s+=`<line x1="${X(xs)+dx}" y1="${Y(Math.max(yl,cy?yi:yl))}" x2="${X(xs)+dx}" y2="${Y(cy)+(cy?14:-14)}" stroke="var(--lama)" stroke-width="2.5" stroke-dasharray="4 3"/>`;}
+  /* 230 V: llega por el pilar de la centralita */
+  const vx=X(cx)+(cx?44:-44),vy=Y(cy)+(cy?-44:44);
+  s+=`<line x1="${X(cx)+(cx?8:-8)}" y1="${Y(cy)+(cy?-8:8)}" x2="${vx}" y2="${vy}" stroke="var(--w-l)" stroke-width="3"/><circle cx="${vx}" cy="${vy}" r="3" fill="var(--w-l)"/>`;
+  s+=`<text x="${vx+(cx?4:-4)}" y="${vy+(cy?-6:14)}" font-size="10" font-weight="700" text-anchor="${cx?"start":"end"}" style="fill:var(--w-l)">230 V</text>`;
   s+=`<rect x="${X(cx)-11}" y="${Y(cy)-11}" width="22" height="22" fill="none" stroke="var(--accent)" stroke-width="3"/>`;
   const mxp=m.motor==="izq"?0:A,myp=Math.min(0.6,P/4);
   s+=`<circle cx="${X(mxp)}" cy="${Y(myp)}" r="10" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/><text x="${X(mxp)}" y="${Y(myp)+4}" text-anchor="middle" font-size="10" font-weight="700">M</text>`;
   /* cotas */
-  s+=`<text x="${X(A/2)}" y="${Y(0)+28}" text-anchor="middle" font-size="12" class="mono">A ${m2(A)}</text>`;
-  s+=`<text x="${X(0)-20}" y="${Y(P/2)}" font-size="12" class="mono" text-anchor="middle" transform="rotate(-90 ${X(0)-20} ${Y(P/2)})">P ${m2(P)}</text>`;
+  s+=`<text x="${X(A/2)}" y="${Y(0)+52}" text-anchor="middle" font-size="12" class="mono">A ${m2(A)}</text>`;
+  s+=`<text x="${X(0)-52}" y="${Y(P/2)}" font-size="12" class="mono" text-anchor="middle" transform="rotate(-90 ${X(0)-52} ${Y(P/2)})">P ${m2(P)}</text>`;
   const defs=`<defs><marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" fill="var(--muted)"/></marker></defs>`;
-  return `<svg viewBox="0 0 ${ox+w+40} ${oy+h+40}" role="img" aria-label="Planta de ${esc(m.nombre)}">${defs}${s}</svg>`;
+  return `<svg viewBox="0 0 ${ox+w+80} ${oy+h+64}" role="img" aria-label="Planta de ${esc(m.nombre)}">${defs}${s}</svg>`;
+}
+
+/* Recorrido de cada cable de un módulo, por escrito (lo mismo que se dibuja en la planta). */
+function recorridos(pm,cfg){
+  const {m,tiras}=pm,cp=pilNom((m.pil||{})[m.cent])||CN[m.cent],nexta=pm.sis==="nexta"&&cfg.ledCentral==="tkl",out=n=>nexta?` → ${n}`:"";
+  const L=[];
+  L.push(`<b style="color:var(--w-l)">230 V</b>: línea del cuadro (L + N${cfg.schuko?" + PE":""}) por el pilar ${esc(cp)}${m.aloj==="viga"?` hasta la centralita, dentro de la viga ${esc(m.ref||"?")}`:" hasta la centralita, dentro del pilar"}. Caja de conexiones estanca IPX4.`);
+  if(pm.rm)L.push(`<b>Motor</b> (lado ${m.motor==="izq"?"izquierdo":"derecho"}): manguera 2×0,75 de ≈${Math.ceil(pm.run)} m por encima de ${esc(vigasDe(m,pm.rm.sides))} (entre la viga y la tapa) hasta la centralita.`);
+  const cerca=tiras.filter(t=>t.g==="cerca"),lejos=tiras.filter(t=>t.g==="lejos");
+  if(cerca.length)L.push(`<b style="color:var(--accent)">Tiras ${esc(cerca.map(t=>t.viga).join(" y "))}</b>: alargo de 1,5 m${cerca.length===2?" + cable de 3 vías":""} en la esquina de la centralita (${esc(cp)})${out("OUT1")}.`);
+  if(lejos.length&&pm.lejos)L.push(`<b style="color:var(--accent)">Tiras ${esc(lejos.map(t=>t.viga).join(" y "))}</b>: alargo ${pm.lejos.al.map(([l])=>m2(l).replace(",00","")+" m").join(" + ")}${pm.lejos.al.length>1?" empalmados":""} por encima de ${esc(vigasDe(m,pm.lejos.ruta.sides))} hasta la esquina ${esc(pilNom((m.pil||{})[pm.lejos.corner])||CN[pm.lejos.corner])}${lejos.length===2?" + cable de 3 vías":""}${out("OUT3")}.`);
+  if(m.lamasN)L.push(`<b style="color:var(--lama)">Lamas LED (${m.lamasN})</b>: unir los dos conectores de cada lama (conector de lama + conector de eje) y llevar los cables por el mecanizado de la viga ${esc(vigaDe(m,m.cent[1]==="i"?"izq":"der"))} hasta la centralita${out("OUT2 / OUT4")}.`);
+  if(m.viento)L.push(`<b>Anemómetro</b>: cable de 4 m a la entrada de sensores de la central de motor. Colocarlo despejado, sin obstáculos.`);
+  if(m.lluvia)L.push(`<b>Sensor de lluvia</b>: alimentación 230 V y contacto del relé (NA) a la entrada de sensores de la central de motor.`);
+  return L;
 }
 
 /* ---------- conexiones (solo lo que dicen los manuales) ---------- */
@@ -1189,7 +1256,7 @@ function render(){
   const nb=r.av.filter(a=>a[0]==="bad").length,nw=r.av.filter(a=>a[0]==="warn").length;
   $("sumAv").textContent=nb?`${nb} error(es) · ${nw} ojo`:nw?`${nw} para revisar`:"Todo dentro de manual";
   $("unifilar").innerHTML=dibujaUnifilar(cfg,r);
-  $("planta").innerHTML=r.plan.map(pm=>`<figure><figcaption>${esc(pm.tag)} · ${esc(pm.m.nombre)} · centralita en ${esc(pm.m.loc)}</figcaption>${dibujaModulo(pm,cfg)}</figure>`).join("");
+  $("planta").innerHTML=r.plan.map(pm=>`<figure><figcaption>${esc(pm.tag)} · ${esc(pm.m.nombre)} · centralita en ${esc(pm.m.loc)}</figcaption>${dibujaModulo(pm,cfg)}<ul class="rutas">${recorridos(pm,cfg).map(x=>`<li>${x}</li>`).join("")}</ul></figure>`).join("");
   const sisN={nexta:"Cherubini Nexta",teleco_eu:"Teleco EU",teleco_ul:"Teleco UL",somfy:"Somfy io"}[cfg.sistema];
   $("cajetin").innerHTML=[["Obra",cfg.obra||"—"],["OF",cfg.of||"—"],["Módulos",String(cfg.modulos.length)],["Alto",`${m2(cfg.alto)} m`],["Control",sisN],["Fecha",new Date().toLocaleDateString("es-ES")]].map(([b,s])=>`<div><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join("");
   const filas=r.plan.flatMap(pm=>[
@@ -1258,7 +1325,7 @@ function toast(t){const d=document.createElement("div");d.className="toast";d.te
 
 /* ---------- arranque ---------- */
 const clone=o=>JSON.parse(JSON.stringify(o));
-let cfg0=clone(EJEMPLO);
+let cfg0=VACIA();
 try{const s=JSON.parse(localStorage.getItem(KEY)||"null");if(s&&typeof s==="object"&&Array.isArray(s.modulos))cfg0=Object.assign(clone(EJEMPLO),s);}catch(e){}
 writeForm(cfg0);
 $("f").addEventListener("input",render);
@@ -1280,7 +1347,16 @@ $("f").addEventListener("click",e=>{
   if(d){const ms=readMods();ms.splice(+d.dataset.del,1);writeMods(ms);render();return;}
   if(e.target.id==="bAdd"){const ms=readMods();ms.push(NUEVO(ms.length+1));writeMods(ms);render();}
 });
-$("bReset").addEventListener("click",()=>{writeForm(clone(EJEMPLO));render();toast("Ejemplo cargado");});
+$("bReset").addEventListener("click",()=>{plano=null;planoFile=null;$("impRes").hidden=true;$("drive").hidden=true;writeForm(clone(EJEMPLO));render();toast("Ejemplo cargado");});
+/* Nueva obra: lo borra todo (pide pulsar dos veces para no borrar sin querer). */
+let nuevaT=null;
+$("bNueva").addEventListener("click",()=>{
+  const b=$("bNueva");
+  if(!nuevaT){b.textContent="¿Borrar todo? Pulsa otra vez";b.classList.add("pri");nuevaT=setTimeout(()=>{nuevaT=null;b.textContent="Nueva obra";b.classList.remove("pri");},4000);return;}
+  clearTimeout(nuevaT);nuevaT=null;b.textContent="Nueva obra";b.classList.remove("pri");
+  plano=null;planoFile=null;$("impRes").hidden=true;$("drive").hidden=true;
+  writeForm(VACIA());render();window.scrollTo(0,0);toast("Obra nueva en blanco");
+});
 $("bCopy").addEventListener("click",()=>{
   const t=bomTexto();
   const fallback=()=>{const ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");toast("Material copiado");}catch(e){toast("No se pudo copiar");}ta.remove();};
