@@ -60,6 +60,16 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 input:disabled+span,label.chk:has(input:disabled){opacity:.5}
 .hint{font-size:12px;color:var(--muted);margin:0}
 .mods{display:grid;gap:10px}
+#bom select.prod{width:100%;max-width:420px;padding:5px 7px;font-size:14px}
+#bom input.cant{width:72px;padding:5px 6px;text-align:right}
+#bom tr.cambiado td{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+#bom tr.quitado td{opacity:.6}
+#bom .rev.cam{color:var(--accent);border-color:var(--accent)}
+button.mini{padding:6px 9px;font-size:12px}
+button.mini.del{color:var(--bad)}
+.bomadd{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding-top:0}
+.bomadd select{max-width:100%;min-width:0;flex:1 1 260px}
+.bomadd input{width:80px}
 .drivebox{max-width:1320px;margin:0 auto 16px;display:grid;gap:8px;font-size:14px;border:1px solid var(--line);border-radius:6px;padding:12px 14px;background:var(--paper)}
 .drivebox .row2{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .drivebox select{max-width:100%}
@@ -243,7 +253,8 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
   <section class="sheet">
     <div class="hd"><h2>Material</h2><span class="tag">Hoja 4</span></div>
     <div class="bd scroll"><table id="bom"></table></div>
-    <div class="bd" style="padding-top:0"><p class="hint">«Revisar» = cantidad estimada o dato sin confirmar en manual. Comprobar antes de preparar el pedido.</p></div>
+    <div class="bd noprint bomadd" id="bomAdd"></div>
+    <div class="bd" style="padding-top:0"><p class="hint">Cambia cualquier producto por otro de su familia, corrige la cantidad, quita líneas o añade productos del catálogo. Los cambios se guardan con la obra. «Revisar» = cantidad estimada o dato sin confirmar en manual.</p></div>
   </section>
 </main>
 </div>
@@ -293,6 +304,20 @@ const C={
   y3RGB:["48008006000","Cable 3 vías RGB (1 a 2)","Splitter Y"],
   tapon:["43009014000","Tapón final cable LED","IP fin de línea"],
   alW15:["48009016000","Alargador LED BL 1,50 m","SPT066"],
+  rgbL:["43009008000","LED RGB neón lamas 4,50 m","iPixel"],
+  sp4Mi:["48009008000","Cable 4 salidas micro LED hembra","SPT052029"],
+  ext05:["43009011000","Extensión cable LED 0,50 m","Puente de interconexión"],
+  conMM:["43009015000","Conector cable M/M 10 cm","Acople rápido"],
+  cabT:["48009023000","Cable 3 m 2P + 2 micro en T","SPT052207"],
+  c1m:["48070041000","Cable iluminación 1 conector M 150 mm","EP5"],
+  cabEje:["48009011000","Cableado eje LED Llaza (12187)",""],
+  aries:["48009015000","Foco Aries bi-emisión","Haz arriba y abajo"],
+  fMiAL:["43009004000","Foco LED mini AL","Aluminio/gris"],
+  fMiNG:["43009004002","Foco LED mini NG","Negro"],
+  tkMiH:["48008002000","Conector aéreo mini hembra 2 polos","Tekox WP68"],
+  tkMiM:["48008001000","Conector aéreo mini macho 2 polos","Tekox WP68"],
+  tkWPM:["48008003002","Conector aéreo macho IP68","Tekox WP2/M"],
+  tkWPH:["48008004002","Conector aéreo hembra IP68","Tekox WP2/H"],
   alW5:["48009017000","Alargador LED BL 5 m","SPT074 (2 pines)"],
   alW7:["48009018000","Alargador LED BL 7 m","SPT050001 (2 pines)"],
   alRGB5:["48009019000","Alargador RGB 5 m","SPT068 (4 pines)"],
@@ -301,6 +326,23 @@ const C={
   schuko:["48009024000","Toma 230 V empotrable IP54","SOK-SH-B"],
   usb:["48009025000","Toma USB A+C c/cable 2P M","DUAL-USB-AC"]
 };
+/* Familias de productos: en la lista de material cada línea se puede cambiar por otro de su familia. */
+const FAMILIAS=[
+  ["Motor y centrales de motor",["motor","tkm","telEU","telUL","somCtrl"]],
+  ["Centrales de iluminación",["tkl","stl250","stl100","tklrgbw","stick","rgbww","somLed"]],
+  ["Emisores",["hoblo6","hobloMF","eco1","pop","noonEU","noonUL","situo"]],
+  ["Sensores",["mtw","mtr","rain"]],
+  ["Tiras y neón LED",["rW5","rW7","rN5","rN7","nP45","nP6","rgbP6","lamaW","rgbL"]],
+  ["Alargadores",["alW15","alW5","alW7","alRGB5","alRGB7","ext05"]],
+  ["Cables y divisores",["y3","y3RGB","sp4W","sp4RGB","sp4Mi","cabT","c1m","cabEje","conRGBW","mang"]],
+  ["Conectores y accesorios",["conLama","conEje","conMM","tapon","tkMiH","tkMiM","tkWPM","tkWPH"]],
+  ["Fuentes de alimentación",["tr150","tr200"]],
+  ["Tomas y focos",["schuko","usb","aries","fMiAL","fMiNG"]]
+];
+const famDe=k=>(FAMILIAS.find(f=>f[1].includes(k))||[null,[k]])[1];
+/* Cambios a mano sobre el material calculado: sw = producto cambiado, q = cantidad, del = quitados, extra = añadidos. */
+const MAT0=()=>({sw:{},q:{},del:[],extra:[]});
+let mat=MAT0();
 const EMISORES={nexta:["hoblo6","hobloMF","eco1","pop"],teleco_eu:["noonEU"],teleco_ul:["noonUL"],somfy:["situo"]};
 const LADOS_ALL={sup:true,inf:true,izq:true,der:true};
 /* Ejemplo: plano de fabricación de la obra 54007372 (7380 × 8640, inglete/mixta, 24-07-2026). */
@@ -335,7 +377,7 @@ function modCard(m,i){
   <div class="row"><label>Ancho A (m)<input type="number" id="m${i}_A" step="0.01" min="1" max="6" value="${m.A}"></label><label>Salida P (m)<input type="number" id="m${i}_P" step="0.01" min="1" max="8" value="${m.P}"></label></div>
   <div class="row"><label>Motor / desagüe<select id="m${i}_motor">${opt({izq:"Lado izq.",der:"Lado der."},m.motor)}</select></label><label>Centralita (esquina)<select id="m${i}_cent">${opt(ESQ,m.cent)}</select></label></div>
   <div class="row"><label>Alojada en<select id="m${i}_aloj">${opt({viga:"Viga",pilar:"Pilar"},m.aloj||"viga")}</select></label><label>Nº viga / pilar<input type="text" id="m${i}_ref" value="${esc(m.ref||"")}" placeholder="V2-4 o 3"></label></div>
-  <div class="tag">Pilares (nº del plano)</div>
+  <div class="tag">Pilares (como en el plano: 1, P1 o PA)</div>
   <div class="row"><input type="text" id="m${i}_p_si" value="${esc(m.pil.si)}" placeholder="sup. izq." aria-label="Pilar sup. izq."><input type="text" id="m${i}_p_sd" value="${esc(m.pil.sd)}" placeholder="sup. der." aria-label="Pilar sup. der."></div>
   <div class="row"><input type="text" id="m${i}_p_ii" value="${esc(m.pil.ii)}" placeholder="inf. izq." aria-label="Pilar inf. izq."><input type="text" id="m${i}_p_id" value="${esc(m.pil.id)}" placeholder="inf. der." aria-label="Pilar inf. der."></div>
   <div class="tag">Vigas (vacío = V + pilares de sus extremos)</div>
@@ -364,6 +406,7 @@ function readForm(){
   o.alto=num(o.alto,2.5);o.wm=num(o.wm,10);o.wmRGB=num(o.wmRGB,12);
   ["schuko","usb"].forEach(k=>{o[k]=Math.max(0,Math.round(isFinite(o[k])?o[k]:0));});
   o.modulos=readMods();
+  o.material=mat;
   return o;
 }
 function fillEmisores(sis,sel){
@@ -375,6 +418,7 @@ function writeMods(mods){
   $("bAdd").disabled=mods.length>=6;
 }
 function writeForm(o){
+  const m=o.material||{};mat={sw:m.sw||{},q:m.q||{},del:Array.isArray(m.del)?m.del:[],extra:Array.isArray(m.extra)?m.extra.filter(x=>C[x.k]):[]};
   fillEmisores(o.sistema,o.emisor);
   FIELDS.forEach(k=>{if(k==="emisor")return;const el=$(k);if(el.type==="checkbox")el.checked=!!o[k];else el.value=o[k];});
   writeMods(o.modulos);
@@ -402,7 +446,10 @@ const SN={izq:"izq.",sup:"sup.",der:"der.",inf:"inf."};
 const sideLen=(m,sd)=>sd==="izq"||sd==="der"?m.P:m.A;
 /* Extremos de cada lado (esquinas): izq ii→si · sup si→sd · der sd→id · inf id→ii. Viga = V + pilares de los extremos, salvo que el plano diga otra. */
 const EXT={izq:["ii","si"],sup:["si","sd"],der:["sd","id"],inf:["id","ii"]};
-function vigaAuto(m,sd){const p=m.pil||{},[a,b]=EXT[sd];return p[a]&&p[b]?`V${p[a]}-${p[b]}`:"lado "+SN[sd];}
+/* Como en los planos: el pilar se llama P + su número o letra (P1, PA) y la viga V + los de sus extremos sin la P (V1-2). */
+const pilId=v=>String(v||"").trim().replace(/^P\s*/i,"");
+const pilNom=v=>pilId(v)?"P"+pilId(v):"";
+function vigaAuto(m,sd){const p=m.pil||{},[a,b]=EXT[sd];return pilId(p[a])&&pilId(p[b])?`V${pilId(p[a])}-${pilId(p[b])}`:"lado "+SN[sd];}
 const vigaDe=(m,sd)=>(m.vig&&m.vig[sd])||vigaAuto(m,sd);
 function repartoModulo(m){
   const k0=CORN.indexOf(m.cent);
@@ -441,7 +488,7 @@ function calcular(cfg){
 
   mods.forEach((m,mi)=>{
     const tag="M"+(mi+1);
-    const loc=m.ref?(m.aloj==="pilar"?"pilar "+m.ref:m.ref):(m.aloj==="pilar"?"pilar ?":"viga ?");m.loc=loc;
+    const loc=m.ref?(m.aloj==="pilar"?"pilar "+pilNom(m.ref):m.ref.toUpperCase()):(m.aloj==="pilar"?"pilar ?":"viga ?");m.loc=loc;
     if(!m.ref)av.push(["warn",`${m.nombre}: falta el número de ${m.aloj==="pilar"?"pilar":"viga"} donde va la centralita (míralo en la ficha de fabricación).`]);
     /* Medidas máximas de un módulo: manual ELYA Autoportante 2.1 */
     if(m.A>4.5)av.push(["bad",`${m.nombre}: ancho ${m2(m.A)} m, el máximo por módulo es 4,50 m.`]);
@@ -687,7 +734,7 @@ function dibujaModulo(pm,cfg){
   [["ii",0,0],["id",A,0],["sd",A,P],["si",0,P]].forEach(([k,x,y])=>{
     s+=`<rect x="${X(x)-6}" y="${Y(y)-6}" width="12" height="12" fill="var(--ink)"/>`;
     const n=(m.pil||{})[k];
-    if(n)s+=`<text x="${X(x)+(x?16:-16)}" y="${Y(y)+(y?-8:18)}" text-anchor="middle" font-size="15" font-weight="700">${esc(n)}</text>`;
+    if(pilId(n))s+=`<text x="${X(x)+(x?18:-18)}" y="${Y(y)+(y?-8:18)}" text-anchor="middle" font-size="14" font-weight="700">${esc(pilNom(n))}</text>`;
   });
   const cx=m.cent[1]==="i"?0:A,cy=m.cent[0]==="i"?0:P;
   s+=`<rect x="${X(cx)-11}" y="${Y(cy)-11}" width="22" height="22" fill="none" stroke="var(--accent)" stroke-width="3"/>`;
@@ -957,7 +1004,7 @@ function aplicaPlanoClaude(d,nombreArchivo,quien){
   const dudas=(Array.isArray(d.dudas)?d.dudas:[]).map(String);
   const box=$("impRes");box.hidden=false;
   box.innerHTML=`<div><span class="ok">Plano leído${quien?" "+quien:" por Claude"}:</span> ${esc(d.modelo||"")} · ${mods.length} módulo(s)${d.montaje?" · "+esc(String(d.montaje).replace("_"," ")):""}</div>
-  <ul>${mods.map(m=>`<li>${esc(m.nombre)}: ${m2(m.A)} × ${m2(m.P)} m · motor ${m.motor==="izq"?"izquierda":"derecha"} · centralita en ${m.aloj} ${esc(m.ref||"?")}${m.lamasN?` · ${m.lamasN} lamas LED`:""}</li>`).join("")}</ul>
+  <ul>${mods.map(m=>`<li>${esc(m.nombre)}: ${m2(m.A)} × ${m2(m.P)} m · motor ${m.motor==="izq"?"izquierda":"derecha"} · centralita en ${m.aloj} ${esc((m.aloj==="pilar"?pilNom(m.ref):m.ref)||"?")}${m.lamasN?` · ${m.lamasN} lamas LED`:""}</li>`).join("")}</ul>
   ${dudas.length?`<div><b>Comprobar:</b></div><ul>${dudas.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:""}
   <div class="hint">Revisa los datos con el plano antes de usar el esquema${quien==="del cajetín"?"":": la lectura del dibujo puede equivocarse"}.</div>`;
   render();
@@ -1022,6 +1069,9 @@ const nombreObra=cfg=>(((cfg.of&&!String(cfg.obra||"").includes(cfg.of))?cfg.of+
 function snapshotHTML(cfg){
   const css=document.querySelector("style").textContent,main=document.querySelector("main").cloneNode(true);
   main.querySelectorAll(".noprint").forEach(e=>e.remove());
+  main.querySelectorAll("#bom select").forEach(e=>{const sp=document.createElement("span");sp.textContent=e.selectedOptions[0]?e.selectedOptions[0].textContent.replace(/ · \d+$/,""):"";e.replaceWith(sp);});
+  main.querySelectorAll("#bom input").forEach(e=>e.replaceWith(document.createTextNode(e.value)));
+  main.querySelectorAll("#bom button,#bom tr.quitado").forEach(e=>e.remove());
   return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Esquema ELYA · ${esc(nombreObra(cfg))}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <style>${css} main{max-width:1100px;margin:0 auto}</style></head><body><header class="top"><div><div class="eyebrow">Llaza SAT · Pérgola bioclimática ELYA</div><h1>${esc(nombreObra(cfg))}</h1>
@@ -1139,7 +1189,7 @@ function render(){
   const nb=r.av.filter(a=>a[0]==="bad").length,nw=r.av.filter(a=>a[0]==="warn").length;
   $("sumAv").textContent=nb?`${nb} error(es) · ${nw} ojo`:nw?`${nw} para revisar`:"Todo dentro de manual";
   $("unifilar").innerHTML=dibujaUnifilar(cfg,r);
-  $("planta").innerHTML=r.plan.map(pm=>`<figure><figcaption>${esc(pm.tag)} · ${esc(pm.m.nombre)} · centralita en ${esc(pm.m.aloj==="pilar"?"pilar":"viga")} ${esc(pm.m.ref||"?")}</figcaption>${dibujaModulo(pm,cfg)}</figure>`).join("");
+  $("planta").innerHTML=r.plan.map(pm=>`<figure><figcaption>${esc(pm.tag)} · ${esc(pm.m.nombre)} · centralita en ${esc(pm.m.loc)}</figcaption>${dibujaModulo(pm,cfg)}</figure>`).join("");
   const sisN={nexta:"Cherubini Nexta",teleco_eu:"Teleco EU",teleco_ul:"Teleco UL",somfy:"Somfy io"}[cfg.sistema];
   $("cajetin").innerHTML=[["Obra",cfg.obra||"—"],["OF",cfg.of||"—"],["Módulos",String(cfg.modulos.length)],["Alto",`${m2(cfg.alto)} m`],["Control",sisN],["Fecha",new Date().toLocaleDateString("es-ES")]].map(([b,s])=>`<div><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join("");
   const filas=r.plan.flatMap(pm=>[
@@ -1153,16 +1203,56 @@ function render(){
   $("consumo").innerHTML=`<thead><tr><th>Central</th><th>Alimenta</th><th style="text-align:right">W</th></tr></thead><tbody>${
     cw.map(d=>`<tr><td>${esc(d.t)}<div class="hint">${esc(d.code)}</div></td><td>${esc(d.right.filter(it=>it.W).map(it=>it.t).join(" · "))}</td><td class="qty">${w0(d.W)}</td></tr>`).join("")
   }</tbody><tfoot><tr><th colspan="2">Total de las cargas</th><th style="text-align:right" class="mono">${w0(TW)}</th></tr><tr><th colspan="2">Estimado en 230 V (fuentes de 24 V al 90 %)</th><th style="text-align:right" class="mono">${w0(W230)} · ${(W230/230).toLocaleString("es-ES",{maximumFractionDigits:1})} A</th></tr></tfoot>`;
-  $("bom").innerHTML=`<thead><tr><th>Código</th><th>Descripción</th><th>Modelo</th><th style="text-align:right">Cant.</th></tr></thead><tbody>${[...r.bom.values()].map(e=>{
-    const c=C[e.k];
-    return `<tr><td class="code">${c[0]}</td><td>${esc(c[1])}${e.rev?'<span class="rev">Revisar</span>':""}${e.notas.size?`<div class="hint">${esc([...e.notas].join(" · "))}</div>`:""}</td><td>${esc(c[2])}</td><td class="qty">${e.k==="mang"?"≈ "+e.q+" m":e.q}</td></tr>`;}).join("")}</tbody>`;
+  pintaMaterial(r);
+}
+/* Material = lo calculado con los cambios a mano encima. */
+function bomFinal(r){
+  const rows=[...r.bom.values()].map(e=>{const k=C[mat.sw[e.k]]?mat.sw[e.k]:e.k,qm=mat.q[e.k];
+    return {id:e.k,k,q:qm!=null?qm:e.q,calc:e.q,notas:[...e.notas],rev:e.rev&&qm==null,cambiado:k!==e.k||qm!=null,quitado:mat.del.includes(e.k)};});
+  mat.extra.forEach((x,i)=>rows.push({id:"+"+i,k:x.k,q:x.q,notas:[],extra:true,cambiado:true}));
+  return rows;
+}
+function pintaMaterial(r){
+  const rows=bomFinal(r),hay=rows.some(x=>x.cambiado||x.quitado);
+  const opts=(k)=>famDe(k).map(f=>`<option value="${f}"${f===k?" selected":""}>${esc(C[f][1])} · ${C[f][0]}</option>`).join("");
+  const todos=FAMILIAS.map(([n,ks])=>`<optgroup label="${esc(n)}">${ks.map(k=>`<option value="${k}">${esc(C[k][1])} · ${C[k][0]}</option>`).join("")}</optgroup>`).join("");
+  $("bom").innerHTML=`<thead><tr><th>Código</th><th>Producto</th><th style="text-align:right">Cant.</th><th></th></tr></thead><tbody>${rows.map(x=>{
+    const c=C[x.k],ud=x.k==="mang"?" m":"";
+    if(x.quitado)return `<tr class="quitado"><td class="code">${c[0]}</td><td><s>${esc(c[1])}</s> <span class="hint">quitado</span></td><td class="qty"><s>${x.q}${ud}</s></td><td><button type="button" class="mini" data-pon="${esc(x.id)}">Volver a poner</button></td></tr>`;
+    return `<tr${x.cambiado?' class="cambiado"':""}><td class="code">${c[0]}</td>
+      <td><select class="prod" data-id="${esc(x.id)}" aria-label="Producto">${opts(x.k)}</select>${x.rev?'<span class="rev">Revisar</span>':""}${x.cambiado?'<span class="rev cam">Cambiado</span>':""}<div class="hint">${esc(c[2])}${x.notas.length?" · "+esc(x.notas.join(" · ")):""}</div></td>
+      <td class="qty"><input type="number" class="cant" data-id="${esc(x.id)}" min="0" step="1" value="${x.q}" aria-label="Cantidad">${ud}</td>
+      <td><button type="button" class="mini del" data-quita="${esc(x.id)}" title="Quitar esta línea">Quitar</button></td></tr>`;}).join("")}</tbody>`;
+  $("bomAdd").innerHTML=`<label for="addK">Añadir producto</label><select id="addK">${todos}</select><input type="number" id="addQ" min="1" step="1" value="1" aria-label="Cantidad"><button type="button" id="addGo">Añadir</button>${hay?'<button type="button" id="matReset">Volver al material calculado</button>':""}`;
+}
+/* Cambios en la tabla de material (fuera del formulario). */
+function cambiaMaterial(fn){fn();render();}
+function eventosMaterial(){
+  const bom=$("bom"),add=$("bomAdd");
+  bom.addEventListener("change",e=>{
+    const t=e.target,id=t.dataset.id;if(!id)return;
+    const ex=id[0]==="+"?mat.extra[+id.slice(1)]:null;
+    if(t.classList.contains("prod"))cambiaMaterial(()=>{if(ex)ex.k=t.value;else if(t.value===id)delete mat.sw[id];else mat.sw[id]=t.value;});
+    if(t.classList.contains("cant")){const v=Math.max(0,parseFloat(t.value)||0);cambiaMaterial(()=>{if(ex)ex.q=v;else mat.q[id]=v;});}
+  });
+  bom.addEventListener("click",e=>{
+    const q=e.target.dataset.quita,pon=e.target.dataset.pon;
+    if(q!=null)cambiaMaterial(()=>{if(q[0]==="+")mat.extra.splice(+q.slice(1),1);else if(!mat.del.includes(q))mat.del.push(q);});
+    if(pon!=null)cambiaMaterial(()=>{mat.del=mat.del.filter(x=>x!==pon);});
+  });
+  add.addEventListener("click",e=>{
+    if(e.target.id==="addGo"){const k=$("addK").value,qq=Math.max(1,parseFloat($("addQ").value)||1);cambiaMaterial(()=>mat.extra.push({k,q:qq}));toast("Producto añadido");}
+    if(e.target.id==="matReset")cambiaMaterial(()=>{mat=MAT0();});
+  });
 }
 
 function bomTexto(){
   if(!last)return "";
   const {cfg,r}=last;
   const head=`Esquema ELYA · ${cfg.obra||""}${cfg.of?" · OF "+cfg.of:""} · ${cfg.modulos.length} módulo(s)`;
-  return head+"\nCódigo\tDescripción\tCant.\n"+[...r.bom.values()].map(e=>`${C[e.k][0]}\t${C[e.k][1]}${e.rev?" (revisar)":""}\t${e.k==="mang"?e.q+" m":e.q}`).join("\n");
+  /* Para el pedido, un mismo producto en una sola línea. */
+  const t=new Map();bomFinal(r).filter(x=>!x.quitado&&x.q>0).forEach(x=>{const e=t.get(x.k)||{k:x.k,q:0,rev:false};e.q+=x.q;e.rev=e.rev||x.rev;t.set(x.k,e);});
+  return head+"\nCódigo\tDescripción\tCant.\n"+[...t.values()].map(e=>`${C[e.k][0]}\t${C[e.k][1]}${e.rev?" (revisar)":""}\t${e.k==="mang"?e.q+" m":e.q}`).join("\n");
 }
 function toast(t){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200);}
 
@@ -1200,6 +1290,7 @@ $("bCopy").addEventListener("click",()=>{
 let top=false;try{top=window.self===window.top;}catch(e){}
 if(top){$("bPrint").hidden=false;$("bPrint").addEventListener("click",()=>window.print());}
 render();
+eventosMaterial();
 $("bSave").onclick=guardarEnDrive;$("bOpen").onclick=abrirDeDrive;
 mcp().then(m=>{if(m||API_CFG){$("bSave").hidden=false;$("bOpen").hidden=false;}});
 })();
