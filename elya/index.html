@@ -8,6 +8,8 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon/icon-32.png">
 <link rel="apple-touch-icon" href="icon/icon-180.png">
+<script>window.ELYA_API={url:"https://script.google.com/macros/s/AKfycbx6O4pyMDoRBnUyWfemQf4kDcG2AqS0yCgYnO4BsExkOi5_Bg_v3t2QshV18qqMT3RH/exec",clientId:"262401648003-agcod92m3lne93rpgf3ulc54p0695p1q.apps.googleusercontent.com"};</script>
+<script src="https://accounts.google.com/gsi/client" async></script>
 <title>Esquema eléctrico ELYA</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
@@ -1019,7 +1021,49 @@ function snapshotHTML(cfg){
 <p class="sub">Esquema eléctrico generado el ${new Date().toLocaleString("es-ES")}</p></div></header>${main.outerHTML}</body></html>`;
 }
 const sello=()=>{const d=new Date(),z=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}${z(d.getMinutes())}`;};
+/* App instalable (sin Claude): Drive a través de la API del catálogo con «Iniciar sesión con Google».
+   La sesión es la misma que la del catálogo (mismo sitio, clave «cl_tok»). window.ELYA_API lo pone build_elya.py. */
+const API_CFG=window.ELYA_API||null;
+let gTok=null,gisIni=false;try{gTok=JSON.parse(localStorage.getItem("cl_tok")||"null");}catch(e){}
+const tokOk=()=>gTok&&gTok.exp*1000>Date.now()+60000;
+function tokenGoogle(box){
+  if(tokOk())return Promise.resolve(gTok.t);
+  return new Promise((ok,ko)=>{
+    const g=window.google&&window.google.accounts&&window.google.accounts.id;
+    if(!g){ko({msg:navigator.onLine?"No se ha podido cargar el inicio de sesión de Google. Cierra y vuelve a abrir la app.":"Sin conexión: conéctate para usar Drive."});return;}
+    g.initialize({client_id:API_CFG.clientId,auto_select:true,use_fedcm_for_prompt:true,itp_support:true,context:"signin",callback:r=>{
+      const p=JSON.parse(decodeURIComponent(escape(atob(r.credential.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")))));
+      gTok={t:r.credential,exp:p.exp,email:p.email};try{localStorage.setItem("cl_tok",JSON.stringify(gTok));}catch(e){}ok(gTok.t);}});
+    box.innerHTML=`<div>Inicia sesión con tu cuenta de Google para usar Drive.</div><div id="gBtnE"></div>`;
+    g.renderButton($("gBtnE"),{theme:"filled_blue",size:"large",text:"signin_with",shape:"pill",locale:"es"});
+    if(!gisIni){gisIni=true;g.prompt();}
+  });
+}
+async function api(fn,args,box,aviso,again){
+  const t=await tokenGoogle(box);
+  if(aviso)box.innerHTML=`<div><b>${aviso}</b></div>`;
+  let r;try{r=await fetch(API_CFG.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({t,fn,args})});}
+  catch(e){throw {msg:navigator.onLine?"No se ha podido hablar con la API. Prueba en un momento.":"Sin conexión: conéctate para usar Drive."};}
+  if(!r.ok)throw {msg:"La API ha respondido con un error "+r.status+"."};
+  const j=await r.json();
+  if(!j.ok&&j.auth&&!again){gTok=null;try{localStorage.removeItem("cl_tok");}catch(e){}return api(fn,args,box,aviso,true);}
+  if(!j.ok)throw {msg:/no disponible/.test(j.error||"")?"La API todavía no tiene las funciones de la ELYA: hay que publicarla (README, «Despliegue de la API»).":j.error||"Algo ha fallado."};
+  return j.r;
+}
+const fileB64=f=>new Promise((ok,ko)=>{const fr=new FileReader();fr.onload=()=>ok(String(fr.result).split(",")[1]);fr.onerror=ko;fr.readAsDataURL(f);});
+async function guardarPorApi(){
+  const box=$("drive"),btn=$("bSave"),cfg=readForm();box.hidden=false;btn.disabled=true;
+  try{
+    const plano=planoFile&&!planoFile._subido&&planoFile.size<15e6?{name:planoFile.name,mime:planoFile.type||"application/pdf",b64:await fileB64(planoFile)}:null;
+    const r=await api("elyaGuardar",[{nombre:nombreObra(cfg),obra:JSON.stringify({app:"esquema-elya",v:2,guardado:new Date().toISOString(),cfg},null,1),html:snapshotHTML(cfg),plano}],box,"Guardando en Google Drive…");
+    if(planoFile&&r.hechos.includes("el plano"))planoFile._subido=true;
+    box.innerHTML=`<div><span class="ok">Guardado</span> en ${esc(RAIZ)} / <b>${esc(r.nombre)}</b>: ${esc(r.hechos.join(", "))}.</div><div><a href="${esc(r.url)}" target="_blank" rel="noopener">Abrir la carpeta en Drive</a></div>`;
+    toast("Guardado en Drive");
+  }catch(e){console.warn(e);box.innerHTML=`<div class="ko">${esc(e.msg||e.message||"No se pudo guardar.")}</div>`;}
+  finally{btn.disabled=false;}
+}
 async function guardarEnDrive(){
+  if(!(await mcp())&&API_CFG)return guardarPorApi();
   const box=$("drive"),btn=$("bSave"),cfg=readForm();box.hidden=false;btn.disabled=true;
   box.innerHTML=`<div><b>Guardando en Google Drive…</b> La primera vez te pide permiso para usar el conector.</div>`;
   try{
@@ -1043,10 +1087,13 @@ async function guardarEnDrive(){
 }
 async function abrirDeDrive(){
   const box=$("drive");box.hidden=false;box.innerHTML=`<div><b>Buscando obras en Drive…</b></div>`;
+  const porApi=!(await mcp())&&!!API_CFG;
   try{
-    const raiz=await carpetaRaiz();
-    const subs=lista(await gd("search_files",{query:`mimeType = '${FOLDER}' and parentId = '${raiz.id}'`,excludeContentSnippets:true,pageSize:100}))
-      .sort((a,b)=>String(b.modifiedTime||"").localeCompare(String(a.modifiedTime||"")));
+    let subs;
+    if(porApi)subs=await api("elyaListar",[],box,"Buscando obras en Drive…");
+    else{const raiz=await carpetaRaiz();
+      subs=lista(await gd("search_files",{query:`mimeType = '${FOLDER}' and parentId = '${raiz.id}'`,excludeContentSnippets:true,pageSize:100}))
+        .sort((a,b)=>String(b.modifiedTime||"").localeCompare(String(a.modifiedTime||"")));}
     if(!subs.length){box.innerHTML=`<div>Todavía no hay obras guardadas en ${esc(RAIZ)}.</div>`;return;}
     box.innerHTML=`<div class="row2"><label for="drvSel">Obra</label><select id="drvSel">${subs.map(f=>`<option value="${esc(f.id)}">${esc(f.title)}</option>`).join("")}</select><button type="button" class="pri" id="drvGo">Abrir</button><button type="button" id="drvX">Cerrar</button></div>`;
     $("drvX").onclick=()=>{box.hidden=true;};
@@ -1054,11 +1101,15 @@ async function abrirDeDrive(){
       const id=$("drvSel").value,nom=$("drvSel").selectedOptions[0].textContent;
       box.innerHTML=`<div><b>Abriendo ${esc(nom)}…</b></div>`;
       try{
-        const fs=lista(await gd("search_files",{query:`parentId = '${q(id)}' and title contains 'obra '`,excludeContentSnippets:true,pageSize:50}))
-          .filter(f=>/\.json$/i.test(f.title||"")).sort((a,b)=>String(b.modifiedTime||"").localeCompare(String(a.modifiedTime||"")));
-        if(!fs.length)throw {msg:"En esa carpeta no hay ninguna obra guardada por la app."};
-        const d=await gd("download_file_content",{fileId:fs[0].id});
-        const bin=atob(d&&d.content||""),txt=new TextDecoder().decode(Uint8Array.from(bin,c=>c.charCodeAt(0)));
+        let txt;
+        if(porApi)txt=(await api("elyaAbrir",[id],box,`Abriendo ${esc(nom)}…`)).obra;
+        else{
+          const fs=lista(await gd("search_files",{query:`parentId = '${q(id)}' and title contains 'obra '`,excludeContentSnippets:true,pageSize:50}))
+            .filter(f=>/\.json$/i.test(f.title||"")).sort((a,b)=>String(b.modifiedTime||"").localeCompare(String(a.modifiedTime||"")));
+          if(!fs.length)throw {msg:"En esa carpeta no hay ninguna obra guardada por la app."};
+          const d=await gd("download_file_content",{fileId:fs[0].id});
+          const bin=atob(d&&d.content||"");txt=new TextDecoder().decode(Uint8Array.from(bin,c=>c.charCodeAt(0)));
+        }
         const o=JSON.parse(txt);if(!o||!o.cfg||!Array.isArray(o.cfg.modulos))throw {msg:"El archivo de la obra no es válido."};
         plano=null;planoFile=null;$("impRes").hidden=true;
         writeForm(Object.assign(clone(EJEMPLO),o.cfg));render();
@@ -1143,7 +1194,7 @@ let top=false;try{top=window.self===window.top;}catch(e){}
 if(top){$("bPrint").hidden=false;$("bPrint").addEventListener("click",()=>window.print());}
 render();
 $("bSave").onclick=guardarEnDrive;$("bOpen").onclick=abrirDeDrive;
-mcp().then(m=>{if(m){$("bSave").hidden=false;$("bOpen").hidden=false;}});
+mcp().then(m=>{if(m||API_CFG){$("bSave").hidden=false;$("bOpen").hidden=false;}});
 })();
 </script>
 <script>if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));</script>
