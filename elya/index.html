@@ -1053,9 +1053,8 @@ function modulosDelPlano(){
   /* Posición de cada módulo en la planta, del propio plano (el PDF mide y hacia abajo). */
   const xL=Math.min(...plano.mods.map(m=>m.box.xL)),yI=Math.max(...plano.mods.map(m=>m.box.yI)),r2=v=>Math.round(v*100)/100;
   return plano.mods.map((m,i)=>({nombre:"Módulo "+m.n,pos:{x:r2((m.box.xL-xL)/ppm),y:r2((yI-m.box.yI)/ppm)},A:Math.round(m.w/ppm*100)/100,P:Math.round(m.h/ppm*100)/100,
-    /* Los nombres de pilares y vigas del plano eléctrico son los del plano firmado, no los nodos de la ficha:
-       de la ficha solo se toma la geometría, las tiras y la esquina de la centralita. */
-    motor:(prev[i]&&prev[i].motor)||"der",cent:m.c?m.c.corner:"si",aloj:"viga",ref:"",pil:{si:"",sd:"",ii:"",id:""},vig:{},
+    /* De la ficha se toma la geometría, las tiras, la esquina de la centralita y la viga que marca el plano. */
+    motor:(prev[i]&&prev[i].motor)||"der",cent:m.c?m.c.corner:"si",aloj:"viga",ref:m.c?m.c.viga:"",pil:{si:"",sd:"",ii:"",id:""},vig:{},
     luz:Object.values(m.lados).some(Boolean)?((prev[i]&&prev[i].luz!=="none"&&prev[i].luz)||"w3000"):"none",
     lados:Object.values(m.lados).some(Boolean)?m.lados:{...LADOS_ALL},lamasN:(prev[i]&&prev[i].lamasN)||0,viento:!!(prev[i]&&prev[i].viento),lluvia:!!(prev[i]&&prev[i].lluvia)}));
 }
@@ -1064,7 +1063,8 @@ function pintaImport(){
   const opts=r.mods.map(m=>`<option value="${m.n}"${m.n===r.refN?" selected":""}>Módulo ${m.n}</option>`).join("");
   box.innerHTML=`<div><span class="ok">Plano leído:</span> ${r.mods.length} módulo(s) · ${r.nPil} pilares · ${r.nVig} vigas · ${r.nCen} marca(s) de centralita</div>
   ${r.avisos.length?`<ul>${r.avisos.map(a=>`<li>${esc(a)}</li>`).join("")}</ul>`:""}
-  <div><b>Nombres:</b> los pilares y vigas del esquema tienen que ser los del plano firmado. Escríbelos en cada módulo (pilares y viga de la centralita) o importa el plano firmado.</div>
+  ${r.mods.some(m=>m.c)?`<div><b>Centralitas</b> (viga que marca el plano): ${r.mods.filter(m=>m.c).map(m=>`módulo ${m.n} → ${esc(m.c.viga)}`).join(" · ")}.</div>`:""}
+  <div><b>Pilares:</b> escribe en cada módulo los nombres del plano firmado (P1, PA…), o importa el plano firmado.</div>
   <div>Las cotas van dibujadas y no se pueden leer del PDF. Escribe una y saco las demás a escala (salen con ±5 cm: corrígelas con las cotas del plano si hace falta):</div>
   <div class="row"><label>Ancho A de<select id="impRef">${opts}</select></label><label>según el plano (m)<input type="number" id="impA" step="0.01" min="0.5" max="10" value="${r.refA}"></label></div>
   <div class="hint">Marca también el lado del motor de cada módulo: en el plano va dibujado, no escrito.</div>`;
