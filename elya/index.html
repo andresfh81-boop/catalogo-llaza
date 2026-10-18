@@ -843,7 +843,8 @@ function pintaModulo(pm,cfg,X,Y,o){
       qx=ax+(bx2-ax)/L*34-nx*20;qy=ay+(by2-ay)/L*34-ny*20;}
     else [qx,qy]=yCirc(G.corner);
     txt+=`<circle cx="${qx}" cy="${qy}" r="10" fill="var(--paper)" stroke="${CC.al}" stroke-width="2.5"/><text x="${qx}" y="${qy+4}" text-anchor="middle" font-size="11" font-weight="700" style="fill:${CC.al}">${n===2?"Y":"→"}</text>`;
-    if(G.corner===m.cent&&!rot15){rot15=true;const [zx,zy]=yCirc(m.cent);txt+=`<text x="${zx+ix*14}" y="${zy+iy*16}" text-anchor="${ix>0?"start":"end"}" font-size="10" font-weight="700" style="fill:${CC.al}">alargo 1,5 m</text>`;}});
+    if(G.corner===m.cent&&!rot15){rot15=true;const [zx,zy]=yCirc(m.cent),nc=gruposTira(m,cfg.periProd).filter(H=>H.corner===m.cent&&tiras.some(t=>t.g===H.g)).length;
+      txt+=`<text x="${zx+ix*14}" y="${zy+iy*16}" text-anchor="${ix>0?"start":"end"}" font-size="10" font-weight="700" style="fill:${CC.al}">${nc>1?nc+" × ":""}alargo 1,5 m</text>`;}});
   /* lamas con LED: por el mecanizado de la viga lateral de la centralita */
   if(m.lamasN){const xs=k0[1]==="i"?0:A,yl=P*m.lamasN/(m.lamasN+1),yi=P/(m.lamasN+1),xx=X(xs)+ix*16;
     cab+=`<line x1="${xx}" y1="${Y(k0[0]==="s"?yi:yl)}" x2="${xx}" y2="${cy+iy*14}" stroke="${CC.lam}" stroke-width="3" stroke-dasharray="5 3"/>`;}
