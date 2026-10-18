@@ -89,6 +89,10 @@ button.mini.del{color:var(--bad)}
 .mod{border:1px solid var(--line);border-radius:4px;padding:10px;display:grid;gap:8px;background:var(--bg)}
 .mod .mhd{display:flex;gap:8px;align-items:center}
 .mod .mhd input{font-weight:600}
+.mod details.lamcab{border:1px solid var(--line);border-radius:4px;padding:6px 8px;background:var(--paper)}
+.mod details.lamcab summary{cursor:pointer;font-size:13px;font-weight:600}
+.mod details.lamcab[open]{display:grid;gap:6px}
+.mod label.lc{display:grid;grid-template-columns:1fr 70px;align-items:center;gap:8px;color:var(--ink);font-size:13px}
 .mod .lados{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px}
 .mod .lado{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.mod .lado select{width:auto;flex:1;min-width:84px;padding:4px 6px}
 .mod input[type=text],.mod input[type=number],.mod select{background:var(--paper)}
@@ -387,6 +391,8 @@ const MOTOR_W=3.6*24;
 const ESQ={si:"Sup. izq.",sd:"Sup. der.",ii:"Inf. izq.",id:"Inf. der."};
 const LUZ={none:"Sin tira",w3000:"Blanco cálido 3000 K",w4000:"Blanco neutro 4000 K",rgb:"RGB"};
 /* Medidas de tira que hay en catálogo según la luz y el producto (rollo o neón). */
+/* Cables para las lamas con LED que se pueden poner a mano en cada módulo (catálogo «REFERENCIAS ELÉCTRICAS UMARA.»). */
+const LAMCAB=["cabEje","cabT","sp4Mi","ext05","conMM","c1m","y3","sp4W"];
 const MEDIDAS=(luz,prod)=>luz==="rgb"?[6]:prod==="neon"?[4.5,6]:[5,7];
 const medOpts=(luz,prod,v)=>`<option value="auto">Auto</option>`+MEDIDAS(luz,prod).map(l=>`<option value="${l}"${String(l)===String(v)?" selected":""}>${m2(l).replace(",00","")} m</option>`).join("");
 /* Producto de la tira: la medida elegida en el lado, o la más corta que cubre el lado. */
@@ -418,6 +424,10 @@ function modCard(m,i){
   <label>Alargo a la esquina contraria, por<select id="m${i}_rut">${opt({auto:"Auto (sin pasar por las vigas del motor)",h:"Sentido horario",a:"Sentido antihorario"},m.rut||"auto")}</select></label>
   <div class="lados"><label class="chk"><input type="checkbox" id="m${i}_viento"${m.viento?" checked":""}> Anemómetro</label><label class="chk"><input type="checkbox" id="m${i}_lluvia"${m.lluvia?" checked":""}> Sensor lluvia</label></div>
   <label>Lamas con LED (blanco cálido)<input type="number" id="m${i}_lamasN" min="0" max="40" step="1" value="${m.lamasN}"></label>
+  <details class="lamcab"${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?" open":""}><summary>Cables de las lamas (a tu elección)</summary>
+    <p class="hint">Pon la cantidad de cada cable. Todo a 0 = la app pone cable de 3 vías o de 4 salidas según las lamas de cada salida.</p>
+    ${LAMCAB.map(k=>`<label class="lc"><span>${esc(C[k][1])} <span class="mono mut">${C[k][0]}</span></span><input type="number" id="m${i}_lc_${k}" min="0" max="99" step="1" value="${(m.lamCab||{})[k]||""}" placeholder="0"></label>`).join("")}
+  </details>
   <div class="tag">Posición en la planta de conjunto (m)</div>
   <div class="row"><input type="number" id="m${i}_px" step="0.01" value="${m.pos&&isFinite(m.pos.x)?m.pos.x:""}" placeholder="X auto" aria-label="Posición X"><input type="number" id="m${i}_py" step="0.01" value="${m.pos&&isFinite(m.pos.y)?m.pos.y:""}" placeholder="Y auto" aria-label="Posición Y"></div>
   <p class="hint">Esquina inf. izq. del módulo. Vacío = se coloca solo, por los pilares que comparte con otro módulo.</p>
@@ -431,6 +441,7 @@ function readMods(){
       pil:{si:g("p_si").value.trim(),sd:g("p_sd").value.trim(),id:g("p_id").value.trim(),ii:g("p_ii").value.trim()},
       vig:{sup:g("v_sup").value.trim(),inf:g("v_inf").value.trim(),izq:g("v_izq").value.trim(),der:g("v_der").value.trim()},luz:g("luz").value,
       lados:{sup:g("sup").checked,inf:g("inf").checked,izq:g("izq").checked,der:g("der").checked},
+      lamCab:Object.fromEntries(LAMCAB.map(k=>[k,Math.max(0,Math.round(parseFloat(g("lc_"+k).value)||0))]).filter(([,v])=>v>0)),
       ent:g("ent").value,rut:g("rut").value,pos:{x:fnum(g("px").value),y:fnum(g("py").value)},
       med:{sup:g("md_sup").value,inf:g("md_inf").value,izq:g("md_izq").value,der:g("md_der").value},lamasN:Math.max(0,Math.round(parseFloat(g("lamasN").value)||0)),viento:g("viento").checked,lluvia:g("lluvia").checked});
   }
@@ -557,7 +568,7 @@ function calcular(cfg){
     return o;
   }
   function splitters(o,rgbx,tag){
-    o.forEach(x=>{const k=x.items.length;if(k===2)add(rgbx?"y3RGB":"y3",1,`${tag} OUT${x.s}`);else if(k>2)add(rgbx?"sp4RGB":"sp4W",Math.ceil((k-1)/3),`${tag} OUT${x.s}`,true);});
+    o.forEach(x=>{const k=x.items.filter(i=>!(i.grp==="lamas"&&i.man)).length;if(k===2)add(rgbx?"y3RGB":"y3",1,`${tag} OUT${x.s}`);else if(k>2)add(rgbx?"sp4RGB":"sp4W",Math.ceil((k-1)/3),`${tag} OUT${x.s}`,true);});
   }
   /* Transformador 24 V + receptor (Somfy, Teleco UL). Un transformador por cada 160 W (80 % de uno de 200 W);
      si hacen falta varios, cada uno alimenta su propio receptor y las tiras se reparten entre ellos. */
@@ -639,7 +650,10 @@ function calcular(cfg){
       loads.push({n:ts.map(t=>t.viga).join(" + "),W:ts.reduce((a,t)=>a+t.W,0),grp:"peri",g:G.g,out:G.out,rgb,len:ts.reduce((a,t)=>a+t.len,0)});
     });
     const lamaLen=Math.max(0,m.A-0.17);
-    for(let i=0;i<m.lamasN;i++)loads.push({n:`Lama ${i+1}`,W:lamaLen*cfg.wm,grp:"lamas",rgb:false,len:lamaLen});
+    const lc=m.lamasN?(m.lamCab||{}):{},manual=LAMCAB.some(k=>lc[k]>0);
+    for(let i=0;i<m.lamasN;i++)loads.push({n:`Lama ${i+1}`,W:lamaLen*cfg.wm,grp:"lamas",rgb:false,len:lamaLen,man:manual});
+    /* cables de lamas puestos a mano: van tal cual al material y la app no añade divisores para las lamas */
+    LAMCAB.forEach(k=>{if(lc[k]>0)add(k,lc[k],`${tag} lamas`);});
     if(m.lamasN){
       add("lamaW",m.lamasN,`${tag} cortar a ≈${m2(lamaLen)} m`);add("conLama",m.lamasN);add("conEje",m.lamasN);add("tapon",m.lamasN);
       if(lamaLen>4.5)av.push(["bad",`${m.nombre}: lama de ≈${m2(lamaLen)} m, la tira de lama es de 4,50 m.`]);
@@ -917,7 +931,7 @@ function recorridos(pm,cfg){
     if(G.corner===m.cent)L.push(`${tt}: alargo de 1,5 m${y3} desde la centralita (${esc(cp)})${out("OUT"+G.out)}.`);
     else{const R=(pm.rutas||[]).find(r=>r.g===G.g);if(R)L.push(`${tt}: alargo ${R.al.map(([l])=>m2c(l)+" m").join(" + ")}${R.al.length>1?" empalmados":""} (recorrido ≈ ${m2(R.ruta.len)} m) por encima de ${esc(vigasDe(m,R.ruta.sides))} hasta la esquina ${esc(esq(G.corner))}${y3}${out("OUT"+G.out)}.`);}
   });
-  if(m.lamasN)L.push(`<b style="color:var(--c-lam)">Lamas LED (${m.lamasN})</b>: unir los dos conectores de cada lama (conector de lama + conector de eje) y llevar los cables por el mecanizado de la viga ${esc(vigaDe(m,m.cent[1]==="i"?"izq":"der"))} hasta la centralita${out("OUT2 / OUT4")}.`);
+  if(m.lamasN)L.push(`<b style="color:var(--c-lam)">Lamas LED (${m.lamasN})</b>: unir los dos conectores de cada lama (conector de lama + conector de eje) y llevar los cables por el mecanizado de la viga ${esc(vigaDe(m,m.cent[1]==="i"?"izq":"der"))} hasta la centralita${out("OUT2 / OUT4")}.${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?` Cables: ${LAMCAB.filter(k=>m.lamCab[k]>0).map(k=>`${m.lamCab[k]} × ${esc(C[k][1])}`).join(", ")}.`:""}`);
   if(m.viento)L.push(`<b>Anemómetro</b>: cable de 4 m a la entrada de sensores de la central de motor. Colocarlo despejado, sin obstáculos.`);
   if(m.lluvia)L.push(`<b>Sensor de lluvia</b>: alimentación 230 V y contacto del relé (NA) a la entrada de sensores de la central de motor.`);
   return L;
