@@ -743,7 +743,7 @@ function trazos(x,y,n,ver,txt){
                 :`<text x="${x}" y="${y-10}" font-size="10" font-weight="700" text-anchor="middle" class="mono">${esc(t)}</text>`);
 }
 function dibujaUnifilar(cfg,r){
-  const W=780,bx=110,bw=230,ix=480,iw=280,itemH=46;
+  const W=820,bx=110,bw=230,ix=520,iw=280,itemH=46;
   let y=78,body="",branches=[],pes=[];const cajas={};
   r.dev.forEach(d=>{
     const n=Math.max(1,d.right.length),h=Math.max(d.trafo?92:76,14+n*itemH);
@@ -772,7 +772,7 @@ function dibujaUnifilar(cfg,r){
       if(radio)body+=`<line x1="${bx+bw}" y1="${cy}" x2="${ix}" y2="${cy}" stroke="var(--w-r)" stroke-width="2" stroke-dasharray="5 4"/>`;
       else{body+=`<line x1="${bx+bw}" y1="${cy}" x2="${ix}" y2="${cy}" stroke="var(--ink)" stroke-width="2"/>`;
         /* sensor de una sola línea de señal: cable del fabricante, sin número */
-        body+=trazos(ix-46,cy,ws.length,false,it.kind==="motor"?`${ws.length} × 0,75`:String(ws.length));}
+        body+=trazos(ix-40,cy,ws.length,false,it.kind==="motor"?`${ws.length} × 0,75`:String(ws.length));}
       body+=`<text x="${bx+bw+8}" y="${cy-8}" font-size="10" class="mono mut">${esc(it.pin)}</text>`;
       const wl=ws.map(w=>w[1]).filter(Boolean).join(" / ");
       if(wl)body+=`<text x="${ix-6}" y="${cy+16}" font-size="10" text-anchor="end" class="mono mut">${esc(wl)}</text>`;
