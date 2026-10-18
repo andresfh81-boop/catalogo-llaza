@@ -226,7 +226,7 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
   <section class="sheet">
     <div class="hd"><h2>Consumo</h2><span class="tag" id="sumW"></span></div>
     <div class="bd scroll"><table id="consumo"></table></div>
-    <div class="bd" style="padding-top:0"><p class="hint">Potencia en 24 V DC: motor 3,6 A × 24 V y tiras según su W/m. En 230 V se estima con un rendimiento de fuente del 90 %. No incluye la calefacción del sensor de lluvia MT-R ni las tomas.</p></div>
+    <div class="bd" style="padding-top:0"><p class="hint">Cargas: motor 3,6 A × 24 V, tiras según su W/m, tomas USB 15 W y sensor de lluvia MT-R 4,5 W (a 230 V). En 230 V, lo que va por fuente de 24 V se cuenta con un rendimiento del 90 %. No incluye lo que se enchufe a las tomas Schuko.</p></div>
   </section>
 
   <section class="sheet">
@@ -316,7 +316,7 @@ const KEY="esquema-elya-v2";
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const m2=n=>(Math.round(n*100)/100).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2});
-const w0=n=>Math.round(n)+" W";
+const w0=n=>(n<10&&Math.round(n*10)%10?n.toLocaleString("es-ES",{maximumFractionDigits:1}):Math.round(n))+" W";
 const num=(v,d)=>{const n=parseFloat(v);return isFinite(n)&&n>0?n:d;};
 
 /* ---------- formulario ---------- */
@@ -457,7 +457,7 @@ function calcular(cfg){
     if(sis==="nexta"){
       const right=[{kind:"motor",W:MOTOR_W,t:`Motor ${tag}`,s:`${C.motor[0]} · 24 V DC`,wires:[["p","azul +"],["m","marrón −"]],pin:"Salida motor"}];
       if(m.viento)right.push({kind:"sensor",t:"Anemómetro MT-W",s:C.mtw[0],wires:[["s",""]],pin:"Entrada sensores"});
-      if(m.lluvia)right.push({kind:"sensor",t:"Sensor lluvia MT-R",s:C.mtr[0]+" · 230 V",wires:[["s",""]],pin:"Entrada sensores"});
+      if(m.lluvia)right.push({kind:"sensor",t:"Sensor lluvia MT-R",s:C.mtr[0]+" · contacto NA del relé",wires:[["s",""]],pin:"Entrada sensores"});
       right.push({kind:"sensor",t:"Sonda de temperatura",s:"incluida en la TKM",wires:[["s",""]],pin:"Sonda"});
       right.push({kind:"radio",t:C[emisor][1],s:C[emisor][0]+" · 433 MHz",wires:[["r",""]],pin:"Radio"});
       dev.push({id:"tkm"+mi,t:`${tag} · TKM100 ONE · ${loc}`,code:C.tkm[0],model:C.tkm[2],feed:"230",right});
@@ -558,7 +558,7 @@ function calcular(cfg){
     const tag="M"+(mi+1);
     if(sis==="nexta"){
       if(m.viento)add("mtw",1,tag);
-      if(m.lluvia){add("mtr",1,tag);dev.push({id:"mtr"+mi,t:`${tag} · Sensor lluvia MT-R`,code:C.mtr[0],model:"Calefactado · 230 V",feed:"230",right:[{kind:"note",t:`Señal → entrada sensores TKM ${tag}`,s:"ver hoja 3",wires:[["s",""]],pin:"Señal"}]});}
+      if(m.lluvia){add("mtr",1,tag);dev.push({id:"mtr"+mi,t:`${tag} · Sensor lluvia MT-R`,code:C.mtr[0],model:"Calefactado · 230 V · 4,5 W",feed:"230",directo:true,right:[{kind:"note",W:4.5,t:`Relé NA → entrada sensores TKM ${tag}`,s:"contacto libre de tensión · 5 A",wires:[["s",""]],pin:"Relé NA"}]});}
     }else if(sis!=="somfy"&&m.lluvia)add("rain",1,tag);
   });
   if(ul)av.push(["warn","Sistema UL (EE. UU.): comprueba la tensión de red del país en la etiqueta de la central antes de conectar."]);
@@ -578,7 +578,8 @@ function calcular(cfg){
   dev.forEach(d=>d.W=d.right.reduce((a,it)=>a+(it.W||0),0));
   /* Línea de 230 V: potencia de las centrales (fuentes al 90 %) y propuesta de protección y sección.
      Referencia: ITC-BT-25 (C1 10 A · 1,5 mm²; C2 16 A · 2,5 mm²) e ITC-BT-24/25 (diferencial 30 mA). La valida el técnico (SAT). */
-  const W24=dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0),0),W230=W24/0.9,I230=W230/230;
+  /* Lo que va por fuente de 24 V se divide por su rendimiento (90 %); lo que es directo a 230 V (MT-R), tal cual. */
+  const W24=dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0),0),W230=dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0)/(d.directo?1:0.9),0),I230=W230/230;
   const linea=I230<=8?{In:10,s:"1,5"}:I230<=13?{In:16,s:"2,5"}:null;
   if(!linea)av.push(["bad",`La pérgola pide ≈${I230.toLocaleString("es-ES",{maximumFractionDigits:1})} A en 230 V: más de lo que da una línea de 16 A. Repártela en dos líneas.`]);
   if(cfg.schuko)av.push(["info","Las tomas de 230 V llevan conductor de protección (verde-amarillo) y en exterior han de ser IPX4 como mínimo (ITC-BT-30). La toma Schuko del catálogo es IP54."]);
@@ -703,6 +704,12 @@ function dibujaModulo(pm,cfg){
 function conexiones(cfg,r){
   const out=[],sis=cfg.sistema,outLines=lo=>lo.o.filter(x=>x.items.length).map(x=>`${lo.tag} OUT${x.s}: ${x.items.map(i=>i.n).join(" + ")} · ${w0(x.W)}`);
   if(sis==="nexta"){
+    if(cfg.modulos.some(m=>m.lluvia))out.push({t:"Sensor de lluvia MT-R (calefactado)",code:C.mtr[0],li:[
+      "Alimentación 230 V – 50/60 Hz: marrón = fase · azul = neutro.",
+      "Consumo: 4,5 W como máximo (la calefacción).",
+      "Salida: contacto de relé normalmente abierto (NA), libre de tensión, 5 A (30 V DC / 250 V AC). Va a la entrada de sensores de la TKM de su módulo.",
+      "Temperatura de funcionamiento: −10 a +70 °C."
+    ],src:"Ficha técnica MT-R (Nexta)"});
     out.push({t:"TKM100 ONE (motor, una por módulo)",code:C.tkm[0],li:[
       "Alimentación 230 V: marrón = fase · azul = neutro.",
       "Salida motor 24 V DC (1 motor, máx. 4 A): azul = + · marrón = −. El motor C-100 TM consume 3,6 A (≈86 W).",
@@ -1141,11 +1148,11 @@ function render(){
   $("tiras").innerHTML=filas.length?`<table><thead><tr><th>Mód.</th><th>Viga</th><th>Sale de</th><th>Largo</th><th>Consumo</th><th>Producto</th></tr></thead><tbody>${filas.join("")}</tbody></table>`:`<p class="hint">Sin iluminación.</p>`;
   $("conx").innerHTML=conexiones(cfg,r);
   /* Consumo: centrales alimentadas a 230 V (un receptor de 24 V ya cuenta en su transformador). */
-  const cw=r.dev.filter(d=>d.feed==="230"&&d.W>0),TW=cw.reduce((a,d)=>a+d.W,0),W230=TW/0.9;
+  const cw=r.dev.filter(d=>d.feed==="230"&&d.W>0),TW=cw.reduce((a,d)=>a+d.W,0),W230=r.W230;
   $("sumW").textContent=`Total ${w0(TW)}`;
-  $("consumo").innerHTML=`<thead><tr><th>Central</th><th>Alimenta</th><th style="text-align:right">W (24 V)</th></tr></thead><tbody>${
+  $("consumo").innerHTML=`<thead><tr><th>Central</th><th>Alimenta</th><th style="text-align:right">W</th></tr></thead><tbody>${
     cw.map(d=>`<tr><td>${esc(d.t)}<div class="hint">${esc(d.code)}</div></td><td>${esc(d.right.filter(it=>it.W).map(it=>it.t).join(" · "))}</td><td class="qty">${w0(d.W)}</td></tr>`).join("")
-  }</tbody><tfoot><tr><th colspan="2">Total en 24 V</th><th style="text-align:right" class="mono">${w0(TW)}</th></tr><tr><th colspan="2">Estimado en 230 V (fuentes al 90 %)</th><th style="text-align:right" class="mono">${w0(W230)} · ${(W230/230).toLocaleString("es-ES",{maximumFractionDigits:1})} A</th></tr></tfoot>`;
+  }</tbody><tfoot><tr><th colspan="2">Total de las cargas</th><th style="text-align:right" class="mono">${w0(TW)}</th></tr><tr><th colspan="2">Estimado en 230 V (fuentes de 24 V al 90 %)</th><th style="text-align:right" class="mono">${w0(W230)} · ${(W230/230).toLocaleString("es-ES",{maximumFractionDigits:1})} A</th></tr></tfoot>`;
   $("bom").innerHTML=`<thead><tr><th>Código</th><th>Descripción</th><th>Modelo</th><th style="text-align:right">Cant.</th></tr></thead><tbody>${[...r.bom.values()].map(e=>{
     const c=C[e.k];
     return `<tr><td class="code">${c[0]}</td><td>${esc(c[1])}${e.rev?'<span class="rev">Revisar</span>':""}${e.notas.size?`<div class="hint">${esc([...e.notas].join(" · "))}</div>`:""}</td><td>${esc(c[2])}</td><td class="qty">${e.k==="mang"?"≈ "+e.q+" m":e.q}</td></tr>`;}).join("")}</tbody>`;
