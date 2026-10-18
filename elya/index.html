@@ -87,6 +87,7 @@ button.mini.del{color:var(--bad)}
 .mod .mhd{display:flex;gap:8px;align-items:center}
 .mod .mhd input{font-weight:600}
 .mod .lados{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px}
+.mod .lado{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.mod .lado select{width:auto;flex:1;min-width:84px;padding:4px 6px}
 .mod input[type=text],.mod input[type=number],.mod select{background:var(--paper)}
 button.del{padding:7px 10px;font-size:13px;color:var(--bad)}
 .plantas{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
@@ -174,6 +175,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <fieldset>
     <legend>Control</legend>
     <label>Sistema<select id="sistema">
+      <option value="">— Elige el sistema —</option>
       <option value="nexta">Cherubini Nexta (TKM + TKL)</option>
       <option value="teleco_eu">Teleco EU 868 MHz</option>
       <option value="teleco_ul">Teleco UL 916 MHz (PLA)</option>
@@ -215,7 +217,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
 <main>
   <section class="sheet" id="vacio">
     <div class="hd"><h2>Obra en blanco</h2></div>
-    <div class="bd"><p>Arrastra aquí el plano firmado (o la ficha de fabricación) en PDF, o pulsa «+ Añadir módulo» para meter los datos a mano. El esquema, la planta, las conexiones y el material salen en cuanto haya un módulo.</p></div>
+    <div class="bd"><p id="vacioTxt">Arrastra aquí el plano firmado (o la ficha de fabricación) en PDF, o pulsa «+ Añadir módulo» para meter los datos a mano. El esquema, la planta, las conexiones y el material salen en cuanto haya un módulo.</p></div>
   </section>
   <section class="sheet">
     <div class="hd"><h2>Avisos</h2><span class="tag" id="sumAv"></span></div>
@@ -353,12 +355,12 @@ let mat=MAT0();
 const EMISORES={nexta:["hoblo6","hobloMF","eco1","pop"],teleco_eu:["noonEU"],teleco_ul:["noonUL"],somfy:["situo"]};
 const LADOS_ALL={sup:true,inf:true,izq:true,der:true};
 /* Valores por defecto de una obra nueva; el resto sale del plano que se carga. */
-const BASE={obra:"",of:"",alto:2.5,sistema:"nexta",emisor:"hoblo6",
+const BASE={obra:"",of:"",alto:2.5,sistema:"",emisor:"",
   periProd:"rollo",ledCentral:"tkl",indep:true,wm:10,wmRGB:12,schuko:0,usb:0,modulos:[]};
 /* Obra en blanco: sin módulos ni alto; todo sale del plano que se carga. */
 const VACIA=()=>Object.assign(clone(BASE),{alto:""});
 const NUEVO=n=>({nombre:"Módulo "+n,A:4,P:4,motor:"der",cent:"si",aloj:"viga",ref:"",pil:{si:"",sd:"",id:"",ii:""},vig:{},luz:"w3000",lados:{...LADOS_ALL},lamasN:0});
-const KEY="esquema-elya-v4";
+const KEY="esquema-elya-v5";
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const m2=n=>(Math.round(n*100)/100).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -373,9 +375,20 @@ const nTrafos=T=>T<=120?1:Math.ceil(T/160);
 const MOTOR_W=3.6*24;
 const ESQ={si:"Sup. izq.",sd:"Sup. der.",ii:"Inf. izq.",id:"Inf. der."};
 const LUZ={none:"Sin tira",w3000:"Blanco cálido 3000 K",w4000:"Blanco neutro 4000 K",rgb:"RGB"};
+/* Medidas de tira que hay en catálogo según la luz y el producto (rollo o neón). */
+const MEDIDAS=(luz,prod)=>luz==="rgb"?[6]:prod==="neon"?[4.5,6]:[5,7];
+const medOpts=(luz,prod,v)=>`<option value="auto">Auto</option>`+MEDIDAS(luz,prod).map(l=>`<option value="${l}"${String(l)===String(v)?" selected":""}>${m2(l).replace(",00","")} m</option>`).join("");
+/* Producto de la tira: la medida elegida en el lado, o la más corta que cubre el lado. */
+function prodTira(m,cfg,len,med){
+  if(m.luz==="rgb")return "rgbP6";
+  if(cfg.periProd==="neon")return (med?med<=4.5:len<=4.5)?"nP45":"nP6";
+  const corto=med?med<=5:len<=5;
+  return m.luz==="w3000"?(corto?"rW5":"rW7"):(corto?"rN5":"rN7");
+}
 function modCard(m,i){
   const opt=(o,v)=>Object.entries(o).map(([k,t])=>`<option value="${k}"${k===v?" selected":""}>${esc(t)}</option>`).join("");
-  const lado=(k,t)=>`<label class="chk"><input type="checkbox" id="m${i}_${k}"${m.lados[k]?" checked":""}> ${t}</label>`;
+  const md=m.med||{},pp=($("periProd")&&$("periProd").value)||"rollo";
+  const lado=(k,t)=>`<div class="lado"><label class="chk"><input type="checkbox" id="m${i}_${k}"${m.lados[k]?" checked":""}> ${t}</label><select id="m${i}_md_${k}" aria-label="Medida de la tira, ${t}">${medOpts(m.luz,pp,md[k])}</select></div>`;
   return `<div class="mod">
   <div class="mhd"><input type="text" id="m${i}_nombre" value="${esc(m.nombre)}" aria-label="Nombre del módulo"><button type="button" class="del" data-del="${i}">Quitar</button></div>
   <div class="row"><label>Ancho A (m)<input type="number" id="m${i}_A" step="0.01" min="1" max="6" value="${m.A}"></label><label>Salida P (m)<input type="number" id="m${i}_P" step="0.01" min="1" max="8" value="${m.P}"></label></div>
@@ -389,6 +402,7 @@ function modCard(m,i){
   <div class="row"><label>Izq.<input type="text" id="m${i}_v_izq" value="${esc(m.vig.izq||"")}" placeholder="${esc(vigaAuto(m,"izq"))}"></label><label>Der.<input type="text" id="m${i}_v_der" value="${esc(m.vig.der||"")}" placeholder="${esc(vigaAuto(m,"der"))}"></label></div>
   <label>Tira perimetral<select id="m${i}_luz">${opt(LUZ,m.luz)}</select></label>
   <div class="lados">${lado("sup","Lado sup.")}${lado("inf","Lado inf.")}${lado("izq","Lado izq.")}${lado("der","Lado der.")}</div>
+  <p class="hint">Medida de la tira de cada lado. Auto = la más corta del catálogo que cubre el lado.</p>
   <div class="lados"><label class="chk"><input type="checkbox" id="m${i}_viento"${m.viento?" checked":""}> Anemómetro</label><label class="chk"><input type="checkbox" id="m${i}_lluvia"${m.lluvia?" checked":""}> Sensor lluvia</label></div>
   <label>Lamas con LED (blanco cálido)<input type="number" id="m${i}_lamasN" min="0" max="40" step="1" value="${m.lamasN}"></label>
 </div>`;
@@ -400,7 +414,8 @@ function readMods(){
     out.push({nombre:g("nombre").value||("Módulo "+(i+1)),A:num(g("A").value,4),P:num(g("P").value,4),motor:g("motor").value,cent:g("cent").value,aloj:g("aloj").value,ref:g("ref").value.trim(),
       pil:{si:g("p_si").value.trim(),sd:g("p_sd").value.trim(),id:g("p_id").value.trim(),ii:g("p_ii").value.trim()},
       vig:{sup:g("v_sup").value.trim(),inf:g("v_inf").value.trim(),izq:g("v_izq").value.trim(),der:g("v_der").value.trim()},luz:g("luz").value,
-      lados:{sup:g("sup").checked,inf:g("inf").checked,izq:g("izq").checked,der:g("der").checked},lamasN:Math.max(0,Math.round(parseFloat(g("lamasN").value)||0)),viento:g("viento").checked,lluvia:g("lluvia").checked});
+      lados:{sup:g("sup").checked,inf:g("inf").checked,izq:g("izq").checked,der:g("der").checked},
+      med:{sup:g("md_sup").value,inf:g("md_inf").value,izq:g("md_izq").value,der:g("md_der").value},lamasN:Math.max(0,Math.round(parseFloat(g("lamasN").value)||0)),viento:g("viento").checked,lluvia:g("lluvia").checked});
   }
   return out;
 }
@@ -414,6 +429,8 @@ function readForm(){
   return o;
 }
 function fillEmisores(sis,sel){
+  $("emisor").disabled=!EMISORES[sis];
+  if(!EMISORES[sis]){$("emisor").innerHTML=`<option value="">— Elige primero el sistema —</option>`;return;}
   $("emisor").innerHTML=EMISORES[sis].map(k=>`<option value="${k}">${esc(C[k][1])} · ${esc(C[k][2])}</option>`).join("");
   $("emisor").value=EMISORES[sis].includes(sel)?sel:EMISORES[sis][0];
 }
@@ -431,13 +448,18 @@ function writeForm(o){
 /* Lo que no existe en el catálogo para un sistema se desactiva. */
 function syncForm(){
   const s=$("sistema").value;
-  const vOk=s==="nexta", lOk=s!=="somfy";
+  const vOk=s==="nexta"||!s, lOk=s!=="somfy";
   for(let i=0;$(`m${i}_viento`);i++){
     $(`m${i}_viento`).disabled=!vOk;if(!vOk)$(`m${i}_viento`).checked=false;
     $(`m${i}_lluvia`).disabled=!lOk;if(!lOk)$(`m${i}_lluvia`).checked=false;
   }
   $("lCentral").hidden=s!=="nexta";
-  for(let i=0;$(`m${i}_luz`);i++){const off=$(`m${i}_luz`).value==="none";["sup","inf","izq","der"].forEach(k=>$(`m${i}_${k}`).disabled=off);}
+  const pp=$("periProd").value;
+  for(let i=0;$(`m${i}_luz`);i++){const luz=$(`m${i}_luz`).value,off=luz==="none";["sup","inf","izq","der"].forEach(k=>{
+    $(`m${i}_${k}`).disabled=off;const sel=$(`m${i}_md_${k}`),v=sel.value;
+    /* Las medidas cambian con la luz (RGB) y con el producto (rollo / neón). */
+    if(sel.dataset.k!==luz+pp){sel.innerHTML=medOpts(luz,pp,v);sel.dataset.k=luz+pp;}
+    sel.disabled=off||!$(`m${i}_${k}`).checked;});}
 }
 
 /* ---------- reparto de tiras de un módulo ----------
@@ -552,7 +574,9 @@ function calcular(cfg){
     let lejos=null;
     const loads=[];
     tiras.forEach(t=>{
-      t.prod=rgb?"rgbP6":cfg.periProd==="neon"?(t.len<=4.5?"nP45":"nP6"):(m.luz==="w3000"?(t.len<=5?"rW5":"rW7"):(t.len<=5?"rN5":"rN7"));
+      const med=parseFloat(((m.med||{})[t.sides[0]]))||0;
+      t.prod=prodTira(m,cfg,t.len,med);
+      if(med&&t.len>med+1e-6)av.push(["bad",`${m.nombre}, tira de ${t.viga}: has elegido ${m2(med)} m y el lado mide ${m2(t.len)} m, no llega.`]);
       t.W=t.len*(rgb?cfg.wmRGB:cfg.wm);
       add(t.prod,1,`${tag} ${t.viga} ${m2(t.len)} m`);add("tapon",1);
       if(t.len>maxLen+1e-6)av.push(["bad",`${m.nombre}, tira de ${t.viga} (${m2(t.len)} m): el producto más largo es de ${maxLen} m.`]);
@@ -1250,10 +1274,13 @@ async function abrirDeDrive(){
 /* ---------- pintar ---------- */
 let last=null;
 function render(){
+  const sis=$("sistema").value;if(EMISORES[sis]&&!EMISORES[sis].includes($("emisor").value))fillEmisores(sis,$("emisor").value);
   syncForm();
   const cfg=readForm();
   try{localStorage.setItem(KEY,JSON.stringify(cfg));}catch(e){}
-  const vacia=!cfg.modulos.length;document.querySelector("main").classList.toggle("vacia",vacia);
+  const vacia=!cfg.modulos.length||!cfg.sistema;document.querySelector("main").classList.toggle("vacia",vacia);
+  $("vacioTxt").textContent=!cfg.modulos.length?"Arrastra aquí el plano firmado (o la ficha de fabricación) en PDF, o pulsa «+ Añadir módulo» para meter los datos a mano. El esquema, la planta, las conexiones y el material salen en cuanto haya un módulo y un sistema de control."
+    :"Elige el sistema de control (Cherubini Nexta, Teleco o Somfy) y el emisor para sacar el esquema.";
   if(vacia){last=null;return;}
   const r=calcular(cfg);last={cfg,r};
   const order={bad:0,warn:1,info:2},lbl={bad:"Error",warn:"Ojo",info:"Nota"};
@@ -1266,7 +1293,7 @@ function render(){
   const sisN={nexta:"Cherubini Nexta",teleco_eu:"Teleco EU",teleco_ul:"Teleco UL",somfy:"Somfy io"}[cfg.sistema];
   $("cajetin").innerHTML=[["Obra",cfg.obra||"—"],["OF",cfg.of||"—"],["Módulos",String(cfg.modulos.length)],["Alto",`${m2(cfg.alto)} m`],["Control",sisN],["Fecha",new Date().toLocaleDateString("es-ES")]].map(([b,s])=>`<div><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join("");
   const filas=r.plan.flatMap(pm=>[
-    ...pm.tiras.map((t,i)=>`<tr><td>${esc(pm.tag)}</td><td><span class="pill" style="background:${TCOL[i%4]}">${esc(t.viga)}</span></td><td>${esc(t.from)}</td><td class="qty">${m2(t.len)} m</td><td class="qty">${w0(t.W)}</td><td class="code">${C[t.prod][0]}</td></tr>`),
+    ...pm.tiras.map((t,i)=>`<tr><td>${esc(pm.tag)}</td><td><span class="pill" style="background:${TCOL[i%4]}">${esc(t.viga)}</span></td><td>${esc(t.from)}</td><td class="qty">${m2(t.len)} m</td><td class="qty">${w0(t.W)}</td><td class="code">${C[t.prod][0]}<div class="hint">${esc(C[t.prod][1])}</div></td></tr>`),
     ...(pm.m.lamasN?[`<tr><td>${esc(pm.tag)}</td><td><span class="pill" style="background:var(--lama)">Lamas</span></td><td>Centralita (${esc(pm.m.loc)}) · ${pm.m.lamasN} lamas</td><td class="qty">${m2(pm.lamaLen)} m c/u</td><td class="qty">${w0(pm.m.lamasN*pm.lamaLen*cfg.wm)}</td><td class="code">${C.lamaW[0]}</td></tr>`]:[])]);
   $("tiras").innerHTML=filas.length?`<table><thead><tr><th>Mód.</th><th>Viga</th><th>Sale de</th><th>Largo</th><th>Consumo</th><th>Producto</th></tr></thead><tbody>${filas.join("")}</tbody></table>`:`<p class="hint">Sin iluminación.</p>`;
   $("conx").innerHTML=conexiones(cfg,r);
