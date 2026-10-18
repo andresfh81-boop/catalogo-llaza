@@ -381,10 +381,10 @@ function modCard(m,i){
   <div class="row"><label>Ancho A (m)<input type="number" id="m${i}_A" step="0.01" min="1" max="6" value="${m.A}"></label><label>Salida P (m)<input type="number" id="m${i}_P" step="0.01" min="1" max="8" value="${m.P}"></label></div>
   <div class="row"><label>Motor / desagüe<select id="m${i}_motor">${opt({izq:"Lado izq.",der:"Lado der."},m.motor)}</select></label><label>Centralita (esquina)<select id="m${i}_cent">${opt(ESQ,m.cent)}</select></label></div>
   <div class="row"><label>Alojada en<select id="m${i}_aloj">${opt({viga:"Viga",pilar:"Pilar"},m.aloj||"viga")}</select></label><label>Nº viga / pilar<input type="text" id="m${i}_ref" value="${esc(m.ref||"")}" placeholder="V2-4 o 3"></label></div>
-  <div class="tag">Pilares (como en el plano: 1, P1 o PA)</div>
+  <div class="tag">Nodos / pilares de cada esquina (como en el plano: 1, P1 o PA)</div>
   <div class="row"><input type="text" id="m${i}_p_si" value="${esc(m.pil.si)}" placeholder="sup. izq." aria-label="Pilar sup. izq."><input type="text" id="m${i}_p_sd" value="${esc(m.pil.sd)}" placeholder="sup. der." aria-label="Pilar sup. der."></div>
   <div class="row"><input type="text" id="m${i}_p_ii" value="${esc(m.pil.ii)}" placeholder="inf. izq." aria-label="Pilar inf. izq."><input type="text" id="m${i}_p_id" value="${esc(m.pil.id)}" placeholder="inf. der." aria-label="Pilar inf. der."></div>
-  <div class="tag">Vigas (vacío = V + pilares de sus extremos)</div>
+  <div class="tag">Vigas (vacío = V + nodos de sus extremos, en el sentido de las agujas del reloj)</div>
   <div class="row"><label>Sup.<input type="text" id="m${i}_v_sup" value="${esc(m.vig.sup||"")}" placeholder="${esc(vigaAuto(m,"sup"))}"></label><label>Inf.<input type="text" id="m${i}_v_inf" value="${esc(m.vig.inf||"")}" placeholder="${esc(vigaAuto(m,"inf"))}"></label></div>
   <div class="row"><label>Izq.<input type="text" id="m${i}_v_izq" value="${esc(m.vig.izq||"")}" placeholder="${esc(vigaAuto(m,"izq"))}"></label><label>Der.<input type="text" id="m${i}_v_der" value="${esc(m.vig.der||"")}" placeholder="${esc(vigaAuto(m,"der"))}"></label></div>
   <label>Tira perimetral<select id="m${i}_luz">${opt(LUZ,m.luz)}</select></label>
@@ -450,7 +450,8 @@ const SN={izq:"izq.",sup:"sup.",der:"der.",inf:"inf."};
 const sideLen=(m,sd)=>sd==="izq"||sd==="der"?m.P:m.A;
 /* Extremos de cada lado (esquinas): izq ii→si · sup si→sd · der sd→id · inf id→ii. Viga = V + pilares de los extremos, salvo que el plano diga otra. */
 const EXT={izq:["ii","si"],sup:["si","sd"],der:["sd","id"],inf:["id","ii"]};
-/* Como en los planos: el pilar se llama P + su número o letra (P1, PA) y la viga V + los de sus extremos sin la P (V1-2). */
+/* Como en los planos: el pilar se llama P + su número o letra (P1, PA) y la viga V + los nodos de sus extremos sin la P (V1-2),
+   leídos siempre en el sentido de las agujas del reloj (por eso la de P4 a P1 es V4-1). EXT ya va en ese sentido. */
 const pilId=v=>String(v||"").trim().replace(/^P\s*/i,"");
 const pilNom=v=>pilId(v)?"P"+pilId(v):"";
 function vigaAuto(m,sd){const p=m.pil||{},[a,b]=EXT[sd];return pilId(p[a])&&pilId(p[b])?`V${pilId(p[a])}-${pilId(p[b])}`:"lado "+SN[sd];}
