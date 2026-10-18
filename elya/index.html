@@ -237,7 +237,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
         <span><i style="background:var(--w-s)"></i>Señal / sensor</span>
         <span><i style="background:repeating-linear-gradient(90deg,var(--w-r) 0 4px,transparent 4px 7px)"></i>Radio</span>
       </div>
-      <p class="hint" style="margin-top:8px">Símbolos: rectángulo con diagonal = aparato de protección (PIA, diferencial) · M = motor · zigzag = tira LED · triángulo = sensor · antena = emisor. Colores de conductores según ITC-BT-19 (fase marrón/negro/gris, neutro azul, protección verde-amarillo). Lado de 24 V DC = muy baja tensión (ITC-BT-36).</p>
+      <p class="hint" style="margin-top:8px">Símbolos: M = motor · zigzag = tira LED · triángulo = sensor · antena = emisor. Colores de conductores según ITC-BT-19 (fase marrón/negro/gris, neutro azul, protección verde-amarillo). Lado de 24 V DC = muy baja tensión (ITC-BT-36).</p>
     </div>
     <div class="cajetin" id="cajetin"></div>
   </section>
@@ -530,6 +530,18 @@ function calcular(cfg){
   function splitters(o,rgbx,tag){
     o.forEach(x=>{const k=x.items.length;if(k===2)add(rgbx?"y3RGB":"y3",1,`${tag} OUT${x.s}`);else if(k>2)add(rgbx?"sp4RGB":"sp4W",Math.ceil((k-1)/3),`${tag} OUT${x.s}`,true);});
   }
+  /* Transformador 24 V + receptor (Somfy, Teleco UL). Un transformador por cada 160 W (80 % de uno de 200 W);
+     si hacen falta varios, cada uno alimenta su propio receptor y las tiras se reparten entre ellos. */
+  function trafoReceptor(lst,tag,loc,rgbx,rx,mkRx){
+    const nTr=nTrafos(totW(lst)),gr=nTr>1?reparte(lst,[...Array(nTr).keys()]):[{items:lst,W:totW(lst)}];
+    gr.forEach((g,k)=>{
+      const n=nTr>1?` ${k+1}/${nTr}`:"",id=`tr${tag}_${k}`,tr=g.W<=120?"tr150":"tr200",o=reparte(g.items,[1]);splitters(o,rgbx,tag);
+      dev.push({id,t:`${tag} · Transformador${n} · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",trafo:true,Wfix:g.W,alimenta:`Receptor${n} (24 V DC, cable hacia abajo)`,right:[]});
+      dev.push(Object.assign(mkRx(o,n,k),{feed:"24",from:id}));
+      add(tr,1,tag);add(rx,1,"",rx==="somLed");
+    });
+    return nTr;
+  }
   function ledRight(o){return o.filter(x=>x.items.length).map(x=>({kind:"led",W:x.W,t:x.items.map(i=>i.n).join(" + "),s:`${m2(x.items.reduce((a,i)=>a+i.len,0))} m · ${w0(x.W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`}));}
 
   mods.forEach((m,mi)=>{
@@ -624,11 +636,8 @@ function calcular(cfg){
         d.right.splice(d.right.length-1,0,...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})));
         av.push(["info",`${m.nombre}: la luz blanca va a la salida LED de la central Teleco (${w0(totW(white))}). Comprueba la potencia máxima en su etiqueta.`]);
       }else if(sis==="somfy"){
-        const T=totW(white),nTr=nTrafos(T),tr=T<=120?"tr150":"tr200",o=reparte(white,[1]);splitters(o,false,tag);
-        dev.push({id:"tr"+mi,t:`${tag} · ${nTr>1?nTr+" × ":""}Transformador 24 V · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",right:[{kind:"note",W:T,t:"Salida 24 V DC → receptor io LED (abajo)",s:w0(T),wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
-        dev.push({id:"sl"+mi,t:`${tag} · Receptor io LED BL · ${loc}`,code:C.somLed[0],model:C.somLed[2],feed:"24",from:"tr"+mi,right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})),{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]});
-        add(tr,nTr,tag);add("somLed",1,"",true);
-        if(nTr>1)av.push(["warn",`${m.nombre}: ${w0(T)} de luz → ${nTr} transformadores de 200 W. Reparte las tiras entre ellos y comprueba la carga máxima del receptor.`]);
+        const nTr=trafoReceptor(white,tag,loc,false,"somLed",(o,n,k)=>({id:`sl${mi}_${k}`,t:`${tag} · Receptor io LED${n} · ${loc}`,code:C.somLed[0],model:C.somLed[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})),{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]}));
+        if(nTr>1)av.push(["warn",`${m.nombre}: ${w0(totW(white))} de luz → ${nTr} transformadores, cada uno con su receptor io LED (se carga cada transformador como mucho al 80 %: 120 W el de 150 W, 160 W el de 200 W). Las tiras se reparten entre ellos; comprueba la carga máxima del receptor en su ficha.`]);
       }
     }
     if(rgbL.length||(ul&&white.length)){
@@ -643,11 +652,9 @@ function calcular(cfg){
         dev.push({id:"stick"+mi,t:`${tag} · Stick RGB TVSTICK · ${loc}`,code:C.stick[0],model:C.stick[2],feed:"230",psu:true,right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida RGB"})),{kind:"radio",t:C.noonEU[1],s:"canal 3 a 9 (no 1 ni 2)",wires:[["r",""]],pin:"Radio"}]});
         add("stick",1);
       }else if(ul){
-        const all=[...rgbL,...white],T=totW(all),nTr=nTrafos(T),tr=T<=120?"tr150":"tr200",o=reparte(all,[1]);splitters(o,rgbL.length>0,tag);
-        dev.push({id:"tr"+mi,t:`${tag} · ${nTr>1?nTr+" × ":""}Transformador 24 V · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",right:[{kind:"note",W:T,t:"Salida 24 V DC → receptor TVLRGBWW (abajo)",s:w0(T),wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
-        dev.push({id:"rgbww"+mi,t:`${tag} · Receptor RGB + blanco · ${loc}`,code:C.rgbww[0],model:C.rgbww[2],feed:"24",from:"tr"+mi,right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salidas"})),{kind:"radio",t:C.noonUL[1],s:"916 MHz",wires:[["r",""]],pin:"Radio"}]});
-        add("rgbww",1);add(tr,nTr,tag);
-        if(nTr>1)av.push(["warn",`${m.nombre}: ${w0(T)} de luz → ${nTr} transformadores de 200 W. Reparte las tiras entre ellos y comprueba la carga máxima del receptor.`]);
+        const all=[...rgbL,...white];
+        const nTr=trafoReceptor(all,tag,loc,rgbL.length>0,"rgbww",(o,n,k)=>({id:`rgbww${mi}_${k}`,t:`${tag} · Receptor RGB+BL${n} · ${loc}`,code:C.rgbww[0],model:C.rgbww[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salidas"})),{kind:"radio",t:C.noonUL[1],s:"916 MHz",wires:[["r",""]],pin:"Radio"}]}));
+        if(nTr>1)av.push(["warn",`${m.nombre}: ${w0(totW(all))} de luz → ${nTr} transformadores, cada uno con su receptor (se carga cada transformador como mucho al 80 %: 120 W el de 150 W, 160 W el de 200 W). Las tiras se reparten entre ellos; comprueba la carga máxima del receptor en su ficha.`]);
       }else av.push(["bad",`${m.nombre}: en el catálogo ELYA no hay receptor RGB Somfy. Elige luz blanca o cambia de sistema.`]);
     }
   });
@@ -674,15 +681,11 @@ function calcular(cfg){
       right:[{kind:"note",W:15*cfg.usb,t:`${cfg.usb} × toma USB A+C (15 W)`,s:C.usb[0]+" · 24 V DC",wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
     add("tr150",1,"tomas USB");add("usb",cfg.usb);
   }
-  dev.forEach(d=>d.W=d.right.reduce((a,it)=>a+(it.W||0),0));
-  /* Línea de 230 V: potencia de las centrales (fuentes al 90 %) y propuesta de protección y sección.
-     Referencia: ITC-BT-25 (C1 10 A · 1,5 mm²; C2 16 A · 2,5 mm²) e ITC-BT-24/25 (diferencial 30 mA). La valida el técnico (SAT). */
+  dev.forEach(d=>d.W=d.Wfix!=null?d.Wfix:d.right.reduce((a,it)=>a+(it.W||0),0));
   /* Lo que va por fuente de 24 V se divide por su rendimiento (90 %); lo que es directo a 230 V (MT-R), tal cual. */
   const W24=dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0),0),W230=dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0)/(d.directo?1:0.9),0),I230=W230/230;
-  const linea=I230<=8?{In:10,s:"1,5"}:I230<=13?{In:16,s:"2,5"}:null;
-  if(!linea)av.push(["bad",`La pérgola pide ≈${I230.toLocaleString("es-ES",{maximumFractionDigits:1})} A en 230 V: más de lo que da una línea de 16 A. Repártela en dos líneas.`]);
   if(cfg.schuko)av.push(["info","Las tomas de 230 V llevan conductor de protección (verde-amarillo) y en exterior han de ser IPX4 como mínimo (ITC-BT-30). La toma Schuko del catálogo es IP54."]);
-  return {av,bom,dev,plan,outs,W24,W230,I230,linea};
+  return {av,bom,dev,plan,outs,W24,W230,I230};
 }
 
 /* ---------- dibujo: esquema unifilar ---------- */
@@ -696,15 +699,16 @@ function icon(kind,x,y){
 }
 function dibujaUnifilar(cfg,r){
   const W=780,bx=110,bw=230,ix=480,iw=280,itemH=46;
-  let y=170,body="",branches=[],pes=[];const cajas={};
+  let y=78,body="",branches=[],pes=[];const cajas={};
   r.dev.forEach(d=>{
-    const n=Math.max(1,d.right.length),h=Math.max(76,14+n*itemH);
+    const n=Math.max(1,d.right.length),h=Math.max(d.trafo?92:76,14+n*itemH);
     const by=y,bh=h-16;cajas[d.id]={by,bh};
     body+=`<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="3" fill="var(--soft)" stroke="var(--ink)" stroke-width="1.5"/>`;
     body+=`<text x="${bx+12}" y="${by+22}" font-size="13" font-weight="600">${esc(trunc(d.t,32))}</text>`;
     if(d.code)body+=`<text x="${bx+12}" y="${by+40}" font-size="12" class="mono mut">${esc(d.code)}</text>`;
     body+=`<text x="${bx+12}" y="${by+(d.code?56:40)}" font-size="12" class="mut">${esc(trunc(d.model+(d.W?" · "+w0(d.W):""),36))}</text>`;
     /* Fuente integrada: entra 230 V y sale 24 V DC dentro de la propia central. */
+    if(d.trafo)body+=`<text x="${bx+12}" y="${by+(d.code?74:58)}" font-size="11" class="mono" style="fill:var(--w-p)">230 V ~ → 24 V ⎓ · al receptor ↓</text>`;
     if(d.psu&&bh>=70)body+=`<text x="${bx+12}" y="${by+(d.code?74:58)}" font-size="11" class="mono" style="fill:var(--w-p)">230 V ~ → 24 V ⎓ (fuente integrada)</text>`;
     const fy=by+18;
     if(d.feed==="230"){branches.push(fy);
@@ -736,24 +740,15 @@ function dibujaUnifilar(cfg,r){
     });
     y+=h;
   });
-  const busEnd=branches.length?Math.max(...branches)+8:170;
-  const ul=cfg.sistema==="teleco_ul",L=r.linea,nf=n=>n.toLocaleString("es-ES",{maximumFractionDigits:1});
-  const sup=ul?"Cuadro del cliente · red del país (UL)":"Cuadro del cliente · 230 V ~ 50 Hz";
-  /* Unifilar (una línea con los aparatos en serie) hasta la caja de la pérgola; desde ahí, conductores separados. */
-  const sym=(yy,t1,t2)=>`<rect x="40" y="${yy}" width="16" height="22" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/><line x1="40" y1="${yy+22}" x2="56" y2="${yy}" stroke="var(--ink)" stroke-width="1.5"/>
-  <text x="66" y="${yy+10}" font-size="12" font-weight="600">${t1}</text><text x="66" y="${yy+24}" font-size="11" class="mut">${t2}</text>`;
-  const head=`<rect x="10" y="8" width="330" height="30" rx="3" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text x="22" y="28" font-size="13" font-weight="600">${esc(sup)}</text>
-  <line x1="48" y1="38" x2="48" y2="140" stroke="var(--ink)" stroke-width="2.5"/>
-  ${sym(48,L?`PIA 2P ${L.In} A · curva C`:"PIA: más de 16 A",`Magnetotérmico (sobrecargas y cortocircuitos)`)}
-  ${sym(84,"ID 2P 40 A · 30 mA","Diferencial (ITC-BT-24 / ITC-BT-25)")}
-  <text x="66" y="124" font-size="11" class="mono">${L?`Línea 3G${L.s} mm² (L + N + PE)`:"Repartir en 2 líneas"} · ≈${Math.round(r.W230)} W · ${nf(r.I230)} A</text>
-  <text x="66" y="138" font-size="10" class="mut">Calculada con el consumo de la pérgola · validar en obra</text>
-  <line x1="36" y1="140" x2="76" y2="140" stroke="var(--ink)" stroke-width="3"/>
-  <line x1="40" y1="140" x2="40" y2="${busEnd}" stroke="${WC.l}" stroke-width="2.5"/>
-  <line x1="56" y1="140" x2="56" y2="${busEnd+8}" stroke="${WC.n}" stroke-width="2.5"/>
-  ${pes.length?`<line x1="72" y1="140" x2="72" y2="${Math.max(...pes)}" stroke="var(--w-pe)" stroke-width="2.5" stroke-dasharray="7 3"/>`:""}
-  <text x="84" y="160" font-size="11" class="mono mut">Caja estanca IPX4 en la pérgola · una derivación por centralita</text>`;
+  /* El esquema empieza en las centrales: la acometida de 230 V y sus protecciones las decide el cliente. */
+  const busEnd=branches.length?Math.max(...branches)+8:78;
+  const head=`<text x="22" y="22" font-size="13" font-weight="600">230 V ~ a cada central</text>
+  <text x="22" y="38" font-size="11" class="mut">La acometida y sus protecciones las pone el cliente; aquí se parte de las centrales.</text>
+  <circle cx="40" cy="56" r="3" fill="${WC.l}"/><circle cx="56" cy="56" r="3" fill="${WC.n}"/>
+  <text x="84" y="60" font-size="10" class="mono mut">L · N${pes.length?" · PE":""}</text>
+  <line x1="40" y1="56" x2="40" y2="${busEnd}" stroke="${WC.l}" stroke-width="2.5"/>
+  <line x1="56" y1="56" x2="56" y2="${busEnd+8}" stroke="${WC.n}" stroke-width="2.5"/>
+  ${pes.length?`<circle cx="72" cy="56" r="3" fill="var(--w-pe)"/><line x1="72" y1="56" x2="72" y2="${Math.max(...pes)}" stroke="var(--w-pe)" stroke-width="2.5" stroke-dasharray="7 3"/>`:""}`;
   return `<svg viewBox="0 0 ${W} ${y+10}" width="${W}" role="img" aria-label="Esquema unifilar de la pérgola">${head}${body}</svg>`;
 }
 const trunc=(s,n)=>{s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;};
@@ -898,11 +893,8 @@ function conexiones(cfg,r){
     "Exterior = local mojado (ITC-BT-30): canalizaciones estancas; empalmes, cajas, aparamenta y tomas con IPX4 como mínimo (o dentro de cajas que lo den); luminarias de clase distinta de 0.",
     "Colores (ITC-BT-19): fase marrón o negro (gris si hay tres fases), neutro azul, protección verde-amarillo.",
     "Caída de tensión máxima (ITC-BT-19): 3 % en alumbrado y 5 % en el resto; en viviendas, 3 %.",
-    "Protección: magnetotérmico por circuito y diferencial de 30 mA como máximo (ITC-BT-24 y, en viviendas, ITC-BT-25).",
-    "Motores (ITC-BT-47): la línea, para el 125 % de la intensidad del motor mayor más la del resto; protección contra sobrecargas y cortocircuitos.",
     "24 V DC (ITC-BT-36): muy baja tensión, hasta 75 V en continua. Sin puesta a tierra si es MBTS.",
-    "Documentación (ITC-BT-04): la memoria técnica de diseño lleva esquema unifilar con aparatos de corte y protección, puntos de utilización y secciones, más croquis y cálculos. La firma la empresa instaladora habilitada, que también emite el certificado."
-  ],src:"REBT: ITC-BT-04, 19, 24, 25, 30, 36 y 47 (copias no oficiales; contrastar con el BOE vigente)"});
+  ],src:"REBT: ITC-BT-19, 30 y 36 (copias no oficiales; contrastar con el BOE vigente)"});
   return out.map(c=>`<section><h3>${esc(c.t)}</h3>${c.code?`<div class="tag" style="margin-top:4px">${esc(c.code)}</div>`:""}<ul>${c.li.map(l=>`<li>${esc(l)}</li>`).join("")}</ul><p class="src">Fuente: ${esc(c.src)}</p></section>`).join("");
 }
 
@@ -1301,7 +1293,7 @@ function render(){
   const cw=r.dev.filter(d=>d.feed==="230"&&d.W>0),TW=cw.reduce((a,d)=>a+d.W,0),W230=r.W230;
   $("sumW").textContent=`Total ${w0(TW)}`;
   $("consumo").innerHTML=`<thead><tr><th>Central</th><th>Alimenta</th><th style="text-align:right">W</th></tr></thead><tbody>${
-    cw.map(d=>`<tr><td>${esc(d.t)}<div class="hint">${esc(d.code)}</div></td><td>${esc(d.right.filter(it=>it.W).map(it=>it.t).join(" · "))}</td><td class="qty">${w0(d.W)}</td></tr>`).join("")
+    cw.map(d=>`<tr><td>${esc(d.t)}<div class="hint">${esc(d.code)}</div></td><td>${esc(d.alimenta||d.right.filter(it=>it.W).map(it=>it.t).join(" · "))}</td><td class="qty">${w0(d.W)}</td></tr>`).join("")
   }</tbody><tfoot><tr><th colspan="2">Total de las cargas</th><th style="text-align:right" class="mono">${w0(TW)}</th></tr><tr><th colspan="2">Estimado en 230 V (fuentes de 24 V al 90 %)</th><th style="text-align:right" class="mono">${w0(W230)} · ${(W230/230).toLocaleString("es-ES",{maximumFractionDigits:1})} A</th></tr></tfoot>`;
   pintaMaterial(r);
 }
