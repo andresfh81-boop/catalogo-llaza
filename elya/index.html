@@ -16,7 +16,7 @@
 :root{
   --bg:#f3f4f2; --paper:#ffffff; --ink:#1d2329; --muted:#5d6670; --line:#cfd4d2; --soft:#e7eae8;
   --accent:#c4561d; --accent-ink:#ffffff; --ok:#2f7d4f; --warn:#a86a00; --bad:#b3261e;
-  --w-l:#8a5a2b; --w-n:#2b66c4; --w-p:#d0342c; --w-m:#1d2329; --w-s:#7a8590; --w-r:#7a8590;
+  --w-l:#8a5a2b; --w-n:#2b66c4; --w-pe:#3f9a3a; --w-p:#d0342c; --w-m:#1d2329; --w-s:#7a8590; --w-r:#7a8590;
   --t1:#d98a00; --t2:#2b8f8a; --t3:#8a4fc4; --t4:#c43d6b; --lama:#e0a83a; --wall:#9aa3a0;
   --f-disp:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;
   --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -25,12 +25,12 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#14181b; --paper:#1c2125; --ink:#e6e9ea; --muted:#9aa4ab; --line:#353d43; --soft:#252b30;
   --accent:#e07a3f; --accent-ink:#14181b; --ok:#5cbf85; --warn:#e0a83a; --bad:#ef6b62;
-  --w-l:#c08a55; --w-n:#5b95ec; --w-p:#f0605a; --w-m:#e6e9ea; --w-s:#9aa4ab; --w-r:#9aa4ab;
+  --w-l:#c08a55; --w-n:#5b95ec; --w-pe:#6cc35f; --w-p:#f0605a; --w-m:#e6e9ea; --w-s:#9aa4ab; --w-r:#9aa4ab;
   --t1:#f0a830; --t2:#45bdb6; --t3:#b083ec; --t4:#ec6a96; --lama:#e8b85a; --wall:#5d666b; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#14181b; --paper:#1c2125; --ink:#e6e9ea; --muted:#9aa4ab; --line:#353d43; --soft:#252b30;
   --accent:#e07a3f; --accent-ink:#14181b; --ok:#5cbf85; --warn:#e0a83a; --bad:#ef6b62;
-  --w-l:#c08a55; --w-n:#5b95ec; --w-p:#f0605a; --w-m:#e6e9ea; --w-s:#9aa4ab; --w-r:#9aa4ab;
+  --w-l:#c08a55; --w-n:#5b95ec; --w-pe:#6cc35f; --w-p:#f0605a; --w-m:#e6e9ea; --w-s:#9aa4ab; --w-r:#9aa4ab;
   --t1:#f0a830; --t2:#45bdb6; --t3:#b083ec; --t4:#ec6a96; --lama:#e8b85a; --wall:#5d666b; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);margin:0;
@@ -138,7 +138,7 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
 <form id="f" autocomplete="off">
   <fieldset>
     <legend>Plano de fabricación</legend>
-    <label class="drop" id="drop"><input type="file" id="fPlano" accept="application/pdf,.pdf" hidden><b>Arrastra aquí el PDF del plano</b><span>o toca para elegirlo. Rellena los módulos, pilares, vigas, tiras y centralitas.</span></label>
+    <label class="drop" id="drop"><input type="file" id="fPlano" accept="application/pdf,.pdf,image/*" hidden><b>Arrastra aquí el plano</b><span>PDF de la ficha de fabricación, o el plano firmado escaneado / foto (este lo lee Claude, desde el enlace de Claude). Toca para elegirlo.</span></label>
     <div id="impRes" class="impres" hidden></div>
   </fieldset>
   <fieldset>
@@ -204,11 +204,13 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
       <div class="legend">
         <span><i style="background:var(--w-l)"></i>Fase (marrón)</span>
         <span><i style="background:var(--w-n)"></i>Neutro (azul)</span>
+        <span><i style="background:repeating-linear-gradient(90deg,var(--w-pe) 0 7px,#e8c21e 7px 10px)"></i>Protección (verde-amarillo)</span>
         <span><i style="background:var(--w-p)"></i>24 V DC +</span>
         <span><i style="background:var(--w-m)"></i>24 V DC −</span>
         <span><i style="background:var(--w-s)"></i>Señal / sensor</span>
         <span><i style="background:repeating-linear-gradient(90deg,var(--w-r) 0 4px,transparent 4px 7px)"></i>Radio</span>
       </div>
+      <p class="hint" style="margin-top:8px">Símbolos: rectángulo con diagonal = aparato de protección (PIA, diferencial) · M = motor · zigzag = tira LED · triángulo = sensor · antena = emisor. Colores de conductores según ITC-BT-19 (fase marrón/negro/gris, neutro azul, protección verde-amarillo). Lado de 24 V DC = muy baja tensión (ITC-BT-36).</p>
     </div>
     <div class="cajetin" id="cajetin"></div>
   </section>
@@ -549,19 +551,25 @@ function calcular(cfg){
   add(emisor,1);
   if(cfg.schuko||cfg.usb){
     const right=[];
-    if(cfg.schuko)right.push({kind:"note",t:`${cfg.schuko} × toma Schuko IP54`,s:C.schuko[0],wires:[["l",""],["n",""]],pin:"230 V"});
+    if(cfg.schuko)right.push({kind:"note",t:`${cfg.schuko} × toma Schuko IP54`,s:C.schuko[0],wires:[["l",""],["n",""],["pe",""]],pin:"230 V + PE"});
     if(cfg.usb)right.push({kind:"note",t:`${cfg.usb} × toma USB A+C`,s:C.usb[0],wires:[["l",""],["n",""]],pin:"230 V"});
-    dev.push({id:"tomas",t:"Tomas en pilar",code:"",model:"Derivación 230 V",feed:"230",right});
+    dev.push({id:"tomas",t:"Tomas en pilar",code:"",model:"Derivación 230 V · IPX4",feed:"230",pe:true,right});
     add("schuko",cfg.schuko);add("usb",cfg.usb,"",true);
     if(cfg.usb)av.push(["info","Toma USB: lleva cable de 2 polos macho. Confirma en la etiqueta si va a 230 V o a la línea de 24 V antes de conectarla."]);
   }
   av.push(["info","Línea de 230 V a cada centralita con magnetotérmico y diferencial de 30 mA en el cuadro del cliente. La hace el instalador eléctrico (REBT)."]);
   dev.forEach(d=>d.W=d.right.reduce((a,it)=>a+(it.W||0),0));
-  return {av,bom,dev,plan,outs};
+  /* Línea de 230 V: potencia de las centrales (fuentes al 90 %) y propuesta de protección y sección.
+     Referencia: ITC-BT-25 (C1 10 A · 1,5 mm²; C2 16 A · 2,5 mm²) e ITC-BT-24/25 (diferencial 30 mA). La decide el instalador. */
+  const W24=dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0),0),W230=W24/0.9,I230=W230/230;
+  const linea=I230<=8?{In:10,s:"1,5"}:I230<=13?{In:16,s:"2,5"}:null;
+  if(!linea)av.push(["bad",`La pérgola pide ≈${I230.toLocaleString("es-ES",{maximumFractionDigits:1})} A en 230 V: más de lo que da una línea de 16 A. Repártela en dos líneas.`]);
+  if(cfg.schuko||cfg.usb)av.push(["info","Las tomas de 230 V llevan conductor de protección (verde-amarillo) y en exterior han de ser IPX4 como mínimo (ITC-BT-30). La toma Schuko del catálogo es IP54."]);
+  return {av,bom,dev,plan,outs,W24,W230,I230,linea};
 }
 
 /* ---------- dibujo: esquema unifilar ---------- */
-const WC={l:"var(--w-l)",n:"var(--w-n)",p:"var(--w-p)",m:"var(--w-m)",s:"var(--w-s)",r:"var(--w-r)"};
+const WC={l:"var(--w-l)",n:"var(--w-n)",p:"var(--w-p)",m:"var(--w-m)",s:"var(--w-s)",r:"var(--w-r)",pe:"var(--w-pe)"};
 function icon(kind,x,y){
   if(kind==="motor")return `<circle cx="${x+18}" cy="${y}" r="12" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/><text x="${x+18}" y="${y+5}" text-anchor="middle" font-size="13" font-weight="700">M</text>`;
   if(kind==="led")return `<path d="M${x+6} ${y+8} l6 -16 l6 16 l6 -16 l6 16" fill="none" stroke="var(--t1)" stroke-width="2"/>`;
@@ -571,7 +579,7 @@ function icon(kind,x,y){
 }
 function dibujaUnifilar(cfg,r){
   const W=780,bx=110,bw=230,ix=480,iw=280,itemH=46;
-  let y=96,body="",branches=[];
+  let y=170,body="",branches=[],pes=[];
   r.dev.forEach(d=>{
     const n=Math.max(1,d.right.length),h=Math.max(76,14+n*itemH);
     const by=y,bh=h-16;
@@ -583,7 +591,8 @@ function dibujaUnifilar(cfg,r){
     if(d.feed==="230"){branches.push(fy);
       body+=`<line x1="40" y1="${fy}" x2="${bx}" y2="${fy}" stroke="${WC.l}" stroke-width="2"/><line x1="56" y1="${fy+8}" x2="${bx}" y2="${fy+8}" stroke="${WC.n}" stroke-width="2"/>`;
       body+=`<circle cx="40" cy="${fy}" r="3" fill="${WC.l}"/><circle cx="56" cy="${fy+8}" r="3" fill="${WC.n}"/>`;
-      body+=`<text x="${bx-6}" y="${fy-5}" font-size="10" text-anchor="end" class="mono mut">L · N</text>`;
+      if(d.pe){body+=`<line x1="72" y1="${fy+16}" x2="${bx}" y2="${fy+16}" stroke="var(--w-pe)" stroke-width="2" stroke-dasharray="7 3"/><circle cx="72" cy="${fy+16}" r="3" fill="var(--w-pe)"/>`;pes.push(fy+16);}
+      body+=`<text x="${bx-6}" y="${fy-5}" font-size="10" text-anchor="end" class="mono mut">${d.pe?"L · N · PE":"L · N"}</text>`;
     }else if(d.feed==="24"){
       body+=`<line x1="78" y1="${fy}" x2="${bx}" y2="${fy}" stroke="${WC.p}" stroke-width="2"/><line x1="78" y1="${fy+8}" x2="${bx}" y2="${fy+8}" stroke="${WC.m}" stroke-width="2"/>`;
       body+=`<text x="${bx-6}" y="${fy-5}" font-size="10" text-anchor="end" class="mono mut">24 V DC ↑ trafo</text>`;
@@ -606,14 +615,24 @@ function dibujaUnifilar(cfg,r){
     });
     y+=h;
   });
-  const busEnd=branches.length?Math.max(...branches)+8:96;
-  const sup=cfg.sistema==="teleco_ul"?"Red eléctrica (UL: comprobar tensión)":"Línea 230 V desde cuadro del cliente";
-  const head=`<rect x="10" y="8" width="330" height="54" rx="3" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text x="22" y="30" font-size="14" font-weight="600">${esc(sup)}</text>
-  <text x="22" y="49" font-size="12" class="mut">Magnetotérmico + diferencial 30 mA (instalador)</text>
-  <line x1="40" y1="62" x2="40" y2="${busEnd}" stroke="${WC.l}" stroke-width="2.5"/>
-  <line x1="56" y1="62" x2="56" y2="${busEnd+8}" stroke="${WC.n}" stroke-width="2.5"/>
-  <text x="66" y="84" font-size="11" class="mono mut">Una derivación por centralita (en su pilar)</text>`;
+  const busEnd=branches.length?Math.max(...branches)+8:170;
+  const ul=cfg.sistema==="teleco_ul",L=r.linea,nf=n=>n.toLocaleString("es-ES",{maximumFractionDigits:1});
+  const sup=ul?"Cuadro del cliente · red del país (UL)":"Cuadro del cliente · 230 V ~ 50 Hz";
+  /* Unifilar (una línea con los aparatos en serie) hasta la caja de la pérgola; desde ahí, conductores separados. */
+  const sym=(yy,t1,t2)=>`<rect x="40" y="${yy}" width="16" height="22" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/><line x1="40" y1="${yy+22}" x2="56" y2="${yy}" stroke="var(--ink)" stroke-width="1.5"/>
+  <text x="66" y="${yy+10}" font-size="12" font-weight="600">${t1}</text><text x="66" y="${yy+24}" font-size="11" class="mut">${t2}</text>`;
+  const head=`<rect x="10" y="8" width="330" height="30" rx="3" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="22" y="28" font-size="13" font-weight="600">${esc(sup)}</text>
+  <line x1="48" y1="38" x2="48" y2="140" stroke="var(--ink)" stroke-width="2.5"/>
+  ${sym(48,L?`PIA 2P ${L.In} A · curva C`:"PIA: más de 16 A",`Magnetotérmico (sobrecargas y cortocircuitos)`)}
+  ${sym(84,"ID 2P 40 A · 30 mA","Diferencial (ITC-BT-24 / ITC-BT-25)")}
+  <text x="66" y="124" font-size="11" class="mono">${L?`Línea 3G${L.s} mm² (L + N + PE)`:"Repartir en 2 líneas"} · ≈${Math.round(r.W230)} W · ${nf(r.I230)} A</text>
+  <text x="66" y="138" font-size="10" class="mut">Propuesta orientativa: la decide y certifica el instalador habilitado</text>
+  <line x1="36" y1="140" x2="76" y2="140" stroke="var(--ink)" stroke-width="3"/>
+  <line x1="40" y1="140" x2="40" y2="${busEnd}" stroke="${WC.l}" stroke-width="2.5"/>
+  <line x1="56" y1="140" x2="56" y2="${busEnd+8}" stroke="${WC.n}" stroke-width="2.5"/>
+  ${pes.length?`<line x1="72" y1="140" x2="72" y2="${Math.max(...pes)}" stroke="var(--w-pe)" stroke-width="2.5" stroke-dasharray="7 3"/>`:""}
+  <text x="84" y="160" font-size="11" class="mono mut">Caja estanca IPX4 en la pérgola · una derivación por centralita</text>`;
   return `<svg viewBox="0 0 ${W} ${y+10}" width="${W}" role="img" aria-label="Esquema unifilar de la pérgola">${head}${body}</svg>`;
 }
 const trunc=(s,n)=>{s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;};
@@ -711,6 +730,15 @@ function conexiones(cfg,r){
     "Todos los cables LED (lamas y perímetro) van a la central LED del módulo.",
     "Regular finales de carrera y cerrar los pilares con su tapa al acabar."
   ],src:"ELYA AUTOPORTANTE_Instalación.pdf, apartados 4.10, 4.15, 4.17 y 4.21"});
+  out.push({t:"Normativa (REBT, RD 842/2002)",code:"",li:[
+    "Exterior = local mojado (ITC-BT-30): canalizaciones estancas; empalmes, cajas, aparamenta y tomas con IPX4 como mínimo (o dentro de cajas que lo den); luminarias de clase distinta de 0.",
+    "Colores (ITC-BT-19): fase marrón o negro (gris si hay tres fases), neutro azul, protección verde-amarillo.",
+    "Caída de tensión máxima (ITC-BT-19): 3 % en alumbrado y 5 % en el resto; en viviendas, 3 %.",
+    "Protección: magnetotérmico por circuito y diferencial de 30 mA como máximo (ITC-BT-24 y, en viviendas, ITC-BT-25).",
+    "Motores (ITC-BT-47): la línea, para el 125 % de la intensidad del motor mayor más la del resto; protección contra sobrecargas y cortocircuitos.",
+    "24 V DC (ITC-BT-36): muy baja tensión, hasta 75 V en continua. Sin puesta a tierra si es MBTS.",
+    "Documentación (ITC-BT-04): la memoria técnica de diseño lleva esquema unifilar con aparatos de corte y protección, puntos de utilización y secciones, más croquis y cálculos. La firma la empresa instaladora habilitada, que también emite el certificado."
+  ],src:"REBT: ITC-BT-04, 19, 24, 25, 30, 36 y 47 (copias no oficiales; contrastar con el BOE vigente)"});
   return out.map(c=>`<section><h3>${esc(c.t)}</h3>${c.code?`<div class="tag" style="margin-top:4px">${esc(c.code)}</div>`:""}<ul>${c.li.map(l=>`<li>${esc(l)}</li>`).join("")}</ul><p class="src">Fuente: ${esc(c.src)}</p></section>`).join("");
 }
 
@@ -800,18 +828,100 @@ function pintaImport(){
   <div class="row"><label>Ancho A de<select id="impRef">${opts}</select></label><label>según el plano (m)<input type="number" id="impA" step="0.01" min="0.5" max="10" value="${r.refA}"></label></div>
   <div class="hint">Marca también el lado del motor de cada módulo: en el plano va dibujado, no escrito.</div>`;
 }
+/* Plano firmado escaneado o foto: no tiene texto. Se manda la imagen de cada página a Claude (capacidad «sample»,
+   solo en el enlace de Claude) y devuelve los datos en JSON. En la app instalable no hay Claude: se avisa. */
+let samplePr=null;
+const claudeSample=()=>samplePr||(samplePr=(window.claude&&window.claude.use?window.claude.use("sample").catch(()=>null):Promise.resolve(null)));
+const PROMPT_PLANO=`Son las páginas de un plano de una pérgola bioclimática ELYA (Llaza / Umara), escaneadas o fotografiadas y quizá giradas.
+Léelas con cuidado y devuelve SOLO un objeto JSON con esta forma (null si un dato no aparece; no inventes):
+{"obra": "referencia u obra del cajetín", "oferta": "nº de oferta u OF", "cliente": "cliente",
+ "modelo": "texto del modelo", "montaje": "autoportante" | "pared" | "pared_porteria" | null,
+ "electronica": "cherubini" | "teleco" | "somfy" | null, "alto_total_mm": número | null,
+ "luz": "none" | "w3000" | "w4000" | "rgb" | null   (según accesorios: tiras LED, blanco cálido/neutro, RGB; "none" si no lleva),
+ "modulos": [{"n": 1,
+   "largo_lama_mm": medida del módulo en el sentido de la longitud de las lamas,
+   "otro_lado_mm": medida perpendicular (el lado donde se apoyan los ejes de las lamas y va el motor),
+   "motor": "izq" | "der",
+   "pilares": {"si": "", "sd": "", "ii": "", "id": ""},
+   "centralita": {"esquina": "si" | "sd" | "ii" | "id", "alojada": "pilar" | "viga", "ref": "nombre del pilar o viga"} | null,
+   "pared": "sup" | "inf" | "izq" | "der" | null}],
+ "dudas": ["lo que no se lee bien o hay que comprobar"]}
+Para las posiciones, imagina la planta girada de modo que las lamas queden horizontales (izquierda-derecha) y, si hay pared, arriba.
+Entonces "si" = esquina superior izquierda, "sd" = superior derecha, "ii" = inferior izquierda, "id" = inferior derecha, y "motor" es el lado izquierdo o derecho donde está dibujado el motor.
+En "pilares" pon el nombre que da el plano a cada pilar (P1, P2…); vacío si en esa esquina no hay pilar (por ejemplo, contra la pared).
+La «Centralita» suele ir señalada con una línea o flecha hasta un pilar o una viga. Medidas en milímetros como números.`;
+async function paginasComoImagen(buf,max){
+  const L=await pdfjs(),doc=await L.getDocument({data:buf}).promise,out=[];
+  for(let i=1;i<=Math.min(doc.numPages,max);i++){
+    const pg=await doc.getPage(i),v0=pg.getViewport({scale:1}),sc=Math.min(2200/Math.max(v0.width,v0.height),3),vp=pg.getViewport({scale:sc});
+    const cv=document.createElement("canvas");cv.width=Math.round(vp.width);cv.height=Math.round(vp.height);
+    await pg.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;
+    out.push(await new Promise(ok=>cv.toBlob(ok,"image/jpeg",0.85)));
+  }
+  return out;
+}
+let leerCtl=null;
+async function leePlanoConClaude(file,buf){
+  const sample=await claudeSample(),lim=sample&&await sample.limits().catch(()=>null);
+  if(!sample||!lim||!lim.images)throw new Error("Este plano es una imagen escaneada. Para leerlo, abre la app desde el enlace de Claude: allí lo lee Claude.");
+  const box=$("impRes");box.hidden=false;
+  box.innerHTML=`<div><b>Leyendo el plano con Claude…</b> Puede tardar hasta un minuto. La primera vez te pide permiso.</div><div><button type="button" id="impStop">Parar</button></div>`;
+  leerCtl=new AbortController();$("impStop").onclick=()=>leerCtl&&leerCtl.abort();
+  const imgs=buf?await paginasComoImagen(buf,Math.min(lim.images.maxCount,4)):[file];
+  try{return await sample.json(PROMPT_PLANO,{images:imgs,signal:leerCtl.signal});}
+  catch(e){
+    const msg={cancelled:"Lectura parada.",not_granted:"No has dado permiso para usar Claude en esta página.",rate_limited:"Claude está ocupado o has llegado al límite de uso. Prueba más tarde.",
+      invalid_json:"Claude no ha devuelto los datos bien. Vuelve a soltar el plano.",image_rejected:"La imagen no se puede leer (formato o tamaño).",refused:"Claude no ha podido leer este plano."}[e&&e.code];
+    throw new Error(msg||"No se pudo leer el plano con Claude. Prueba otra vez.");
+  }finally{leerCtl=null;}
+}
+const SIS={cherubini:"nexta",teleco:"teleco_eu",somfy:"somfy"};
+function aplicaPlanoClaude(d,nombreArchivo){
+  const mm=v=>{const n=parseFloat(v);return n>0?Math.round(n/10)/100:null;};
+  const mods=(Array.isArray(d.modulos)?d.modulos:[]).map((m,i)=>{
+    const c=m.centralita||{},pil=m.pilares||{},lados={...LADOS_ALL};
+    if(m.pared&&lados[m.pared]!==undefined)lados[m.pared]=false;
+    return {nombre:"Módulo "+(m.n||i+1),A:mm(m.largo_lama_mm)||4,P:mm(m.otro_lado_mm)||4,motor:m.motor==="izq"?"izq":"der",
+      cent:ESQ[c.esquina]?c.esquina:"si",aloj:c.alojada==="pilar"?"pilar":"viga",ref:String(c.ref||""),
+      pil:{si:String(pil.si||""),sd:String(pil.sd||""),ii:String(pil.ii||""),id:String(pil.id||"")},vig:{},
+      luz:LUZ[d.luz]?d.luz:"none",lados,lamasN:0};
+  });
+  if(!mods.length)throw new Error("Claude no ha encontrado módulos en el plano.");
+  const obra=[d.obra,d.cliente].filter(Boolean).join(" · ")||nombreArchivo;
+  $("obra").value=obra;$("of").value=d.oferta?String(d.oferta):"";
+  if(d.alto_total_mm>0)$("alto").value=Math.round(d.alto_total_mm/10)/100;
+  if(SIS[d.electronica]&&$("sistema").value!==SIS[d.electronica]){$("sistema").value=SIS[d.electronica];fillEmisores(SIS[d.electronica],$("emisor").value);}
+  writeMods(mods);
+  const dudas=(Array.isArray(d.dudas)?d.dudas:[]).map(String);
+  const box=$("impRes");box.hidden=false;
+  box.innerHTML=`<div><span class="ok">Plano leído por Claude:</span> ${esc(d.modelo||"")} · ${mods.length} módulo(s)${d.montaje?" · "+esc(String(d.montaje).replace("_"," ")):""}</div>
+  <ul>${mods.map(m=>`<li>${esc(m.nombre)}: ${m2(m.A)} × ${m2(m.P)} m · motor ${m.motor==="izq"?"izquierda":"derecha"} · centralita en ${m.aloj} ${esc(m.ref||"?")}</li>`).join("")}</ul>
+  ${dudas.length?`<div><b>Comprobar:</b></div><ul>${dudas.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:""}
+  <div class="hint">Revisa los datos con el plano antes de usar el esquema: la lectura de un escaneo puede equivocarse.</div>`;
+  render();
+}
+
 async function importaPlano(file){
   const drop=$("drop");
-  if(!file||!/\.pdf$/i.test(file.name)&&file.type!=="application/pdf"){toast("Suelta el PDF del plano (una foto no se puede leer).");return;}
+  if(!file)return;
+  const esImg=/^image\//.test(file.type),esPdf=/\.pdf$/i.test(file.name)||file.type==="application/pdf";
+  if(!esImg&&!esPdf){toast("Suelta el PDF del plano o una foto.");return;}
   drop.classList.add("busy");
   try{
-    const r=interpretaPlano(await textoPlano(await file.arrayBuffer()));
-    if(!r.mods.length){toast("No encuentro módulos en el PDF. ¿Es la ficha de fabricación?");return;}
+    const buf=esPdf?await file.arrayBuffer():null;
+    const T=buf?await textoPlano(buf.slice(0)):[];
+    const r=interpretaPlano(T);
+    if(!r.mods.length){
+      /* Sin texto que leer (escaneo, foto o plano firmado): que lo lea Claude. */
+      if(T.length>40){toast("No encuentro módulos en el PDF. ¿Es un plano de la ELYA?");return;}
+      plano=null;aplicaPlanoClaude(await leePlanoConClaude(file,buf),file.name.replace(/\.[^.]+$/,""));
+      toast("Plano leído: revisa los datos");return;
+    }
     plano=Object.assign(r,{refN:r.mods[0].n});plano.refA=Math.round(r.mods[0].w/80*100)/100;
     if(!$("obra").value||$("obra").value===EJEMPLO.obra)$("obra").value=file.name.replace(/\.pdf$/i,"");
     if($("of").value===EJEMPLO.of)$("of").value="";
     writeMods(modulosDelPlano());pintaImport();render();toast("Plano importado: revisa la cota y el lado del motor");
-  }catch(e){console.warn(e);toast(e.message||"No se pudo leer el PDF");}
+  }catch(e){console.warn(e);toast(e.message||"No se pudo leer el plano");const b=$("impRes");if(b&&/Leyendo/.test(b.textContent)){b.innerHTML=`<div class="ko">${esc(e.message||"No se pudo leer el plano")}</div>`;}}
   finally{drop.classList.remove("busy");}
 }
 
