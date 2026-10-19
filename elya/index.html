@@ -84,6 +84,9 @@ button.mini.del{color:var(--bad)}
 .drop.busy{opacity:.6;pointer-events:none}
 .impres{display:grid;gap:8px;font-size:13px;border:1px solid var(--line);border-radius:4px;padding:10px;background:var(--bg)}
 .impres ul{margin:0;padding-left:18px}
+.contraste{display:grid;gap:6px}.contraste table{border-collapse:collapse;font-size:12px;width:100%}
+.contraste th,.contraste td{border-bottom:1px solid var(--line);padding:3px 6px;text-align:left}
+.contraste tr.dif td{color:var(--bad);font-weight:600}
 .impres .ok{color:var(--ok);font-weight:600}
 .impres .ko{color:var(--bad);font-weight:600}
 .mod{border:1px solid var(--line);border-radius:4px;padding:10px;display:grid;gap:8px;background:var(--bg)}
@@ -1192,7 +1195,7 @@ function datosFicha(T){
   if(!/Altura\s*Paso\s*Pilar/i.test(J)&&!/LED\s*Perimetral/i.test(J))return null;
   const elec=(g(/Electr[óo]nica:\s*([A-ZÁÉÍÓÚa-z]+)/i)||"").toLowerCase();
   return {ref:g(/Referencia:[ \t]*([^\n]*)/i),cliente:g(/Cliente:[ \t]*([^\n]*)/i),modulos:parseInt(g(/M[óo]dulos:\s*(\d+)/i))||null,tipo:g(/Tipo:\s*([^\n]*)/i),
-    alto:parseInt(g(/Altura\s*Paso\s*Pilar:\s*(\d+)/i))||null,lamas:g(/N[ºo°]\s*Lamas:\s*([^\n]*)/i),
+    alto:parseInt(g(/Altura\s*Paso\s*Pilar:\s*(\d+)/i))||null,pilares:parseInt(g(/Pilares:\s*(\d+)/i))||null,lamas:g(/N[ºo°]\s*Lamas:\s*([^\n]*)/i),
     ledPeri:si(/LED\s*Perimetral:\s*([^\n]*)/i),focos:g(/Focos\s*LED:\s*([^\n]*)/i),lamasLed:g(/Lamas\s*LED:\s*([^\n]*)/i),
     lluvia:si(/Sensor\s*Lluvia:\s*([^\n]*)/i),viento:si(/Sensor\s*Viento:\s*([^\n]*)/i),
     schuko:si(/Toma\s*Enchufe\s*220\s*V:\s*([^\n]*)/i),usb:si(/Toma\s*Enchufe\s*USB:\s*([^\n]*)/i),sistema:SIS[elec]||null};
@@ -1300,7 +1303,7 @@ const PROMPT_PLANO=`Son las páginas de un plano de una pérgola bioclimática E
 Léelas con cuidado y devuelve SOLO un objeto JSON con esta forma (null si un dato no aparece; no inventes):
 {"obra": "referencia u obra del cajetín", "oferta": "nº de oferta u OF", "cliente": "cliente",
  "modelo": "texto del modelo", "montaje": "autoportante" | "pared" | "pared_porteria" | null,
- "electronica": "cherubini" | "teleco" | "somfy" | null, "alto_total_mm": número | null,
+ "electronica": "cherubini" | "teleco" | "somfy" | null, "alto_total_mm": número | null, "h_libre_mm": cota «H Libre» en mm | null, "pilares": número total de pilares | null,
  "luz": "none" | "w3000" | "w4000" | "rgb" | null   (según accesorios: tiras LED, blanco cálido/neutro, RGB; "none" si no lleva),
  "viento": true | false (según accesorios: anemómetro o sensor de viento), "lluvia": true | false (sensor de lluvia),
  "modulos": [{"n": 1,
@@ -1357,7 +1360,7 @@ function datosCajetin(T){
   const lam={};for(const m of acc.matchAll(/M[óo]dulo\s*([\d\/]+)\s*\(([\d,\s]+)\)/gi)){const n=m[2].split(",").filter(x=>x.trim()).length;m[1].split("/").forEach(k=>lam[+k]=n);}
   const d={obra:g(/REFERENCIA:\s*([^\n]+)/i),oferta:g(/OFERTA:\s*(\d+)/i),cliente:g(/CLIENTE:\s*([^\n]+)/i),
     modelo:["ELYA",g(/ELYA\s*\n\s*([^\n]+)/i)].filter(Boolean).join(" "),montaje,electronica:SIS[elec]?elec:null,
-    alto_total_mm:num(g(/H\s*Total:\s*(\d+)/i)),luz,viento:/ANEM|VIENTO/i.test(acc),lluvia:/LLUVIA/i.test(acc),modulos:[],dudas:[]};
+    alto_total_mm:num(g(/H\s*Total:\s*(\d+)/i)),h_libre_mm:num(g(/H\s*Libre:\s*(\d+)/i)),pilares:num(g(/(\d+)\s*PILARES/i)),medidas:g(/(\d{3,5}\s*x\s*\d{3,5})/i),luz,viento:/ANEM|VIENTO/i.test(acc),lluvia:/LLUVIA/i.test(acc),modulos:[],dudas:[]};
   const ancho=num(g(/(\d{3,5})\s*\(Ancho\)/i)),proy=num(g(/(\d{3,5})\s*\(Proyecci/i));
   if(nMod===1){
     const P=T.filter(t=>/^P\d+$/.test(t.s));
@@ -1409,6 +1412,28 @@ function aplicaPlanoClaude(d,nombreArchivo,quien){
 /* Varios archivos a la vez (lo que trae cada obra): la ficha de fabricación da la geometría, las vigas y la centralita,
    y el nombre del plano firmado («…_4000x5500_…» = largo de lama × la otra medida) da la escala exacta. */
 const DIMS_NOMBRE=/(\d{3,5})x(\d{3,5})/;
+/* Contraste de la ficha de fabricación con el plano del cliente (firmado): lo que no coincide se marca. */
+function contraste(fi,pc,nombre){
+  const N=v=>String(v??"").trim().toUpperCase().replace(/\s+/g," "),sn=v=>v==null?"?":v?"sí":"no",filas=[];
+  const fila=(que,a,b,ok)=>filas.push({que,a:a==null||a===""?"?":String(a),b:b==null||b===""?"?":String(b),ok:(a==null||a===""||b==null||b==="")?null:ok});
+  const m=nombre.match(/^(\d{8}(?:-\d+)?)_(\d{3,5})x(\d{3,5})_([A-Z]+)/i);
+  fila("Referencia",fi&&fi.ref,pc.obra,N(fi&&fi.ref)===N(pc.obra));
+  fila("Cliente",fi&&fi.cliente,pc.cliente,N(fi&&fi.cliente)===N(pc.cliente));
+  fila("Módulos",fi&&fi.modulos,(pc.modulos||[]).length||null,(fi&&fi.modulos)===(pc.modulos||[]).length);
+  fila("Pilares",fi&&fi.pilares,pc.pilares,(fi&&fi.pilares)===pc.pilares);
+  if(m&&pc.medidas){const [x,y]=pc.medidas.split(/\s*x\s*/i).map(Number);fila("Medidas (lama × otra)",`${m[2]} × ${m[3]}`,`${y} × ${x} (Ancho ${x} · Proyección ${y})`,+m[2]===y&&(+m[3]===x||(pc.modulos||[]).length>1));}
+  fila("Altura de paso / H libre (mm)",fi&&fi.alto,pc.h_libre_mm,(fi&&fi.alto)===pc.h_libre_mm);
+  fila("Electrónica",fi&&fi.sistema&&{nexta:"Cherubini",teleco_eu:"Teleco",somfy:"Somfy"}[fi.sistema],pc.electronica&&cap(pc.electronica),fi&&SIS[pc.electronica]===fi.sistema);
+  fila("LED perimetral",fi&&sn(fi.ledPeri),pc.luz?sn(pc.luz!=="none"):null,fi&&fi.ledPeri===(pc.luz!=="none"));
+  fila("Sensor lluvia",fi&&sn(fi.lluvia),sn(pc.lluvia),fi&&!!fi.lluvia===!!pc.lluvia);
+  fila("Sensor viento",fi&&sn(fi.viento),sn(pc.viento),fi&&!!fi.viento===!!pc.viento);
+  if(m)fila("Tipo",fi&&fi.tipo,m[4],N(fi&&fi.tipo)===N(m[4]));
+  const mot=(pc.modulos||[]).map(x=>x.motor).filter(Boolean);
+  const mal=filas.filter(f=>f.ok===false).length;
+  return `<div class="contraste"><b>Contraste ficha ↔ plano del cliente</b> ${mal?`<span class="ko">${mal} diferencia(s)</span>`:`<span class="ok">todo coincide</span>`}
+  <table><thead><tr><th></th><th>Ficha</th><th>Plano cliente</th><th></th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.ok===false?"dif":""}"><td>${esc(f.que)}</td><td>${esc(f.a)}</td><td>${esc(f.b)}</td><td>${f.ok==null?"–":f.ok?"✓":"⚠"}</td></tr>`).join("")}</tbody></table>
+  ${mot.length?`<div class="hint">Plano cliente: motor a la ${mot[0]==="izq"?"izquierda":"derecha"} (en su vista). Márcalo en el módulo.</div>`:""}</div>`;
+}
 async function importaVarios(files){
   if(files.length<2)return importaPlano(files[0]);
   const pdfs=files.filter(f=>/\.pdf$/i.test(f.name)),fichas=[];
@@ -1423,6 +1448,20 @@ async function importaVarios(files){
     writeMods(ms);pintaImport();render();
     $("impRes").insertAdjacentHTML("afterbegin",`<div><span class="ok">Medidas del plano firmado</span> (${esc(firmado.name)}): lamas de ${m2(+m[1]/1000)} m; ${plano.mods.length>1?"las demás medidas, a escala de la ficha":`el módulo, ${m2(+m[1]/1000)} × ${m2(+m[2]/1000)} m`}.</div>`);
     toast("Ficha y plano firmado leídos: revisa el lado del motor");
+  }
+  /* nº de obra: el de la ficha va dibujado (no es texto); es el mismo que el nombre del plano firmado */
+  const nob=firmado&&firmado.name.match(/^(\d{8}(?:-\d+)?)_/);if(nob){$("of").value=nob[1];render();}
+  if(firmado){
+    const box=$("impRes");let html="";
+    try{const buf=await firmado.arrayBuffer(),T2=await textoPlano(buf.slice(0));
+      if(T2.some(t=>/^MODELO:?$/i.test(t.s)))html=contraste(plano&&plano.ficha,datosCajetin(T2),firmado.name);
+      else{const sm=await claudeSample(),lim=sm&&await sm.limits().catch(()=>null);
+        if(lim&&lim.images){const prev=box.innerHTML;let d;
+          try{d=await leePlanoConClaude(firmado,buf,"");}finally{box.innerHTML=prev;}
+          html=contraste(plano&&plano.ficha,Object.assign({},d,{medidas:null}),firmado.name)+`<div class="hint">Plano del cliente escaneado, leído por Claude: revisa lo marcado.</div>`;}
+        else html=`<div class="contraste"><b>Contraste ficha ↔ plano del cliente:</b> el plano del cliente está escaneado; para contrastarlo ábrelo desde el enlace de Claude (lo lee Claude) o compáralo a mano.</div>`;}
+    }catch(e){html=`<div class="contraste ko">No he podido leer el plano del cliente para contrastarlo (${esc(e.message||"error")}).</div>`;}
+    box.insertAdjacentHTML("afterbegin",html);
   }
 }
 async function importaPlano(file){
