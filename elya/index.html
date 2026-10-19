@@ -232,7 +232,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
       <option value="rollo">Rollo LED ELYA (5 / 7 m)</option>
       <option value="neon">Neón perimetral (4,50 / 6 m)</option>
     </select></label>
-    <label id="lCentral">Central LED blanca (Nexta)<select id="ledCentral">
+    <label id="lCentral">Central LED blanca (Nexta), general · en cada módulo se puede cambiar<select id="ledCentral">
       <option value="tkl">TKL250 ONE · 4 salidas</option>
       <option value="stl250">STL250 · 2 salidas</option>
       <option value="stl100">STL100 · 2 salidas</option>
@@ -478,7 +478,8 @@ function modCard(m,i){
   <div class="lados"><label class="chk"><input type="checkbox" id="m${i}_viento"${m.viento?" checked":""}> Anemómetro</label><label class="chk"><input type="checkbox" id="m${i}_lluvia"${m.lluvia?" checked":""}> Sensor lluvia</label></div>
   <div class="row"><label>Focos<input type="number" id="m${i}_focN" min="0" max="40" step="1" value="${m.focN||0}"></label><label>Tipo de foco<select id="m${i}_focT">${opt(FOCOS,m.focT||"aries")}</select></label></div>
   <label>Focos en<select id="m${i}_focL">${opt({sup:"Viga sup.",der:"Viga der.",inf:"Viga inf.",izq:"Viga izq.",per:"Repartidos por el perímetro"},m.focL||"sup")}</select></label>
-  <div class="salidas"><div class="tag">Salidas de la centralita LED (Nexta)</div>
+  <div class="salidas"><div class="tag">Centralita LED (Nexta)</div>
+  <label>Central LED blanca<select id="m${i}_ledc">${opt({"":"Como la general",tkl:"TKL250 ONE · 4 salidas",stl250:"STILO STL250 · 2 salidas",stl100:"STILO STL100 · 2 salidas"},m.ledc||"")}</select></label>
   <div class="row">${[["p1","Perímetro 1"],["p2","Perímetro 2"]].map(([k,t])=>`<label>${t}<select id="m${i}_s_${k}">${opt(SALOPT,String((m.sal||{})[k]||"auto"))}</select></label>`).join("")}</div>
   <div class="row">${[["lam","Lamas"],["foc","Focos"]].map(([k,t])=>`<label>${t}<select id="m${i}_s_${k}">${opt(SALOPT,String((m.sal||{})[k]||"auto"))}</select></label>`).join("")}</div>
   <p class="hint">Perímetro 1 = tiras de la esquina de la centralita (o la primera entrada); Perímetro 2 = las otras. Auto: perímetro a OUT1 y OUT3, lamas repartidas en OUT2 y OUT4, focos a la salida con menos carga.</p></div>
@@ -507,7 +508,7 @@ function readMods(){
       lados:{sup:g("sup").checked,inf:g("inf").checked,izq:g("izq").checked,der:g("der").checked},
       extra:(()=>{const xs=[];for(let j=0;g(`x${j}_k`);j++)xs.push({k:g(`x${j}_k`).value,q:Math.max(1,Math.round(parseFloat(g(`x${j}_q`).value)||1)),loc:g(`x${j}_loc`).value,d:fnum(g(`x${j}_d`).value),W:Math.max(0,fnum(g(`x${j}_w`).value)||0),s:g(`x${j}_s`).value});return xs;})(),
       focN:Math.max(0,Math.round(parseFloat(g("focN").value)||0)),focT:g("focT").value,focL:g("focL").value,
-      sal:{p1:g("s_p1").value,p2:g("s_p2").value,lam:g("s_lam").value,foc:g("s_foc").value},
+      ledc:g("ledc").value,sal:{p1:g("s_p1").value,p2:g("s_p2").value,lam:g("s_lam").value,foc:g("s_foc").value},
       periCab:Object.fromEntries(PERCAB.map(k=>[k,Math.max(0,Math.round(parseFloat(g("pc_"+k).value)||0))]).filter(([,v])=>v>0)),
       lamCab:Object.fromEntries(LAMCAB.map(k=>[k,Math.max(0,Math.round(parseFloat(g("lc_"+k).value)||0))]).filter(([,v])=>v>0)),
       ent:g("ent").value,rut:g("rut").value,pos:{x:fnum(g("px").value),y:fnum(g("py").value)},
@@ -619,11 +620,19 @@ function rutaEsquinas(m,a,b,evitar,forzar){
     return {pts,sides,len:largo(pts),choque:sides.filter(x=>evitar.includes(x)).length};}).sort((x,y)=>x.choque-y.choque||x.len-y.len)[0];
 }
 const vigasDe=(m,sides)=>[...new Set(sides)].map(sd=>vigaDe(m,sd)).join(", ");
-/* Alargos para llegar a una distancia (m): el más corto que llegue; si no hay, se empalman. */
+/* Alargos para llegar a una distancia (m): la combinación más barata que llegue. Coste ≈ metros de cable + 1,5 por
+   pieza (cada empalme cuenta): 9,8 m → 2 × 5 m y no 7 + 5; 3,5 m → un 5 m y no tres de 1,5. */
 function alargos(d,rgb){
-  const L=rgb?[[5,"alRGB5"],[7,"alRGB7"]]:[[1.5,"alW15"],[5,"alW5"],[7,"alW7"]],r=[];
-  while(d>1e-6){const k=L.find(([l])=>l>=d)||L[L.length-1];r.push(k);d-=k[0];}
-  return r;
+  const L=rgb?[[5,"alRGB5"],[7,"alRGB7"]]:[[1.5,"alW15"],[5,"alW5"],[7,"alW7"]];
+  if(d<=1e-6)return [];
+  let best=null;
+  const prueba=(i,falta,r,tot)=>{
+    if(falta<=1e-6){if(!best||tot<best.tot-1e-6||(Math.abs(tot-best.tot)<1e-6&&r.length<best.r.length))best={r:[...r],tot};return;}
+    if(r.length>=8||(best&&tot>=best.tot+1e-6))return;
+    for(let j=i;j<L.length;j++){r.push(L[j]);prueba(j,falta-L[j][0],r,tot+L[j][0]+1.5);r.pop();}
+  };
+  prueba(0,d,[],0);
+  return best.r.sort((a,b)=>b[0]-a[0]);
 }
 
 /* Focos: posición de cada uno (en una viga o repartidos por el perímetro) y la cadena de cables en T desde la
@@ -789,7 +798,7 @@ function calcular(cfg){
     if(white.length){
       if(sis==="nexta"){
         /* Perímetro: esquina de la centralita a OUT1 y esquina contraria a OUT3 (STL: OUT1 y OUT2). Lamas al resto. */
-        const kc=cfg.ledCentral,tkl=kc==="tkl",maxM=kc==="stl100"?10:25,maxO=tkl?120:null;
+        const kc=m.ledc||cfg.ledCentral,tkl=kc==="tkl",maxM=kc==="stl100"?10:25,maxO=tkl?120:null;
         const o=(tkl?[1,2,3,4]:[1,2]).map(s=>({s,items:[],W:0})),put=(s,l)=>{const x=o.find(x=>x.s===s);x.items.push(l);x.W+=l.W;};
         /* Salidas elegidas a mano en el módulo (todas las salidas son iguales); Auto = reparto de siempre. */
         const sal=m.sal||{},nOut=tkl?4:2,okS=v=>{const n=parseInt(v,10);return n>=1&&n<=nOut?n:0;};
@@ -1089,7 +1098,7 @@ function dibujaConjunto(plan,cfg){
 
 /* Recorrido de cada cable de un módulo, por escrito (lo mismo que se dibuja en la planta). */
 function recorridos(pm,cfg){
-  const {m,tiras}=pm,cp=pilNom(pilDe(m,m.cent))||CN[m.cent],nexta=pm.sis==="nexta"&&cfg.ledCentral==="tkl",out=n=>nexta?` → ${n}`:"";
+  const {m,tiras}=pm,cp=pilNom(pilDe(m,m.cent))||CN[m.cent],nexta=pm.sis==="nexta"&&(m.ledc||cfg.ledCentral)==="tkl",out=n=>nexta?` → ${n}`:"";
   const L=[],esq=k=>pilNom(pilDe(m,k))||CN[k];
   if(pm.rm)L.push(`<b style="color:var(--c-mot)">Motor</b> (lado ${m.motor==="izq"?"izquierdo":"derecho"}): manguera 2×0,75 de ≈${Math.ceil(pm.run)} m por encima de ${esc(vigasDe(m,pm.rm.sides))} (entre la viga y la tapa) hasta la centralita.`);
   gruposTira(m,cfg.periProd).forEach(G=>{const ts=tiras.filter(t=>t.g===G.g);if(!ts.length)return;
