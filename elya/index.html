@@ -295,8 +295,9 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <p class="hint">Hojas que salen en el papel o en el PDF:</p>
   <div id="pHojas" class="phojas"></div>
   <label class="chk"><input type="checkbox" id="pCuadro"> Unifilar desde el cuadro del cliente (PIA, diferencial y línea)</label>
-  <p class="hint">En la ventana de imprimir, elige «Guardar como PDF» para tener el archivo. Mejor en horizontal si el unifilar es ancho.</p>
-  <div class="btns"><button type="button" id="pGo" class="pri">Imprimir</button><button value="cancel">Cancelar</button></div>
+  <p class="hint" id="pPrintHint">En la ventana de imprimir, elige «Guardar como PDF» para tener el archivo.</p>
+  <div class="btns"><button type="button" id="pSave">Guardar para imprimir</button><button type="button" id="pGo" class="pri">Imprimir</button><button value="cancel">Cancelar</button></div>
+  <p class="hint" id="pSaveHint">«Guardar para imprimir» deja en el móvil o el ordenador una página con estas hojas: ábrela con el navegador y pulsa «Imprimir / Guardar PDF».</p>
 </form></dialog>
 <div class="zoom" id="zoom" hidden><div class="zbar"><b id="zTit"></b><button type="button" data-z="-" aria-label="Alejar">−</button><button type="button" data-z="+" aria-label="Acercar">+</button><button type="button" data-z="0">Ajustar</button><button type="button" data-z="x">Cerrar</button></div><div class="zbox" id="zBox"></div></div>
 </div>
@@ -1759,14 +1760,48 @@ function abrirImprimir(){
   $("pHojas").innerHTML=HOJAS.map(([k,t])=>`<label class="chk"><input type="checkbox" data-h="${k}"${impPref.hojas[k]!==false?" checked":""}> ${t}</label>`).join("");
   $("pCuadro").checked=!!impPref.cuadro;$("dPrint").showModal();
 }
-$("pGo").addEventListener("click",()=>{
+function leePrefImp(){
   impPref={hojas:Object.fromEntries([...$("pHojas").querySelectorAll("[data-h]")].map(c=>[c.dataset.h,c.checked])),cuadro:$("pCuadro").checked};
   try{localStorage.setItem("elya-imp",JSON.stringify(impPref));}catch(e){}
+}
+/* Página suelta para imprimir o guardar como PDF: las hojas elegidas, con el unifilar desde el cuadro si se pidió. */
+function documentoImprimir(){
+  impCuadro=impPref.cuadro;render();
+  const cfg=last?last.cfg:readForm();let html=snapshotHTML(cfg);
+  impCuadro=false;render();
+  const d=new DOMParser().parseFromString(html,"text/html");
+  d.querySelectorAll("[data-hoja]").forEach(sec=>{if(impPref.hojas[sec.dataset.hoja]===false)sec.remove();});
+  d.querySelectorAll("#vacio,[data-amp],.zoom").forEach(e=>e.remove());
+  const bar=d.createElement("div");bar.className="barimp";
+  bar.innerHTML=`<button onclick="window.print()">Imprimir / Guardar PDF</button><span>En la ventana de imprimir, elige la impresora o «Guardar como PDF».</span>`;
+  d.body.prepend(bar);
+  const st=d.createElement("style");st.textContent=`.barimp{display:flex;gap:12px;align-items:center;flex-wrap:wrap;max-width:1100px;margin:12px auto;padding:10px 12px;border:1px solid #c4561d;border-radius:6px;font:14px system-ui}.barimp button{font:600 15px system-ui;padding:8px 14px;background:#c4561d;color:#fff;border:0;border-radius:4px;cursor:pointer}@media print{.barimp{display:none}}`;
+  d.head.appendChild(st);
+  return "<!DOCTYPE html>\n"+d.documentElement.outerHTML;
+}
+let dlPr=null;
+const descargas=()=>dlPr||(dlPr=(window.claude&&window.claude.use?window.claude.use("downloads").catch(()=>null):Promise.resolve(null)));
+async function guardarParaImprimir(){
+  leePrefImp();const html=documentoImprimir(),cfg=last?last.cfg:readForm();
+  const nombre=`Esquema ELYA ${nombreObra(cfg).replace(/[\\/:*?"<>|]+/g," ").trim()} ${sello()}.html`;
+  $("dPrint").close();
+  const dl=await descargas();
+  if(dl){try{await dl.save({filename:nombre,data:html});toast("Guardado: ábrelo con el navegador para imprimir");}
+    catch(e){toast(e&&e.code==="declined"?"No se ha guardado":"No se pudo guardar aquí");}return;}
+  /* fuera de Claude (app instalable o navegador): descarga normal */
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([html],{type:"text/html"}));a.download=nombre;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);toast("Guardado en Descargas");
+}
+$("pSave").addEventListener("click",guardarParaImprimir);
+$("pGo").addEventListener("click",()=>{
+  leePrefImp();
   HOJAS.forEach(([k])=>document.body.classList.toggle("noimp-"+k,!impPref.hojas[k]));
   impCuadro=impPref.cuadro;render();$("dPrint").close();setTimeout(()=>window.print(),80);
 });
 window.addEventListener("afterprint",()=>{if(!impCuadro&&!document.body.className.includes("noimp-"))return;impCuadro=false;HOJAS.forEach(([k])=>document.body.classList.remove("noimp-"+k));render();});
-if(top){$("bPrint").hidden=false;$("bPrint").addEventListener("click",abrirImprimir);}
+/* Dentro del enlace de Claude no se puede abrir la ventana de imprimir: ahí se guarda la página para imprimir. */
+$("bPrint").hidden=false;$("bPrint").addEventListener("click",abrirImprimir);
+if(!top){$("pGo").hidden=true;$("pPrintHint").hidden=true;$("pSave").classList.add("pri");}
 render();
 eventosMaterial();
 $("bSave").onclick=guardarEnDrive;$("bOpen").onclick=abrirDeDrive;
