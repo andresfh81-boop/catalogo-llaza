@@ -660,7 +660,12 @@ function calcular(cfg){
     });
     return nTr;
   }
-  function ledRight(o){return o.filter(x=>x.items.length).map(x=>({kind:"led",W:x.W,t:x.items.map(i=>i.n).join(" + "),s:`${m2(x.items.reduce((a,i)=>a+i.len,0))} m · ${w0(x.W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`}));}
+  /* Una línea por salida; la línea de focos va aparte (misma salida) con su cable. */
+  function ledRight(o){return o.filter(x=>x.items.length).flatMap(x=>{
+    const f=x.items.filter(i=>i.grp==="focos"),r=x.items.filter(i=>i.grp!=="focos"),out=[];
+    if(r.length){const W=r.reduce((a,i)=>a+i.W,0);out.push({kind:"led",W,t:r.map(i=>i.n).join(" + "),s:`${m2(r.reduce((a,i)=>a+i.len,0))} m · ${w0(W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`});}
+    f.forEach(i=>out.push({kind:"foco",W:i.W,t:i.n,s:`${i.cab||"cable 3 m 2P + 2 micro en T"} · ${w0(i.W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`}));
+    return out;});}
 
   mods.forEach((m,mi)=>{
     const tag="M"+(mi+1);
@@ -751,7 +756,9 @@ function calcular(cfg){
     /* Focos (dato SAT): entran por el lateral con el cable 3 m 2P + 2 micro en T; si el primer foco queda a más de 3 m
        de la centralita, alargo hasta el cable en T. Entre foco y foco, extensiones de 0,50 m. */
     if(focR){add("cabT",1,`${tag} focos`);
-      focR.al=focR.d1>3+1e-6?alargos(focR.d1-3,false):[];focR.al.forEach(([l,k])=>add(k,1,`${tag} focos · hasta el cable en T`));
+      focR.al=focR.d1>3+1e-6?alargos(focR.d1-3,false):[];
+      const lf=loads.find(l=>l.grp==="focos"),nE=focR.gaps.reduce((a,g)=>a+Math.max(1,Math.ceil(g/0.5-1e-9)),0);
+      if(lf){lf.n=`${m.focN} × ${FOCOS[m.focT]||FOCOS.aries}`;lf.cab=`${focR.al.length?"alargo "+focR.al.map(([l])=>m2c(l)).join(" + ")+" m + T 3 m":"cable T 3 m"}${nE?` + ${nE} ext. 0,5 m`:""}`;}focR.al.forEach(([l,k])=>add(k,1,`${tag} focos · hasta el cable en T`));
       const ne=focR.gaps.reduce((a,g)=>a+Math.max(1,Math.ceil(g/0.5-1e-9)),0);if(ne)add("ext05",ne,`${tag} entre focos`);
       if(focR.gaps.some(g=>g>0.5+1e-6))av.push(["info",`${m.nombre}: los focos quedan a ≈ ${m2(Math.max(...focR.gaps))} m entre sí; hacen falta ${ne} extensiones de 0,50 m. Si van juntos, ponlos en una viga.`]);}
     const white=loads.filter(l=>!l.rgb),rgbL=loads.filter(l=>l.rgb);
@@ -848,6 +855,7 @@ const WC={l:"var(--w-l)",n:"var(--w-n)",p:"var(--w-p)",m:"var(--w-m)",s:"var(--w
 function icon(kind,x,y){
   if(kind==="motor")return `<circle cx="${x+18}" cy="${y}" r="12" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/><text x="${x+18}" y="${y+5}" text-anchor="middle" font-size="13" font-weight="700">M</text>`;
   if(kind==="led")return `<path d="M${x+6} ${y+8} l6 -16 l6 16 l6 -16 l6 16" fill="none" stroke="var(--t1)" stroke-width="2"/>`;
+  if(kind==="foco")return `<circle cx="${x+18}" cy="${y}" r="10" fill="var(--paper)" stroke="var(--c-foc)" stroke-width="2"/><path d="M${x+11} ${y-7} L${x+25} ${y+7} M${x+25} ${y-7} L${x+11} ${y+7}" stroke="var(--c-foc)" stroke-width="2"/>`;
   if(kind==="sensor")return `<path d="M${x+8} ${y+9} L${x+18} ${y-9} L${x+28} ${y+9} Z" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/>`;
   if(kind==="radio")return `<path d="M${x+18} ${y+10} v-14 M${x+10} ${y-12} q8 -8 16 0 M${x+6} ${y-16} q12 -12 24 0" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
   return `<rect x="${x+8}" y="${y-8}" width="20" height="16" rx="2" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/>`;
@@ -900,7 +908,7 @@ function dibujaUnifilar(cfg,r){
       body+=`<rect x="${ix}" y="${cy-18}" width="${iw}" height="36" rx="3" fill="var(--paper)" stroke="var(--line)"/>`;
       body+=icon(it.kind,ix,cy);
       body+=`<text x="${ix+40}" y="${cy-2}" font-size="13" font-weight="600">${esc(trunc(it.t,34))}</text>`;
-      body+=`<text x="${ix+40}" y="${cy+13}" font-size="11" class="mut">${esc(trunc(it.s,40))}</text>`;
+      body+=`<text x="${ix+40}" y="${cy+13}" font-size="11" class="mut">${esc(trunc(it.s,44))}</text>`;
     });
     y+=h;
   });
