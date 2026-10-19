@@ -380,7 +380,7 @@ const C={
   alW7:["48009018000","Alargador LED BL 7 m","SPT050001 (2 pines)"],
   alRGB5:["48009019000","Alargador RGB 5 m","SPT068 (4 pines)"],
   alRGB7:["48009020000","Alargador RGB 7 m","SPT050408 (4 pines)"],
-  mang:["48008100000","Manguera Cerviflex H05VV-F 2×0,75 mm²","flexible · rollo 100 m"],
+  mang:["48008100000","Manguera H05VV-F 2×0,75 mm²","flexible · rollo 100 m"],
   schuko:["48009024000","Toma 230 V empotrable IP54","SOK-SH-B"],
   usb:["48009025000","Toma USB A+C c/cable 2P M","DUAL-USB-AC"]
 };
@@ -423,9 +423,9 @@ const FIELDS=["obra","of","alto","sistema","emisor","periProd","ledCentral","ind
 const nTrafos=T=>T<=120?1:Math.ceil(T/160);
 /* Motor lineal C-100 TM: 3,6 A a 24 V DC (dato SAT). */
 const MOTOR_W=3.6*24;
-/* Cable del motor: manguera Cerviflex H05VV-F 2×0,75 mm² (catálogo 48008100000): 300/500 V, cobre flexible clase 5,
+/* Cable del motor: manguera H05VV-F 2×0,75 mm² (catálogo 48008100000): 300/500 V, cobre flexible clase 5,
    aislamiento y cubierta de PVC, 70 °C. Caída de tensión a 3,6 A: ΔU = 2·L·I·ρ/S, ρ = 0,021 Ω·mm²/m (cobre a 70 °C). */
-const CAB_MOT="Cerviflex H05VV-F 2×0,75 mm²",caidaMot=L=>2*L*3.6*0.021/0.75;
+const CAB_MOT="H05VV-F 2×0,75 mm²",caidaMot=L=>2*L*3.6*0.021/0.75;
 /* Nombre corto de cada tira, para rotularla en la planta. */
 const TIRA_C={rW5:"Rollo 3000 K · 5 m",rW7:"Rollo 3000 K · 7 m",rN5:"Rollo 4000 K · 5 m",rN7:"Rollo 4000 K · 7 m",nP45:"Neón · 4,50 m",nP6:"Neón · 6 m",rgbP6:"RGB neón · 6 m"};
 const ESQ={si:"Sup. izq.",sd:"Sup. der.",ii:"Inf. izq.",id:"Inf. der."};
@@ -801,13 +801,16 @@ function calcular(cfg){
       else{const ap=aprendido("al",d,a=>a.rgb===rgb&&sumAl(comboAl(a.combo,rgb))>=d-1e-6);
         if(ap){al=comboAl(ap.combo,rgb);alDe="aprendido";av.push(["info",`${m.nombre}, ${dn}: alargo ${al.map(([l])=>m2c(l)).join(" + ")} m, como lo corregiste${ap.obra?" en la obra "+ap.obra:""}.`]);}
         else al=alargos(d,rgb);}
-      grAl[G.corner]={al,d,alDe,enCent,n:ts.length,rgb};
+      /* cable de 3 vías: Auto = si entran dos tiras; se puede poner o quitar a mano en la planta */
+      const yS=((m.alSel||{})[G.corner]||{})._y,yOn=yS==="si"?true:yS==="no"?false:ts.length===2;
+      if(yS==="no"&&ts.length===2)av.push(["info",`${m.nombre}, ${dn}: sin cable de 3 vías (quitado a mano). Las dos tiras tienen que ir unidas de otra forma.`]);
+      grAl[G.corner]={al,d,alDe,enCent,n:ts.length,rgb,y:yOn,yS:yS||"auto"};
       if(rl)rutas.push({ruta:rl,al,alDe,corner:G.corner,g:G.g,out:G.out,ts});
       if(!periMan){al.forEach(([l,k])=>add(k,1,`${tag} ${dn}`));
-        if(ts.length===2)add(rgb?"y3RGB":"y3",1,`${tag} ${dn}`);}
-      const via=periMan?`cables a mano${rl?" por "+vigasDe(m,rl.sides)+` (≈ ${m2(rl.len)} m)`:""}`:`alargo ${al.map(([l])=>m2c(l)+" m").join(" + ")}${al.length>1?" empalmados":""}${rl?" por "+vigasDe(m,rl.sides):""}${ts.length===2?" + cable 3 vías":""}`;
+        if(yOn)add(rgb?"y3RGB":"y3",1,`${tag} ${dn}`);}
+      const via=periMan?`cables a mano${rl?" por "+vigasDe(m,rl.sides)+` (≈ ${m2(rl.len)} m)`:""}`:`alargo ${al.map(([l])=>m2c(l)+" m").join(" + ")}${al.length>1?" empalmados":""}${rl?" por "+vigasDe(m,rl.sides):""}${yOn?" + cable 3 vías":""}`;
       ts.forEach(t=>t.from=(enCent?`Centralita (${m.loc})`:cap(pn?"esquina "+pn:CN[G.corner]))+" · "+via);
-      const cab=periMan?"cables a mano":`alargo ${al.map(([l])=>m2c(l)).join(" + ")} m${ts.length===2?" + 3 vías":""}`;
+      const cab=periMan?"cables a mano":`alargo ${al.map(([l])=>m2c(l)).join(" + ")} m${yOn?" + 3 vías":""}`;
       loads.push({n:ts.map(t=>t.viga).join(" + "),cab,W:ts.reduce((a,t)=>a+t.W,0),grp:"peri",man:periMan,g:G.g,out:G.out,rgb,len:ts.reduce((a,t)=>a+t.len,0)});
     });
     const lamaLen=Math.max(0,m.A-0.17);
@@ -1040,7 +1043,7 @@ function pintaModulo(pm,cfg,X,Y,o){
   base+=`<line x1="${ax0}" y1="${ay}" x2="${ax1}" y2="${ay}" stroke="var(--wall)" stroke-width="1.5" marker-end="url(#ar)"/><text x="${X(A/2)}" y="${ay-6}" text-anchor="middle" font-size="9" class="mono" style="fill:var(--wall)">CAÍDA AGUA</text>`;
   if(o.tag)base+=`<text x="${X(A/2)}" y="${ay+22}" text-anchor="middle" font-size="18" font-weight="700" style="fill:var(--wall)">${esc(o.tag)}</text>`;
   /* tiras LED: pegadas a la cara interior de cada viga */
-  const conY=new Set(gruposTira(m,cfg.periProd).filter(G=>!G.una&&tiras.filter(t=>t.g===G.g).length===2).map(G=>G.corner)),ed=(k,h)=>o.fuera?`<g data-ed="${k}" class="ed">${h}</g>`:h;
+  const conY=new Set(gruposTira(m,cfg.periProd).filter(G=>!G.una&&tiras.filter(t=>t.g===G.g).length===2&&((pm.grAl||{})[G.corner]||{y:true}).y).map(G=>G.corner)),ed=(k,h)=>o.fuera?`<g data-ed="${k}" class="ed">${h}</g>`:h;
   tiras.forEach(t=>t.sides.forEach((sd,si)=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],L=Math.hypot(x2-x1,y2-y1)||1,ux=(x2-x1)/L,uy=(y2-y1)/L,ins=7;
     const i1=conY.has(e1)&&t.corner===e1?40:ins,i2=conY.has(e2)&&t.corner===e2?40:ins;
     const ln=`<line x1="${x1-nx*ins+ux*i1}" y1="${y1-ny*ins+uy*i1}" x2="${x2-nx*ins-ux*i2}" y2="${y2-ny*ins-uy*i2}" stroke="${CC.led}" stroke-width="5" stroke-linecap="round"/>`;
@@ -1051,7 +1054,11 @@ function pintaModulo(pm,cfg,X,Y,o){
   const k0=m.cent,[cx,cy]=SP(k0),ix=k0[1]==="i"?1:-1,iy=k0[0]==="i"?-1:1; /* hacia dentro desde la esquina, en px */
   if(pm.rm){const pts=linea(pm.rm,14);
     cab+=ed("motor",`<polyline points="${ptsAttr(pts)}" fill="none" stroke="${CC.mot}" stroke-width="3" stroke-linejoin="round"/>`+(o.fuera?`<polyline points="${ptsAttr(pts)}" fill="none" stroke="transparent" stroke-width="18"/>`:""));
-    txt+=ed("motor",rotuloRuta(pts,o.fuera?`${CAB_MOT} · ≈ ${Math.ceil(pm.run)} m`:`Motor ≈ ${Math.ceil(pm.run)} m`,CC.mot,[0,0]));}
+    const tm=o.fuera?`${CAB_MOT} · ≈ ${Math.ceil(pm.run)} m`:`Motor ≈ ${Math.ceil(pm.run)} m`,lMax=Math.max(...pts.slice(1).map((p,i)=>Math.hypot(p[0]-pts[i][0],p[1]-pts[i][1])));
+    /* si el recorrido es corto y el rótulo no cabe, va a mitad de la viga del motor, por fuera */
+    if(o.fuera&&lMax<tm.length*10*0.62+10){const [e1,e2]=EXT[m.motor],[ax,ay]=SP(e1),[bx2,by2]=SP(e2),[nx,ny]=NRM[m.motor];
+      txt+=ed("motor",rotulo((ax+bx2)/2+nx*14,(ay+by2)/2+ny*14,tm,{col:CC.mot,borde:CC.mot,fs:10,rot:true}));}
+    else txt+=ed("motor",rotuloRuta(pts,tm,CC.mot,[0,0]));}
   const yCirc=(k)=>{const [x,y]=SP(k),dx=k[1]==="i"?1:-1,dy=k[0]==="i"?-1:1;return [x+dx*24,y+dy*24];};
   const finAl={};
   (pm.rutas||[]).forEach(R=>{const pts=linea(R.ruta,25);finAl[R.corner]=pts[pts.length-1];
@@ -1075,7 +1082,7 @@ function pintaModulo(pm,cfg,X,Y,o){
       txt+=rotulo((a[0]+b[0])/2+nx*16,(a[1]+b[1])/2+ny*16,`${m.focN} focos · ≈ ${m2(F.ruta.len)} m${F.al&&F.al.length?` · alargo ${F.al.map(([l])=>m2c(l)).join(" + ")} m`:""}`,{col:CC.foc,borde:CC.foc,fs:10,rot:ver});}}
   /* cables de 3 vías (Y) donde entra cada pareja de tiras; con una sola tira, el alargo entra directo */
   let rot15=false;
-  gruposTira(m,cfg.periProd).forEach(G=>{const ts=tiras.filter(t=>t.g===G.g),n=ts.length;if(!n)return;let qx,qy;
+  gruposTira(m,cfg.periProd).forEach(G=>{const ts=tiras.filter(t=>t.g===G.g),ga0=(pm.grAl||{})[G.corner],n=ga0?(ga0.y&&ts.length===2?2:1):ts.length,hayY=ga0?ga0.y:n===2;if(!ts.length)return;let qx,qy;
     if(G.una){/* tira que dobla la esquina: la entrada se marca sobre su primer lado */
       const sd0=ts[0].sides[0],[e1,e2]=EXT[sd0],[ax,ay]=SP(G.corner),[bx2,by2]=SP(e1===G.corner?e2:e1),L=Math.hypot(bx2-ax,by2-ay)||1,[nx,ny]=NRM[sd0];
       qx=ax+(bx2-ax)/L*34-nx*20;qy=ay+(by2-ay)/L*34-ny*20;}
@@ -1088,7 +1095,7 @@ function pintaModulo(pm,cfg,X,Y,o){
     else if(G.corner===m.cent)uni+=`<line x1="${cx}" y1="${cy}" x2="${qx}" y2="${qy}" stroke="${CC.al}" stroke-width="3"/>`;
     else if(finAl[G.corner])uni+=`<line x1="${finAl[G.corner][0]}" y1="${finAl[G.corner][1]}" x2="${qx}" y2="${qy}" stroke="${CC.al}" stroke-width="3"/>`;
     cab+=uni;
-    txt+=ed("grupo:"+G.corner,`<circle cx="${qx}" cy="${qy}" r="10" fill="var(--paper)" stroke="${CC.al}" stroke-width="2.5"/><text x="${qx}" y="${qy+4}" text-anchor="middle" font-size="11" font-weight="700" style="fill:${CC.al}">${n===2?"Y":"→"}</text>`);
+    txt+=ed("grupo:"+G.corner,`<circle cx="${qx}" cy="${qy}" r="10" fill="var(--paper)" stroke="${CC.al}" stroke-width="2.5"/><text x="${qx}" y="${qy+4}" text-anchor="middle" font-size="11" font-weight="700" style="fill:${CC.al}">${hayY?"Y":"→"}</text>`);
     if(G.corner===m.cent&&!rot15&&o.fuera){rot15=true;const [zx,zy]=yCirc(m.cent),gs=gruposTira(m,cfg.periProd).filter(H=>H.corner===m.cent&&tiras.some(t=>t.g===H.g)),ga=(pm.grAl||{})[m.cent],al=ga?ga.al.map(([l])=>m2c(l)).join(" + "):"1,5";
       txt+=ed("grupo:"+m.cent,`<text x="${zx-ix*6}" y="${zy+iy*34+4}" text-anchor="${ix>0?"start":"end"}" font-size="10" font-weight="700" style="fill:${CC.al}">${gs.length>1?gs.length+" × ":""}alargo ${al} m${ga&&ga.alDe==="aprendido"?" (aprendido)":""}</text>`);}});
   /* lamas con LED: por el mecanizado de la viga lateral de la centralita */
@@ -1100,12 +1107,12 @@ function pintaModulo(pm,cfg,X,Y,o){
     const dx=k[1]==="i"?-1:1,dy=k[0]==="i"?1:-1;txt+=rotulo(x+dx*20,y+dy*16,n,{fs:12});});
   /* centralita y motor */
   txt+=ed("cent",`<rect x="${cx-10}" y="${cy-10}" width="20" height="20" fill="var(--ink)"/><text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="11" font-weight="700" style="fill:var(--paper)">C</text>`+
-    (o.fuera?rotulo(cx-ix*24,cy-iy*42,"CENTRALITA",{fs:9,borde:"var(--ink)"}):""));
+    (o.fuera?rotulo(cx+ix*44,cy-iy*40,"CENTRALITA",{fs:9,borde:"var(--ink)"}):""));
   const mp=pm.motorPos||{x:m.motor==="izq"?0:A,y:Math.min(0.6,P/4)},mxp=mp.x,myp=mp.y,mi=m.motor==="izq"?1:-1,my2=mp.y<P/2?1:-1;
   /* desagüe (⊗) en los dos extremos de la viga del motor */
   [0,P].forEach(yy=>{const dx=X(mxp)+mi*16,dy=Y(yy)+(yy?1:-1)*16;base+=`<circle cx="${dx}" cy="${dy}" r="5" fill="var(--paper)" stroke="var(--wall)" stroke-width="1.4"/><path d="M${dx-3.5} ${dy-3.5}L${dx+3.5} ${dy+3.5}M${dx+3.5} ${dy-3.5}L${dx-3.5} ${dy+3.5}" stroke="var(--wall)" stroke-width="1.2"/>`;});
   txt+=ed("motor",`<circle cx="${X(mxp)}" cy="${Y(myp)}" r="10" fill="var(--paper)" stroke="${CC.mot}" stroke-width="2.5"/><text x="${X(mxp)}" y="${Y(myp)+4}" text-anchor="middle" font-size="10" font-weight="700" style="fill:${CC.mot}">M</text>`+
-    (o.fuera?rotulo(X(mxp)+mi*44,Y(myp)-my2*22,"MOTOR",{fs:9,col:CC.mot,borde:CC.mot}):""));
+    (o.fuera?rotulo(X(mxp)+mi*44,Y(myp)-my2*50,"MOTOR",{fs:9,col:CC.mot,borde:CC.mot}):""));
   /* marca de cada viga, por dentro del módulo */
   SIDES.forEach(sd=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=o.fuera?26:44,v=vigaDe(m,sd),sin=false;
     const mx=(x1+x2)/2-nx*d,my=(y1+y2)/2-ny*d,key="V:"+v+":"+Math.round((x1+x2)/2)+":"+Math.round((y1+y2)/2);
@@ -1166,9 +1173,9 @@ function recorridos(pm,cfg){
   gruposTira(m,cfg.periProd).forEach(G=>{const ts=tiras.filter(t=>t.g===G.g);if(!ts.length)return;
     const una=ts[0].una&&ts[0].sides.length>1;
     const tt=una?`<b style="color:var(--c-al)">Tira ${esc(ts[0].viga)}</b> (una sola tira de ${m2(ts[0].len)} m que dobla la esquina ${esc(esq(EXT[ts[0].sides[0]].find(k=>EXT[ts[0].sides[1]].includes(k))))})`
-      :`<b style="color:var(--c-al)">${ts.length>1?"Tiras":"Tira"} ${esc(ts.map(t=>t.viga).join(" y "))}</b>`,y3=ts.length===2?" + cable de 3 vías":"";
+      :`<b style="color:var(--c-al)">${ts.length>1?"Tiras":"Tira"} ${esc(ts.map(t=>t.viga).join(" y "))}</b>`,y3=((pm.grAl||{})[G.corner]||{}).y?" + cable de 3 vías":"";
     if(pm.periMan){const R=(pm.rutas||[]).find(r=>r.g===G.g);L.push(`${tt}: ${G.corner===m.cent?`desde la centralita (${esc(cp)})`:`por encima de ${esc(vigasDe(m,R.ruta.sides))} (≈ ${m2(R.ruta.len)} m) hasta la esquina ${esc(esq(G.corner))}`}${out("OUT"+((pm.salReal||{})[G.out]||G.out))}.`);return;}
-    if(G.corner===m.cent)L.push(`${tt}: alargo de 1,5 m${y3} desde la centralita (${esc(cp)})${out("OUT"+((pm.salReal||{})[G.out]||G.out))}.`);
+    if(G.corner===m.cent)L.push(`${tt}: alargo de ${(((pm.grAl||{})[G.corner]||{}).al||[[1.5]]).map(([l])=>m2c(l)).join(" + ")} m${y3} desde la centralita (${esc(cp)})${out("OUT"+((pm.salReal||{})[G.out]||G.out))}.`);
     else{const R=(pm.rutas||[]).find(r=>r.g===G.g);if(R)L.push(`${tt}: alargo ${R.al.map(([l])=>m2c(l)+" m").join(" + ")}${R.al.length>1?" empalmados":""} (recorrido ≈ ${m2(R.ruta.len)} m) por encima de ${esc(vigasDe(m,R.ruta.sides))} hasta la esquina ${esc(esq(G.corner))}${y3}${out("OUT"+((pm.salReal||{})[G.out]||G.out))}.`);}
   });
   if(pm.periMan)L.push(`<b style="color:var(--c-al)">Cables del perímetro</b> (a mano): ${PERCAB.filter(k=>m.periCab[k]>0).map(k=>`${m.periCab[k]} × ${esc(C[k][1])}`).join(", ")}.`);
@@ -1866,9 +1873,10 @@ function edPinta(todo){
   else if(tipo==="grupo"){const ga=(pm.grAl||{})[arg],esq=pilNom(pilDe(m,arg))||CN[arg];loc="c:"+arg;
     tit=`Alargo y cable de 3 vías · ${arg===m.cent?"esquina de la centralita":"esquina "+esq}`;
     if(ga){const rgb=ga.rgb,ks=rgb?["alRGB5","alRGB7"]:["alW15","alW5","alW7"],cnt={};ga.al.forEach(([,kk])=>cnt[kk]=(cnt[kk]||0)+1);
-      info=`<span>Hace falta llegar a ≈ <b>${m2(ga.d)} m</b>${ga.enCent?" (de la centralita a la Y)":" (recorrido + 0,30 m)"}.</span><span>Ahora: alargo ${ga.al.map(([l])=>m2c(l)).join(" + ")} m = ${m2(sumAl(ga.al))} m · ${ga.alDe==="elegido"?"elegido por ti":ga.alDe==="aprendido"?"aprendido de otra obra":"el más barato (auto)"}${ga.n===2?` · + ${C[rgb?"y3RGB":"y3"][1]}`:""}</span>${pm.periMan?"<span><b>Ojo:</b> este módulo tiene los cables del perímetro puestos a mano; esto no cuenta hasta que los pongas a 0.</span>":""}`;
+      info=`<span>Hace falta llegar a ≈ <b>${m2(ga.d)} m</b>${ga.enCent?" (de la centralita a la Y)":" (recorrido + 0,30 m)"}.</span><span>Ahora: alargo ${ga.al.map(([l])=>m2c(l)).join(" + ")} m = ${m2(sumAl(ga.al))} m · ${ga.alDe==="elegido"?"elegido por ti":ga.alDe==="aprendido"?"aprendido de otra obra":"el más barato (auto)"}${ga.y?` · + ${C[rgb?"y3RGB":"y3"][1]}`:" · sin cable de 3 vías"}</span>${pm.periMan?"<span><b>Ojo:</b> este módulo tiene los cables del perímetro puestos a mano; esto no cuenta hasta que los pongas a 0.</span>":""}`;
       body=ks.map(kk=>`<label class="lc"><span>${esc(C[kk][1])} <span class="mono mut">${C[kk][0]}</span></span><input type="number" min="0" max="9" step="1" data-al="${kk}" value="${cnt[kk]||0}"></label>`).join("")+
-        `<button type="button" class="mini" data-alauto>Auto (el más barato)</button>`;}
+        `<button type="button" class="mini" data-alauto>Alargos en Auto (el más barato)</button>`+
+        `<label>${esc(C[rgb?"y3RGB":"y3"][1])} (${C[rgb?"y3RGB":"y3"][0]})<select data-y><option value="auto"${ga.yS==="auto"?" selected":""}>Auto (${ga.n===2?"sí: entran dos tiras":"no: entra una tira"})</option><option value="si"${ga.yS==="si"?" selected":""}>Poner cable de 3 vías</option><option value="no"${ga.yS==="no"?" selected":""}>Quitar cable de 3 vías</option></select></label>`;}
     else info="<span>En esta esquina no entra ninguna tira.</span>";
     body+=edCopia(P+"ent","Entrada de los cables de 3 vías")+edCopia(P+"rut","Alargo a la esquina contraria, por");}
   else if(tipo==="cent"){tit="Centralita";
@@ -1901,10 +1909,14 @@ function edAplica(ev){
       if(tr)aprende({t:"tira",luz:pm.m.luz,pp:last.cfg.periProd,n:tr.sides.length,d:Math.round(tr.len*100)/100,med:v||0,borra:!v});render();}
     edPinta(ev.type==="change"&&t.tagName==="SELECT");return;}
   if(t.dataset.al!=null&&tipo==="grupo"){const sel={};$("edBody").querySelectorAll("[data-al]").forEach(x=>{const q=Math.max(0,Math.round(+x.value||0));if(q)sel[x.dataset.al]=q;});edAlargo(i,arg,sel);}
+  if(t.dataset.y!=null&&tipo==="grupo"&&ev.type==="change")edY(i,arg,t.value);
 }
+const edSel=i=>{try{return JSON.parse($(`m${i}_alsel`).value||"{}")||{};}catch(e){return {};}};
+function edGuardaSel(i,corner,sel){const o=edSel(i);if(Object.keys(sel).length)o[corner]=sel;else delete o[corner];$(`m${i}_alsel`).value=JSON.stringify(o);}
+/* poner o quitar el cable de 3 vías de una esquina (no toca los alargos) */
+function edY(i,corner,v){const sel=Object.assign({},edSel(i)[corner]||{});if(v==="auto")delete sel._y;else sel._y=v;edGuardaSel(i,corner,sel);render();edPinta(true);}
 function edAlargo(i,corner,sel){
-  const h=$(`m${i}_alsel`);let o={};try{o=JSON.parse(h.value||"{}")||{};}catch(e){}
-  if(Object.keys(sel).length)o[corner]=sel;else delete o[corner];h.value=JSON.stringify(o);
+  const y=(edSel(i)[corner]||{})._y;edGuardaSel(i,corner,y?Object.assign({},sel,{_y:y}):sel);
   const pm=last&&last.r.plan.find(p=>p.m._i===i),ga=pm&&(pm.grAl||{})[corner];
   /* alargo corregido: se aprende para recorridos parecidos */
   if(ga)aprende({t:"al",rgb:ga.rgb,d:Math.round(ga.d*100)/100,combo:sel,borra:!Object.keys(sel).length});
