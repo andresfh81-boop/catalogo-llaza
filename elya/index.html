@@ -183,7 +183,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
 <form id="f" autocomplete="off">
   <fieldset>
     <legend>Plano de fabricación</legend>
-    <label class="drop" id="drop"><input type="file" id="fPlano" accept="application/pdf,.pdf,image/*" hidden><b>Arrastra aquí el plano</b><span>PDF de la ficha de fabricación, o el plano firmado escaneado / foto (este lo lee Claude, desde el enlace de Claude). Toca para elegirlo.</span></label>
+    <label class="drop" id="drop"><input type="file" id="fPlano" accept="application/pdf,.pdf,image/*" multiple hidden><b>Arrastra aquí los planos de la obra</b><span>Mejor la ficha de fabricación (PLANO.pdf) y el plano firmado juntos: de la ficha salen vigas, pilares y centralita, y del nombre del firmado las medidas. También vale uno solo; el firmado escaneado o una foto los lee Claude (desde el enlace de Claude). Toca para elegirlos.</span></label>
     <div id="impRes" class="impres" hidden></div>
   </fieldset>
   <fieldset>
@@ -790,7 +790,7 @@ function calcular(cfg){
     }else if(sis!=="somfy"&&m.lluvia)add("rain",1,tag);
   });
   if(ul)av.push(["warn","Sistema UL (EE. UU.): comprueba la tensión de red del país en la etiqueta de la central antes de conectar."]);
-  if(sis==="somfy")av.push(["warn","Somfy io: no hay manual de bornas en la documentación ELYA. El esquema es de bloques; conecta según el manual de Somfy."]);
+  if(sis==="somfy")av.push(["info","Somfy io: la Pergola io Louver Control va a 24 V CC con su transformador; colores de motor y encoder en «Conexiones» (guía rápida SAT). El receptor io LED, según su manual de Somfy."]);
   add(emisor,1);
   if(cfg.schuko){
     dev.push({id:"tomas",t:"Tomas Schuko en pilar",code:"",model:"Derivación 230 V · IPX4",feed:"230",pe:true,
@@ -1101,18 +1101,36 @@ async function textoPlano(buf){
     return {s:it.str.trim(),x:t[4]+dx*it.width/2+dy*size*0.35,y:t[5]+dy*it.width/2-dx*size*0.35,size,hor:Math.abs(dx)>=Math.abs(dy)};
   });
 }
+/* Cajetín de la ficha de fabricación (formato 2026): «Referencia:», «Altura Paso Pilar: 3000 mm», «LED Perimetral: SI»… */
+function datosFicha(T){
+  const J=T.map(t=>t.s).join("\n"),g=re=>{const m=J.match(re);return m?m[1].trim():null;},si=re=>{const v=g(re);return v==null?null:/^S[IÍ]/i.test(v);};
+  if(!/Altura\s*Paso\s*Pilar/i.test(J)&&!/LED\s*Perimetral/i.test(J))return null;
+  const elec=(g(/Electr[óo]nica:\s*([A-ZÁÉÍÓÚa-z]+)/i)||"").toLowerCase();
+  return {ref:g(/Referencia:[ \t]*([^\n]*)/i),cliente:g(/Cliente:[ \t]*([^\n]*)/i),modulos:parseInt(g(/M[óo]dulos:\s*(\d+)/i))||null,tipo:g(/Tipo:\s*([^\n]*)/i),
+    alto:parseInt(g(/Altura\s*Paso\s*Pilar:\s*(\d+)/i))||null,lamas:g(/N[ºo°]\s*Lamas:\s*([^\n]*)/i),
+    ledPeri:si(/LED\s*Perimetral:\s*([^\n]*)/i),focos:g(/Focos\s*LED:\s*([^\n]*)/i),lamasLed:g(/Lamas\s*LED:\s*([^\n]*)/i),
+    lluvia:si(/Sensor\s*Lluvia:\s*([^\n]*)/i),viento:si(/Sensor\s*Viento:\s*([^\n]*)/i),
+    schuko:si(/Toma\s*Enchufe\s*220\s*V:\s*([^\n]*)/i),usb:si(/Toma\s*Enchufe\s*USB:\s*([^\n]*)/i),sistema:SIS[elec]||null};
+}
 function interpretaPlano(T){
   const med=a=>{const b=[...a].sort((x,y)=>x-y);return b.length?b[b.length>>1]:0;};
   const vs=T.filter(t=>/^V\d+-\d+$/i.test(t.s)),ref=med(vs.map(t=>t.size))||6;
   const mods=[],pil={},cen=[],tir=[],avisos=[];
   T.forEach(t=>{let m;
     if((m=t.s.match(/^M[ÓO]DULO\s*(\d+)/i)))mods.push({n:+m[1],x:t.x,y:t.y});
-    else if(/^\d{1,3}$/.test(t.s)&&t.size>ref*1.8){if(!pil[t.s])pil[t.s]=t;}
+    else if(/^\d{1,3}$/.test(t.s)&&t.size>ref*2.3){if(!pil[t.s])pil[t.s]=t;}
     else if(/CENTRALITA/i.test(t.s))cen.push(t);
     else if(/TIRAS\s*LED/i.test(t.s))tir.push(t);
   });
+  /* Ficha de un solo módulo: no lleva el rótulo «MÓDULO 1»; el módulo es el contorno de los nodos. */
+  if(!mods.length&&vs.length>=4&&Object.keys(pil).length>=4){const P=Object.values(pil);mods.push({n:1,x:P.reduce((a,p)=>a+p.x,0)/P.length,y:P.reduce((a,p)=>a+p.y,0)/P.length});}
   /* Vigas: el tramo va de un pilar a otro (los del nombre); su posición, la del rótulo. */
-  const vig=vs.map(t=>{const [,a,b]=t.s.match(/^V(\d+)-(\d+)$/i),pa=pil[a],pb=pil[b];
+  /* Si los nodos del nombre no están en línea con el rótulo (nombre mal puesto en la ficha), se avisa y la viga
+     se toma por su rótulo (orientación del texto, sin límites). */
+  const vig=vs.map(t=>{const [,a,b]=t.s.match(/^V(\d+)-(\d+)$/i);let pa=pil[a],pb=pil[b];
+    if(pa&&pb){const h=Math.abs(pa.x-pb.x)>=Math.abs(pa.y-pb.y),tolL=Math.max(25,t.size*4),lo=Math.min(h?pa.x:pa.y,h?pb.x:pb.y),hi=Math.max(h?pa.x:pa.y,h?pb.x:pb.y),c=h?t.x:t.y;
+      const enLinea=Math.min(Math.abs(pa.x-pb.x),Math.abs(pa.y-pb.y))<tolL&&Math.abs((h?t.y:t.x)-(h?pa.y:pa.x))<tolL&&c>lo-tolL&&c<hi+tolL;
+      if(!enLinea){avisos.push(`La viga ${t.s.toUpperCase()} no une los nodos ${a} y ${b} en el dibujo: revisa el nombre en la ficha.`);pa=pb=null;}}
     const hor=pa&&pb?Math.abs(pa.x-pb.x)>=Math.abs(pa.y-pb.y):t.hor;
     const span=pa&&pb?(hor?[Math.min(pa.x,pb.x),Math.max(pa.x,pb.x)]:[Math.min(pa.y,pb.y),Math.max(pa.y,pb.y)]):[-1e9,1e9];
     return {name:t.s.toUpperCase(),hor,span,x:t.x,y:t.y};});
@@ -1151,9 +1169,20 @@ function interpretaPlano(T){
   });
   return {mods:out,avisos,nPil:Object.keys(pil).length,nVig:vig.length,nCen:cen.length};
 }
+/* Para pruebas: con #dbg en la dirección se puede llamar al lector de planos desde la consola. */
+if(location.hash==="#dbg")window.__elya={textoPlano:(...a)=>textoPlano(...a),interpretaPlano:(...a)=>interpretaPlano(...a)};
 const distBox=(b,p)=>Math.hypot(Math.max(b.xL-p.x,0,p.x-b.xR),Math.max(b.yS-p.y,0,p.y-b.yI));
 /* Puntos del PDF por metro: se ajusta con la cota que escribe el usuario. 80 es lo que sale en las fichas de Llaza vistas. */
 let plano=null;
+/* Datos del cajetín de la ficha sobre la obra y los módulos (luz, sensores, tomas, electrónica, altura). */
+function aplicaFicha(ms){
+  const fi=plano&&plano.ficha;if(!fi)return ms;
+  if(fi.ref||fi.cliente)$("obra").value=[fi.ref,fi.cliente].filter(Boolean).join(" · ");
+  if(fi.alto)$("alto").value=fi.alto/1000;
+  if(fi.sistema&&$("sistema").value!==fi.sistema){$("sistema").value=fi.sistema;fillEmisores(fi.sistema,$("emisor").value);}
+  if(fi.schuko!=null)$("schuko").value=fi.schuko?1:0;if(fi.usb!=null)$("usb").value=fi.usb?1:0;
+  return ms.map((m,i)=>Object.assign(m,fi.ledPeri===false?{luz:"none"}:{},i===0?{lluvia:!!fi.lluvia,viento:!!fi.viento}:{}));
+}
 function modulosDelPlano(){
   const ref=plano.mods.find(m=>m.n===plano.refN)||plano.mods[0],ppm=ref.w/plano.refA;
   const prev=readMods();
@@ -1168,7 +1197,9 @@ function modulosDelPlano(){
 function pintaImport(){
   const r=plano,box=$("impRes");box.hidden=false;
   const opts=r.mods.map(m=>`<option value="${m.n}"${m.n===r.refN?" selected":""}>Módulo ${m.n}</option>`).join("");
+  const fi=r.ficha,sn=v=>v==null?"?":v?"sí":"no";
   box.innerHTML=`<div><span class="ok">Plano leído:</span> ${r.mods.length} módulo(s) · ${r.nPil} pilares · ${r.nVig} vigas · ${r.nCen} marca(s) de centralita</div>
+  ${fi?`<div><b>Ficha:</b> ${esc([fi.ref,fi.cliente].filter(Boolean).join(" · "))} · ${fi.modulos||"?"} módulo(s) · ${esc(fi.tipo||"")} · altura ${fi.alto?m2(fi.alto/1000)+" m":"?"} · LED perimetral ${sn(fi.ledPeri)} · lamas LED ${esc(fi.lamasLed||"?")} · focos ${esc(fi.focos||"?")} · lluvia ${sn(fi.lluvia)} · viento ${sn(fi.viento)} · electrónica ${esc(fi.sistema||"?")}</div>${fi.modulos&&fi.modulos!==r.mods.length?`<div class="ko">La ficha dice ${fi.modulos} módulo(s) y en el dibujo encuentro ${r.mods.length}.</div>`:""}${/^S[IÍ]/i.test(fi.lamasLed||"")||/^S[IÍ]|\d/.test(fi.focos||"")?`<div>La ficha lleva ${/^S/i.test(fi.lamasLed||"")?"lamas LED":""}${/^S[IÍ]|\d/.test(fi.focos||"")?" focos":""}: pon cuántos en cada módulo.</div>`:""}`:""}
   ${r.avisos.length?`<ul>${r.avisos.map(a=>`<li>${esc(a)}</li>`).join("")}</ul>`:""}
   ${r.mods.some(m=>m.c)?`<div><b>Centralitas</b> (viga que marca el plano): ${r.mods.filter(m=>m.c).map(m=>`módulo ${m.n} → ${esc(m.c.viga)}`).join(" · ")}.</div>`:""}
   <div><b>Pilares y vigas:</b> salen con los nombres de la ficha. Si el plano firmado los nombra distinto, cámbialos en cada módulo.</div>
@@ -1189,7 +1220,7 @@ Léelas con cuidado y devuelve SOLO un objeto JSON con esta forma (null si un da
  "viento": true | false (según accesorios: anemómetro o sensor de viento), "lluvia": true | false (sensor de lluvia),
  "modulos": [{"n": 1,
    "ancho_mm": medida del módulo paralela a las lamas (las lamas se ven como líneas finas paralelas dentro del módulo),
-   "proyeccion_mm": medida del módulo perpendicular a las lamas,
+   "proyeccion_mm": medida del módulo perpendicular a las lamas (ojo: en los planos Umara la cota «(Proyección)» suele ser la de las lamas y «(Ancho)» la otra; fíjate en el dibujo de las lamas, y ninguna lama pasa de 4500 mm),
    "lamas_led": número de lamas con LED de ese módulo (0 si no lleva; el cajetín puede decir p. ej. «LAMAS LED: 8 · Modulo 1 (5,12,19,26) · Modulo 2/3 (4,9)», que son 4 en el módulo 1 y 2 en cada uno de los módulos 2 y 3),
    "motor": "izq" | "der",
    "pilares": {"si": "", "sd": "", "ii": "", "id": ""},
@@ -1252,13 +1283,16 @@ function datosCajetin(T){
     if(cen&&P.length){const near=[...P].sort((a,b)=>Math.hypot(a.x-cen.x,a.y-cen.y)-Math.hypot(b.x-cen.x,b.y-cen.y))[0];
       const k=Object.keys(pil).find(k=>pil[k]===near.s);centralita={esquina:k,alojada:"pilar",ref:near.s};
       d.dudas.push(`Centralita: la flecha apunta cerca de ${near.s}. Comprueba que va en ese pilar.`);}
+    /* En el cajetín Umara «4900x3000» es Ancho × Proyección, y la Proyección es el largo de la lama (A de la app);
+       comprobado con el nº de lamas de la ficha (23 lamas ≈ 4,9 m → lamas de 3,0 m). */
     const dims=J.match(/(\d{3,5})\s*x\s*(\d{3,5})/i);
-    d.modulos.push({n:1,ancho_mm:ancho||(dims?+dims[1]:null),proyeccion_mm:proy||(dims?+dims[2]:null),motor:motorT&&/izq/i.test(motorT.s)?"izq":"der",
+    d.modulos.push({n:1,ancho_mm:proy||(dims?+dims[2]:null),proyeccion_mm:ancho||(dims?+dims[1]:null),motor:motorT&&/izq/i.test(motorT.s)?"izq":"der",
       pilares:pil,centralita,pared:montaje&&montaje!=="autoportante"?"sup":null,lamas_led:lam[1]||0});
     if(!motorT)d.dudas.push("No encuentro el lado del motor en el plano: márcalo a mano.");
   }else{
-    for(let i=1;i<=nMod;i++)d.modulos.push({n:i,ancho_mm:null,proyeccion_mm:null,motor:"der",pilares:{},centralita:null,pared:null,lamas_led:lam[i]||0});
-    d.dudas.push(`Plano de ${nMod} módulos: las medidas, motores y centralitas de cada módulo hay que meterlas a mano (o abrir la app desde el enlace de Claude, que las lee del dibujo).`);
+    const dims=J.match(/(\d{3,5})\s*x\s*(\d{3,5})/i),anT=ancho||(dims?+dims[1]:null),pr=proy||(dims?+dims[2]:null);
+    for(let i=1;i<=nMod;i++)d.modulos.push({n:i,ancho_mm:pr,proyeccion_mm:anT?Math.round(anT/nMod):null,motor:"der",pilares:{},centralita:null,pared:null,lamas_led:lam[i]||0});
+    d.dudas.push(`Plano de ${nMod} módulos: reparto el ancho total a partes iguales; los motores y las centralitas de cada módulo hay que meterlos a mano. Mejor: arrastra a la vez la ficha de fabricación y este plano.`);
   }
   return d;
 }
@@ -1287,6 +1321,25 @@ function aplicaPlanoClaude(d,nombreArchivo,quien){
   render();
 }
 
+/* Varios archivos a la vez (lo que trae cada obra): la ficha de fabricación da la geometría, las vigas y la centralita,
+   y el nombre del plano firmado («…_4000x5500_…» = largo de lama × la otra medida) da la escala exacta. */
+const DIMS_NOMBRE=/(\d{3,5})x(\d{3,5})/;
+async function importaVarios(files){
+  if(files.length<2)return importaPlano(files[0]);
+  const pdfs=files.filter(f=>/\.pdf$/i.test(f.name)),fichas=[];
+  for(const f of pdfs){try{const T=await textoPlano(await f.arrayBuffer());if(interpretaPlano(T).mods.length)fichas.push(f);}catch(e){}}
+  const ficha=fichas.find(f=>/^PLANO\.pdf$/i.test(f.name))||fichas[0],firmado=pdfs.find(f=>f!==ficha&&DIMS_NOMBRE.test(f.name));
+  if(!ficha)return importaPlano(firmado||files[0]);
+  await importaPlano(ficha);
+  const m=firmado&&firmado.name.match(DIMS_NOMBRE);
+  if(m&&plano&&plano.mods.length){
+    plano.refN=plano.mods[0].n;plano.refA=+m[1]/1000;
+    const ms=aplicaFicha(modulosDelPlano());if(ms.length===1)ms[0].P=+m[2]/1000;
+    writeMods(ms);pintaImport();render();
+    $("impRes").insertAdjacentHTML("afterbegin",`<div><span class="ok">Medidas del plano firmado</span> (${esc(firmado.name)}): lamas de ${m2(+m[1]/1000)} m; ${plano.mods.length>1?"las demás medidas, a escala de la ficha":`el módulo, ${m2(+m[1]/1000)} × ${m2(+m[2]/1000)} m`}.</div>`);
+    toast("Ficha y plano firmado leídos: revisa el lado del motor");
+  }
+}
 async function importaPlano(file){
   const drop=$("drop");
   if(!file)return;
@@ -1312,13 +1365,15 @@ async function importaPlano(file){
         toast("Plano leído: revisa los datos");return;
       }
       /* Sin texto que leer (escaneo, foto o plano firmado): que lo lea Claude. */
-      if(T.length>40){toast("No encuentro módulos en el PDF. ¿Es un plano de la ELYA?");return;}
+      /* texto ilegible (PDF escaneado con texto basura) = como una imagen: que lo lea Claude */
+      if(T.length>40&&T.some(t=>/PILAR|ELYA|M[ÓO]DULO|CENTRALITA|REFERENCIA/i.test(t.s))){toast("No encuentro módulos en el PDF. ¿Es un plano de la ELYA?");return;}
       plano=null;aplicaPlanoClaude(await leePlanoConClaude(file,buf),file.name.replace(/\.[^.]+$/,""));
       toast("Plano leído: revisa los datos");return;
     }
     plano=Object.assign(r,{refN:r.mods[0].n});plano.refA=Math.round(r.mods[0].w/80*100)/100;
     if(!$("obra").value)$("obra").value=file.name.replace(/\.pdf$/i,"");
-    writeMods(modulosDelPlano());pintaImport();render();toast("Plano importado: revisa la cota y el lado del motor");
+    plano.ficha=datosFicha(T);
+    writeMods(aplicaFicha(modulosDelPlano()));pintaImport();render();toast("Plano importado: revisa la cota y el lado del motor");
   }catch(e){console.warn(e);toast(e.message||"No se pudo leer el plano");const b=$("impRes");if(b&&/Leyendo/.test(b.textContent)){b.innerHTML=`<div class="ko">${esc(e.message||"No se pudo leer el plano")}</div>`;}}
   finally{drop.classList.remove("busy");}
 }
@@ -1577,16 +1632,16 @@ $("zoom").addEventListener("click",e=>{const z=e.target.dataset&&e.target.datase
   if(z==="x"){$("zoom").hidden=true;$("zBox").innerHTML="";document.body.style.overflow="";}
   else zoomA(z==="0"?1:zK*(z==="+"?1.4:1/1.4));});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("zoom").hidden)$("zoom").querySelector('[data-z="x"]').click();});
-$("fPlano").addEventListener("change",e=>{const f=e.target.files[0];e.target.value="";importaPlano(f);});
+$("fPlano").addEventListener("change",e=>{const fs=[...e.target.files];e.target.value="";importaVarios(fs);});
 $("drop").addEventListener("dragover",e=>{e.preventDefault();$("drop").classList.add("on");});
 $("drop").addEventListener("dragleave",()=>$("drop").classList.remove("on"));
 /* Se puede soltar el PDF en cualquier parte de la página. */
 document.addEventListener("dragover",e=>e.preventDefault());
-document.addEventListener("drop",e=>{e.preventDefault();$("drop").classList.remove("on");const f=e.dataTransfer&&e.dataTransfer.files[0];if(f)importaPlano(f);});
+document.addEventListener("drop",e=>{e.preventDefault();$("drop").classList.remove("on");const fs=e.dataTransfer?[...e.dataTransfer.files]:[];if(fs.length)importaVarios(fs);});
 $("f").addEventListener("input",e=>{
   if(!plano||(e.target.id!=="impA"&&e.target.id!=="impRef"))return;
   if(e.target.id==="impRef"){const ppm=plano.mods.find(m=>m.n===plano.refN).w/plano.refA,m=plano.mods.find(m=>m.n===+e.target.value);plano.refN=m.n;$("impA").value=plano.refA=Math.round(m.w/ppm*100)/100;}
-  const a=parseFloat($("impA").value);if(!(a>0))return;plano.refA=a;writeMods(modulosDelPlano());render();
+  const a=parseFloat($("impA").value);if(!(a>0))return;plano.refA=a;writeMods(aplicaFicha(modulosDelPlano()));render();
 });
 $("f").addEventListener("click",e=>{
   const d=e.target.closest("[data-del]");
