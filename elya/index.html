@@ -20,7 +20,7 @@
   --accent:#c4561d; --accent-ink:#ffffff; --ok:#2f7d4f; --warn:#a86a00; --bad:#b3261e;
   --w-l:#8a5a2b; --w-n:#2b66c4; --w-pe:#3f9a3a; --w-p:#d0342c; --w-m:#1d2329; --w-s:#7a8590; --w-r:#7a8590;
   --t1:#d98a00; --t2:#2b8f8a; --t3:#8a4fc4; --t4:#c43d6b; --lama:#e0a83a; --wall:#9aa3a0;
-  --c-led:#f0b400; --c-al:#e03a12; --c-mot:#1f5fbf; --c-lam:#8a3fc4;
+  --c-led:#f0b400; --c-al:#e03a12; --c-mot:#1f5fbf; --c-lam:#8a3fc4; --c-foc:#0f8a7a;
   --f-disp:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;
   --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -30,13 +30,13 @@
   --accent:#e07a3f; --accent-ink:#14181b; --ok:#5cbf85; --warn:#e0a83a; --bad:#ef6b62;
   --w-l:#c08a55; --w-n:#5b95ec; --w-pe:#6cc35f; --w-p:#f0605a; --w-m:#e6e9ea; --w-s:#9aa4ab; --w-r:#9aa4ab;
   --t1:#f0a830; --t2:#45bdb6; --t3:#b083ec; --t4:#ec6a96; --lama:#e8b85a; --wall:#5d666b;
-  --c-led:#ffc933; --c-al:#ff6b3d; --c-mot:#6ea2f0; --c-lam:#b98af0; color-scheme:dark}}
+  --c-led:#ffc933; --c-al:#ff6b3d; --c-mot:#6ea2f0; --c-lam:#b98af0; --c-foc:#3fc9b3; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#14181b; --paper:#1c2125; --ink:#e6e9ea; --muted:#9aa4ab; --line:#353d43; --soft:#252b30;
   --accent:#e07a3f; --accent-ink:#14181b; --ok:#5cbf85; --warn:#e0a83a; --bad:#ef6b62;
   --w-l:#c08a55; --w-n:#5b95ec; --w-pe:#6cc35f; --w-p:#f0605a; --w-m:#e6e9ea; --w-s:#9aa4ab; --w-r:#9aa4ab;
   --t1:#f0a830; --t2:#45bdb6; --t3:#b083ec; --t4:#ec6a96; --lama:#e8b85a; --wall:#5d666b;
-  --c-led:#ffc933; --c-al:#ff6b3d; --c-mot:#6ea2f0; --c-lam:#b98af0; color-scheme:dark}
+  --c-led:#ffc933; --c-al:#ff6b3d; --c-mot:#6ea2f0; --c-lam:#b98af0; --c-foc:#3fc9b3; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);margin:0;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
@@ -263,7 +263,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
 
   <section class="sheet">
     <div class="hd"><h2>Planta y tiras LED</h2><span class="tag">Hoja 2</span></div>
-    <div class="bd"><div class="ley"><span><i style="background:var(--c-led)"></i>Tira LED</span><span><i style="background:var(--c-al)"></i>Alargo · Y = cable de 3 vías</span><span><i style="background:var(--c-mot)"></i>Cable del motor</span><span><i style="background:repeating-linear-gradient(90deg,var(--c-lam) 0 5px,transparent 5px 8px)"></i>Cables de las lamas</span><span><b class="lc">C</b>Centralita</span><span><b class="lm">M</b>Motor</span></div><div class="plantas" id="planta"></div><p class="hint" style="margin-top:8px">Arriba, toda la pérgola junta; debajo, cada módulo por separado con las cotas de cada lado. Toca un dibujo (o «Ampliar») para verlo en grande. La pérgola va en gris y los cables en color: en cada módulo, por fuera, los que van por encima de las vigas (entre la viga y la tapa); en el conjunto, por dentro de cada módulo. Debajo de cada módulo, cada recorrido por escrito.</p></div>
+    <div class="bd"><div class="ley"><span><i style="background:var(--c-led)"></i>Tira LED</span><span><i style="background:var(--c-al)"></i>Alargo · Y = cable de 3 vías</span><span><i style="background:var(--c-mot)"></i>Cable del motor</span><span><i style="background:repeating-linear-gradient(90deg,var(--c-lam) 0 5px,transparent 5px 8px)"></i>Cables de las lamas</span><span><i style="background:var(--c-foc)"></i>Focos (F) · cable en T</span><span><b class="lc">C</b>Centralita</span><span><b class="lm">M</b>Motor</span></div><div class="plantas" id="planta"></div><p class="hint" style="margin-top:8px">Arriba, toda la pérgola junta; debajo, cada módulo por separado con las cotas de cada lado. Toca un dibujo (o «Ampliar») para verlo en grande. La pérgola va en gris y los cables en color: en cada módulo, por fuera, los que van por encima de las vigas (entre la viga y la tapa); en el conjunto, por dentro de cada módulo. Debajo de cada módulo, cada recorrido por escrito.</p></div>
     <div class="bd scroll" style="padding-top:0"><div id="tiras"></div></div>
   </section>
 
@@ -436,6 +436,7 @@ function modCard(m,i){
   </details>
   <div class="lados"><label class="chk"><input type="checkbox" id="m${i}_viento"${m.viento?" checked":""}> Anemómetro</label><label class="chk"><input type="checkbox" id="m${i}_lluvia"${m.lluvia?" checked":""}> Sensor lluvia</label></div>
   <div class="row"><label>Focos<input type="number" id="m${i}_focN" min="0" max="40" step="1" value="${m.focN||0}"></label><label>Tipo de foco<select id="m${i}_focT">${opt(FOCOS,m.focT||"aries")}</select></label></div>
+  <label>Focos en<select id="m${i}_focL">${opt({per:"Repartidos por el perímetro",sup:"Viga sup.",der:"Viga der.",inf:"Viga inf.",izq:"Viga izq."},m.focL||"per")}</select></label>
   <div class="salidas"><div class="tag">Salidas de la centralita LED (Nexta)</div>
   <div class="row">${[["p1","Perímetro 1"],["p2","Perímetro 2"]].map(([k,t])=>`<label>${t}<select id="m${i}_s_${k}">${opt(SALOPT,String((m.sal||{})[k]||"auto"))}</select></label>`).join("")}</div>
   <div class="row">${[["lam","Lamas"],["foc","Focos"]].map(([k,t])=>`<label>${t}<select id="m${i}_s_${k}">${opt(SALOPT,String((m.sal||{})[k]||"auto"))}</select></label>`).join("")}</div>
@@ -458,7 +459,7 @@ function readMods(){
       pil:{si:g("p_si").value.trim(),sd:g("p_sd").value.trim(),id:g("p_id").value.trim(),ii:g("p_ii").value.trim()},
       vig:{sup:g("v_sup").value.trim(),inf:g("v_inf").value.trim(),izq:g("v_izq").value.trim(),der:g("v_der").value.trim()},luz:g("luz").value,
       lados:{sup:g("sup").checked,inf:g("inf").checked,izq:g("izq").checked,der:g("der").checked},
-      focN:Math.max(0,Math.round(parseFloat(g("focN").value)||0)),focT:g("focT").value,
+      focN:Math.max(0,Math.round(parseFloat(g("focN").value)||0)),focT:g("focT").value,focL:g("focL").value,
       sal:{p1:g("s_p1").value,p2:g("s_p2").value,lam:g("s_lam").value,foc:g("s_foc").value},
       periCab:Object.fromEntries(PERCAB.map(k=>[k,Math.max(0,Math.round(parseFloat(g("pc_"+k).value)||0))]).filter(([,v])=>v>0)),
       lamCab:Object.fromEntries(LAMCAB.map(k=>[k,Math.max(0,Math.round(parseFloat(g("lc_"+k).value)||0))]).filter(([,v])=>v>0)),
@@ -578,6 +579,23 @@ function alargos(d,rgb){
   return r;
 }
 
+/* Focos: posición de cada uno (en una viga o repartidos por el perímetro) y la cadena de cables en T desde la
+   centralita, por el camino más corto a lo largo de las vigas. Coordenadas del módulo, en m. */
+function focosRuta(m){
+  const n=m.focN||0;if(!n)return null;
+  const k0=CORN.indexOf(m.cent),segs=[0,1,2,3].map(i=>{const k=(k0+i)%4;return {sd:SIDES[k],a:CORN[k],b:CORN[(k+1)%4],L:sideLen(m,SIDES[k])};});
+  const Per=segs.reduce((a,x)=>a+x.L,0);let pos,dir=1;
+  if(SIDES.includes(m.focL)){let a=0,i=0;while(segs[i].sd!==m.focL){a+=segs[i].L;i++;}const L=segs[i].L;
+    pos=[...Array(n)].map((_,k)=>a+(k+0.5)*L/n);if(Per-pos[0]<pos[n-1])dir=-1;}
+  else pos=[...Array(n)].map((_,k)=>(k+0.5)*Per/n);
+  const at=s=>{let i=0;while(i<3&&s>segs[i].L+1e-9){s-=segs[i].L;i++;}const [ax,ay]=CPOS(m,segs[i].a),[bx,by]=CPOS(m,segs[i].b),t=segs[i].L?s/segs[i].L:0;return {p:[ax+(bx-ax)*t,ay+(by-ay)*t],sd:segs[i].sd};};
+  const end=dir>0?pos[n-1]:Per-pos[0],order=dir>0?segs:[...segs].reverse().map(x=>({...x,a:x.b,b:x.a}));
+  const pts=[CPOS(m,m.cent)],sides=[];let acc=0;
+  for(const sg of order){if(acc>=end-1e-9)break;const take=Math.min(sg.L,end-acc),[ax,ay]=CPOS(m,sg.a),[bx,by]=CPOS(m,sg.b),t=sg.L?take/sg.L:0;
+    pts.push([ax+(bx-ax)*t,ay+(by-ay)*t]);sides.push(sg.sd);acc+=take;}
+  return {pos:pos.map(at),ruta:{pts,sides,len:end},vigas:[...new Set(pos.map(s=>at(s).sd))]};
+}
+
 /* ---------- cálculo ---------- */
 function calcular(cfg){
   const av=[],bom=new Map(),dev=[],plan=[],outs=[];
@@ -695,7 +713,10 @@ function calcular(cfg){
       add("lamaW",m.lamasN,`${tag} cortar a ≈${m2(lamaLen)} m`);add("conLama",m.lamasN);if(!(lc.conEje>0))add("conEje",m.lamasN);add("tapon",m.lamasN);
       if(lamaLen>4.5)av.push(["bad",`${m.nombre}: lama de ≈${m2(lamaLen)} m, la tira de lama es de 4,50 m.`]);
     }
-    plan.push({m,tiras,lamaLen,tag,rm,run,rutas,sis,periMan});
+    const focR=focosRuta(m);
+    plan.push({m,tiras,lamaLen,tag,rm,run,rutas,sis,periMan,focos:focR});
+    /* el cable en T mide 3 m: si la cadena de focos es más larga, hacen falta más (uno por cada 3 m) */
+    if(focR){const extra=Math.ceil(focR.ruta.len/3-1e-9)-Math.ceil(m.focN/2);if(extra>0)add("cabT",extra,`${tag} focos · cadena ≈ ${m2(focR.ruta.len)} m`);}
     const white=loads.filter(l=>!l.rgb),rgbL=loads.filter(l=>l.rgb);
     if(white.length){
       if(sis==="nexta"){
@@ -858,7 +879,7 @@ const trunc=(s,n)=>{s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;};
 /* ---------- dibujo: planta ----------
    La pérgola va en gris (vigas y pilares) y los cables en color, que es lo que importa en obra.
    Coordenadas del módulo en metros: x hacia la derecha, y hacia arriba; esquina inf. izq. = (0, 0). */
-const CC={led:"var(--c-led)",al:"var(--c-al)",mot:"var(--c-mot)",v230:"var(--w-l)",lam:"var(--c-lam)"};
+const CC={led:"var(--c-led)",al:"var(--c-al)",mot:"var(--c-mot)",v230:"var(--w-l)",lam:"var(--c-lam)",foc:"var(--c-foc)"};
 const NRM={izq:[-1,0],der:[1,0],sup:[0,-1],inf:[0,1]}; /* hacia fuera del módulo, en la pantalla */
 const ptsAttr=pts=>pts.map(p=>p.map(v=>Math.round(v*10)/10).join(",")).join(" ");
 /* Texto con fondo, para que se lea encima de las líneas. */
@@ -897,6 +918,14 @@ function pintaModulo(pm,cfg,X,Y,o){
   (pm.rutas||[]).forEach(R=>{const pts=linea(R.ruta,25);
     cab+=`<polyline points="${ptsAttr(pts)}" fill="none" stroke="${CC.al}" stroke-width="3.5" stroke-linejoin="round"/>`;
     txt+=rotuloRuta(pts,pm.periMan?`Recorrido ≈ ${m2(R.ruta.len)} m`:`Alargo ${R.al.map(([l])=>m2c(l)).join(" + ")} m · recorrido ≈ ${m2(R.ruta.len)} m`,CC.al,[0,0]);});
+  /* focos y su cadena de cables en T */
+  if(pm.focos){const F=pm.focos,dF=36,pts=linea(F.ruta,dF);
+    cab+=`<polyline points="${ptsAttr(pts)}" fill="none" stroke="${CC.foc}" stroke-width="2.5" stroke-dasharray="7 3" stroke-linejoin="round"/>`;
+    F.pos.forEach(f=>{const [nx,ny]=NRM[f.sd],fx=X(f.p[0])+nx*dF*sg,fy=Y(f.p[1])+ny*dF*sg;
+      txt+=`<circle cx="${fx}" cy="${fy}" r="8" fill="var(--paper)" stroke="${CC.foc}" stroke-width="2.5"/><text x="${fx}" y="${fy+3.5}" text-anchor="middle" font-size="9" font-weight="700" style="fill:${CC.foc}">F</text>`;});
+    /* rótulo en el último tramo (donde están los focos), un poco por fuera para no pisar otros cables */
+    if(o.fuera){const a=pts[pts.length-2],b=pts[pts.length-1],sdL=F.ruta.sides[F.ruta.sides.length-1],[nx,ny]=NRM[sdL],ver=Math.abs(b[0]-a[0])<1;
+      txt+=rotulo((a[0]+b[0])/2+nx*16,(a[1]+b[1])/2+ny*16,`${m.focN} focos · ≈ ${m2(F.ruta.len)} m`,{col:CC.foc,borde:CC.foc,fs:10,rot:ver});}}
   /* cables de 3 vías (Y) donde entra cada pareja de tiras; con una sola tira, el alargo entra directo */
   let rot15=false;
   gruposTira(m,cfg.periProd).forEach(G=>{const ts=tiras.filter(t=>t.g===G.g),n=ts.length;if(!n)return;let qx,qy;
@@ -925,7 +954,7 @@ function pintaModulo(pm,cfg,X,Y,o){
     /* en el conjunto no hay cotas aparte: la medida va con el nombre de la viga */
     txt+=rotulo(mx,my,o.cotas?v:`${v} · ${m2(sideLen(m,sd))} m`,{fs:12,col:sin?"var(--muted)":"var(--ink)",borde:"var(--wall)",rot:sd==="izq"||sd==="der",peso:sin?500:700});});
   /* cotas de cada lado, por fuera de los cables */
-  if(o.cotas)SIDES.forEach(sd=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=52;
+  if(o.cotas)SIDES.forEach(sd=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=pm.focos?72:52;
     const a=[x1+nx*d,y1+ny*d],b=[x2+nx*d,y2+ny*d],t=6;
     base+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="var(--muted)" stroke-width="1"/>`;
     [a,b].forEach(([px,py])=>{base+=`<line x1="${px-ny*t}" y1="${py-nx*t}" x2="${px+ny*t}" y2="${py+nx*t}" stroke="var(--muted)" stroke-width="1"/>`;});
@@ -934,7 +963,7 @@ function pintaModulo(pm,cfg,X,Y,o){
 }
 const DEFS=`<defs><marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" fill="var(--wall)"/></marker></defs>`;
 function dibujaModulo(pm,cfg){
-  const {m}=pm,sc=Math.min(320/m.A,320/m.P),mg=84,w=m.A*sc,h=m.P*sc;
+  const {m}=pm,sc=Math.min(320/m.A,320/m.P),mg=pm.focos?100:84,w=m.A*sc,h=m.P*sc;
   const r=pintaModulo(pm,cfg,x=>mg+x*sc,y=>mg+(m.P-y)*sc,{fuera:true,cotas:true});
   return `<svg viewBox="0 0 ${w+2*mg} ${h+2*mg}" role="img" aria-label="Planta de ${esc(m.nombre)}">${DEFS}${r.base}${r.cab}${r.txt}</svg>`;
 }
@@ -982,7 +1011,7 @@ function recorridos(pm,cfg){
   });
   if(pm.periMan)L.push(`<b style="color:var(--c-al)">Cables del perímetro</b> (a mano): ${PERCAB.filter(k=>m.periCab[k]>0).map(k=>`${m.periCab[k]} × ${esc(C[k][1])}`).join(", ")}.`);
   if(m.lamasN)L.push(`<b style="color:var(--c-lam)">Lamas LED (${m.lamasN})</b>: unir los dos conectores de cada lama (conector de lama + conector de eje) y llevar los cables por el mecanizado de la viga ${esc(vigaDe(m,m.cent[1]==="i"?"izq":"der"))} hasta la centralita${out(pm.lamOut||"OUT2 / OUT4")}.${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?` Cables: ${LAMCAB.filter(k=>m.lamCab[k]>0).map(k=>`${m.lamCab[k]} × ${esc(C[k][1])}`).join(", ")}.`:` Cable 3 m 2P + 2 micro en T: uno por cada 2 lamas, encadenados.`}`);
-  if(m.focN){const fo=(pm.focOut?` → ${pm.focOut}`:"");L.push(`<b>Focos (${m.focN} × ${esc(FOCOS[m.focT]||FOCOS.aries)}, ${FOCO_W} W c/u)</b>: cable 3 m 2P + 2 micro en T, uno por cada 2 focos, encadenados, hasta la centralita${pm.sis==="nexta"?fo:""}.`);}
+  if(m.focN){const fo=(pm.focOut?` → ${pm.focOut}`:"");L.push(`<b>Focos (${m.focN} × ${esc(FOCOS[m.focT]||FOCOS.aries)}, ${FOCO_W} W c/u)</b>: cable 3 m 2P + 2 micro en T, uno por cada 2 focos (o por cada 3 m de cadena, lo que sea más), encadenados, hasta la centralita${pm.sis==="nexta"?fo:""}. ${pm.focos?`Van en ${esc(SIDES.includes(m.focL)?vigaDe(m,m.focL):"el perímetro, repartidos")}; cadena desde la centralita ≈ ${m2(pm.focos.ruta.len)} m por encima de ${esc(vigasDe(m,pm.focos.ruta.sides))}.`:""}`);}
   if(m.viento)L.push(`<b>Anemómetro</b>: cable de 4 m a la entrada de sensores de la central de motor. Colocarlo despejado, sin obstáculos.`);
   if(m.lluvia)L.push(`<b>Sensor de lluvia</b>: alimentación 230 V y contacto del relé (NA) a la entrada de sensores de la central de motor.`);
   return L;
@@ -1425,6 +1454,7 @@ function etiquetasMod(m,i,pp){
   const esq=k=>pilNom(pilDe(m,k))||CN[k].replace("esquina ",""),k0=CORN.indexOf(m.cent),c=n=>CORN[(k0+n)%4];
   const se=$(`m${i}_ent`),sr=$(`m${i}_rut`);if(!se||!sr)return;
   SIDES.forEach(sd=>{const t=$(`m${i}_t_${sd}`),v=$(`m${i}_v_${sd}`);if(t)t.textContent=vigaDe(m,sd);if(v)v.placeholder=vigaAuto(m,sd);});
+  const fl=$(`m${i}_focL`);if(fl)[...fl.options].forEach(o=>{if(SIDES.includes(o.value))o.text=`Viga ${vigaDe(m,o.value)}`;});
   CORN.forEach(k=>{const p=$(`m${i}_p_${k}`);if(p)p.placeholder=`P${pilDe(m,k)} · ${ESQ[k].toLowerCase()}`;});
   const una=gruposTira(Object.assign({},m,{ent:"auto"}),pp).some(G=>G.una);
   se.options[0].text=una?`Auto: una tira por cada dos lados, desde la centralita (${esq(m.cent)})`:`Auto: centralita (${esq(m.cent)}) + contraria (${esq(c(2))})`;
