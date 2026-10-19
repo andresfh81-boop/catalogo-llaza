@@ -739,7 +739,8 @@ function calcular(cfg){
     (m.extra||[]).forEach((x,j)=>{if(!C[x.k]||!(x.q>0))return;add(x.k,x.q,`${tag} · ${j+1}) ${dondeX(m,x)}`);
       if(x.W>0)loads.push({n:`${j+1}) ${C[x.k][1]}${x.q>1?" ×"+x.q:""}`,W:x.W*x.q,grp:"extra",rgb:false,len:0,sal:x.s});});
     const focK=FOCOS[m.focT]?m.focT:"aries";
-    for(let i=0;i<(m.focN||0);i++)loads.push({n:`Foco ${i+1}`,W:FOCO_W,grp:"focos",rgb:false,len:0});
+    /* la línea de focos es una sola carga: va entera a una salida (o a un mismo receptor) */
+    if(m.focN>0)loads.push({n:`Focos ×${m.focN}`,W:FOCO_W*m.focN,grp:"focos",rgb:false,len:0});
     if(m.focN)add(focK,m.focN,`${tag} · ${FOCO_W} W c/u`);
     if(m.lamasN){
       add("lamaW",m.lamasN,`${tag} cortar a ≈${m2(lamaLen)} m`);add("conLama",m.lamasN);if(!(lc.conEje>0))add("conEje",m.lamasN);add("tapon",m.lamasN);
