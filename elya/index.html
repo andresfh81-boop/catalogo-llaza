@@ -662,7 +662,9 @@ function calcular(cfg){
   }
   /* Una línea por salida; la línea de focos va aparte (misma salida) con su cable. */
   function ledRight(o){return o.filter(x=>x.items.length).flatMap(x=>{
-    const f=x.items.filter(i=>i.grp==="focos"),r=x.items.filter(i=>i.grp!=="focos"),out=[];
+    const f=x.items.filter(i=>i.grp==="focos"),la=x.items.filter(i=>i.grp==="lamas"),r=x.items.filter(i=>i.grp!=="focos"&&i.grp!=="lamas"),out=[];
+    if(la.length){const W=la.reduce((a,i)=>a+i.W,0),nT=Math.ceil(la.length/2);
+      out.push({kind:"led",W,t:`${la.length} lama${la.length>1?"s":""} LED`,s:`${la.some(i=>i.man)?"cables a mano":`T 3 m ×${nT} encadenado${nT>1?"s":""}`} · ${m2(la[0].len)} m · ${w0(W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`});}
     if(r.length){const W=r.reduce((a,i)=>a+i.W,0);out.push({kind:"led",W,t:r.map(i=>i.n).join(" + "),s:`${m2(r.reduce((a,i)=>a+i.len,0))} m · ${w0(W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`});}
     f.forEach(i=>out.push({kind:"foco",W:i.W,t:i.n,s:`${i.cab||"cable 3 m 2P + 2 micro en T"} · ${w0(i.W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`}));
     return out;});}
