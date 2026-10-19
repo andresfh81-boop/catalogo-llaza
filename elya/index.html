@@ -706,7 +706,9 @@ function calcular(cfg){
     o.forEach(x=>{let k=x.items.filter(i=>i.grp!=="lamas"&&i.grp!=="focos"&&!i.man).length;
       if(x.items.some(i=>i.grp==="focos"))k++; /* los cables de los focos se calculan con su recorrido (focosRuta) */
       const L=x.items.filter(i=>i.grp==="lamas");
-      if(L.length&&!L.some(i=>i.man)){add("cabT",Math.ceil(L.length/2),`${tag} OUT${x.s} · ${L.length===1?"1 lama":L.length+" lamas encadenadas"}`);k++;}
+      if(L.length&&!L.some(i=>i.man)){add("cabT",Math.ceil(L.length/2),`${tag} OUT${x.s} · ${L.length===1?"1 lama":L.length+" lamas encadenadas"}`);k++;
+        /* tapones (dato SAT): al final del último cable en T y en el micro que queda libre si las lamas son impares */
+        add("tapon",1+L.length%2,`${tag} OUT${x.s} · final del cable en T${L.length%2?" + micro libre":""}`);}
       if(k===2)add(rgbx?"y3RGB":"y3",1,`${tag} OUT${x.s}`);else if(k>2)add(rgbx?"sp4RGB":"sp4W",Math.ceil((k-1)/3),`${tag} OUT${x.s}`,true);});
   }
   /* Transformador 24 V + receptor (Somfy, Teleco UL). Un transformador por cada 160 W (80 % de uno de 200 W);
@@ -785,7 +787,7 @@ function calcular(cfg){
       t.prod=prodTira(m,cfg,t.len,med);
       if(med&&t.len>med+1e-6)av.push(["bad",`${m.nombre}, tira de ${t.viga}: has elegido ${m2(med)} m y el lado mide ${m2(t.len)} m, no llega.`]);
       t.W=t.len*(rgb?cfg.wmRGB:cfg.wm);
-      add(t.prod,1,`${tag} ${t.viga} ${m2(t.len)} m`);add("tapon",1);
+      add(t.prod,1,`${tag} ${t.viga} ${m2(t.len)} m`);
       if(t.len>maxLen+1e-6)av.push(["bad",`${m.nombre}, tira de ${t.viga} (${m2(t.len)} m): el producto más largo es de ${maxLen} m.`]);
     });
     /* cables del perímetro puestos a mano: van tal cual al material y la app no pone alargos ni cables de 3 vías */
@@ -826,14 +828,14 @@ function calcular(cfg){
     if(m.focN>0)loads.push({n:`Focos ×${m.focN}`,W:FOCO_W*m.focN,grp:"focos",rgb:false,len:0});
     if(m.focN)add(focK,m.focN,`${tag} · ${FOCO_W} W c/u`);
     if(m.lamasN){
-      add("lamaW",m.lamasN,`${tag} cortar a ≈${m2(lamaLen)} m`);add("conLama",m.lamasN);if(!(lc.conEje>0))add("conEje",m.lamasN);add("tapon",m.lamasN);
+      add("lamaW",m.lamasN,`${tag} cortar a ≈${m2(lamaLen)} m`);add("conLama",m.lamasN);if(!(lc.conEje>0))add("conEje",m.lamasN);
       if(lamaLen>4.5)av.push(["bad",`${m.nombre}: lama de ≈${m2(lamaLen)} m, la tira de lama es de 4,50 m.`]);
     }
     const focR=focosRuta(m);
     plan.push({m,tiras,lamaLen,tag,rm,run,rutas,sis,periMan,focos:focR,motorPos,motY,grAl,rgb});
     /* Focos (dato SAT): entran por el lateral con el cable 3 m 2P + 2 micro en T; si el primer foco queda a más de 3 m
        de la centralita, alargo hasta el cable en T. Entre foco y foco, extensiones de 0,50 m. */
-    if(focR){add("cabT",1,`${tag} focos`);
+    if(focR){add("cabT",1,`${tag} focos`);add("tapon",1,`${tag} último foco`);
       focR.al=focR.d1>3+1e-6?alargos(focR.d1-3,false):[];
       const lf=loads.find(l=>l.grp==="focos"),nE=focR.gaps.reduce((a,g)=>a+Math.max(1,Math.ceil(g/0.5-1e-9)),0);
       if(lf){lf.n=`${m.focN} × ${FOCOS[m.focT]||FOCOS.aries}`;lf.cab=`${focR.al.length?"alargo "+focR.al.map(([l])=>m2c(l)).join(" + ")+" m + T 3 m":"cable T 3 m"}${nE?` + ${nE} ext. 0,5 m`:""}`;}focR.al.forEach(([l,k])=>add(k,1,`${tag} focos · hasta el cable en T`));
