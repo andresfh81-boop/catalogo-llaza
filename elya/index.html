@@ -158,8 +158,16 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
   :root{--bg:#fff;--paper:#fff;--ink:#000;--muted:#444;--line:#999;--soft:#ddd}
   form,.btns,.noprint{display:none!important}
   .wrap{display:block} .sheet{break-inside:avoid;border-color:#999;margin-bottom:12px}
+  .scroll{overflow:visible!important} #unifilar svg{width:100%!important;height:auto} .top .sub{display:none}
   body{padding:0}
 }
+.dprint{border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);max-width:420px;width:calc(100% - 32px)}
+.dprint::backdrop{background:rgba(0,0,0,.35)}
+.dprint form{display:grid;gap:10px}.dprint h3{font-size:18px}
+.phojas{display:grid;gap:4px}.dprint .btns{display:flex;gap:8px;justify-content:flex-end}
+@media print{.dprint{display:none!important}
+  body.noimp-avisos [data-hoja=avisos],body.noimp-unifilar [data-hoja=unifilar],body.noimp-consumo [data-hoja=consumo],
+  body.noimp-planta [data-hoja=planta],body.noimp-conexiones [data-hoja=conexiones],body.noimp-material [data-hoja=material]{display:none!important}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
 [hidden]{display:none!important}
@@ -244,12 +252,12 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <div class="hd"><h2>Obra en blanco</h2></div>
     <div class="bd"><p id="vacioTxt">Arrastra aquí el plano firmado (o la ficha de fabricación) en PDF, o pulsa «+ Añadir módulo» para meter los datos a mano. El esquema, la planta, las conexiones y el material salen en cuanto haya un módulo.</p></div>
   </section>
-  <section class="sheet">
+  <section class="sheet" data-hoja="avisos">
     <div class="hd"><h2>Avisos</h2><span class="tag" id="sumAv"></span></div>
     <div class="bd"><ul class="avisos" id="avisos"></ul></div>
   </section>
 
-  <section class="sheet">
+  <section class="sheet" data-hoja="unifilar">
     <div class="hd"><h2>Esquema unifilar</h2><span class="tag">Hoja 1</span></div>
     <div class="bd scroll" id="unifilar"></div>
     <div class="bd noprint" style="padding-top:0">
@@ -258,30 +266,38 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <div class="cajetin" id="cajetin"></div>
   </section>
 
-  <section class="sheet">
+  <section class="sheet" data-hoja="consumo">
     <div class="hd"><h2>Consumo</h2><span class="tag" id="sumW"></span></div>
     <div class="bd scroll"><table id="consumo"></table></div>
     <div class="bd" style="padding-top:0"><p class="hint">Cargas: motor 3,6 A × 24 V, tiras según su W/m, tomas USB 15 W y sensor de lluvia MT-R 4,5 W (a 230 V). En 230 V, lo que va por fuente de 24 V se cuenta con un rendimiento del 90 %. No incluye lo que se enchufe a las tomas Schuko.</p></div>
   </section>
 
-  <section class="sheet">
+  <section class="sheet" data-hoja="planta">
     <div class="hd"><h2>Planta y tiras LED</h2><span class="tag">Hoja 2</span></div>
     <div class="bd"><div class="ley"><span><i style="background:var(--c-led)"></i>Tira LED</span><span><i style="background:var(--c-al)"></i>Alargo · Y = cable de 3 vías</span><span><i style="background:var(--c-mot)"></i>Cable del motor</span><span><i style="background:repeating-linear-gradient(90deg,var(--c-lam) 0 5px,transparent 5px 8px)"></i>Cables de las lamas</span><span><i style="background:var(--c-foc)"></i>Focos (F) · cable en T</span><span><b style="color:var(--c-x)">◆</b>Producto a mano</span><span><b class="lc">C</b>Centralita</span><span><b class="lm">M</b>Motor</span></div><div class="plantas" id="planta"></div><p class="hint" style="margin-top:8px">Arriba, toda la pérgola junta; debajo, cada módulo por separado con las cotas de cada lado. Toca un dibujo (o «Ampliar») para verlo en grande. La pérgola va en gris y los cables en color: en cada módulo, por fuera, los que van por encima de las vigas (entre la viga y la tapa); en el conjunto, por dentro de cada módulo. Debajo de cada módulo, cada recorrido por escrito.</p></div>
     <div class="bd scroll" style="padding-top:0"><div id="tiras"></div></div>
   </section>
 
-  <section class="sheet">
+  <section class="sheet" data-hoja="conexiones">
     <div class="hd"><h2>Conexiones por central</h2><span class="tag">Hoja 3</span></div>
     <div class="bd"><div class="conx" id="conx"></div></div>
   </section>
 
-  <section class="sheet">
+  <section class="sheet" data-hoja="material">
     <div class="hd"><h2>Material</h2><span class="tag">Hoja 4</span></div>
     <div class="bd scroll"><table id="bom"></table></div>
     <div class="bd noprint bomadd" id="bomAdd"></div>
     <div class="bd" style="padding-top:0"><p class="hint">Cambia cualquier producto por otro de su familia, corrige la cantidad, quita líneas o añade productos del catálogo. Los cambios se guardan con la obra. «Revisar» = cantidad estimada o dato sin confirmar en manual.</p></div>
   </section>
 </main>
+<dialog id="dPrint" class="dprint"><form method="dialog">
+  <h3>Imprimir los planos eléctricos</h3>
+  <p class="hint">Hojas que salen en el papel o en el PDF:</p>
+  <div id="pHojas" class="phojas"></div>
+  <label class="chk"><input type="checkbox" id="pCuadro"> Unifilar desde el cuadro del cliente (PIA, diferencial y línea)</label>
+  <p class="hint">En la ventana de imprimir, elige «Guardar como PDF» para tener el archivo. Mejor en horizontal si el unifilar es ancho.</p>
+  <div class="btns"><button type="button" id="pGo" class="pri">Imprimir</button><button value="cancel">Cancelar</button></div>
+</form></dialog>
 <div class="zoom" id="zoom" hidden><div class="zbar"><b id="zTit"></b><button type="button" data-z="-" aria-label="Alejar">−</button><button type="button" data-z="+" aria-label="Acercar">+</button><button type="button" data-z="0">Ajustar</button><button type="button" data-z="x">Cerrar</button></div><div class="zbox" id="zBox"></div></div>
 </div>
 
@@ -665,7 +681,8 @@ function calcular(cfg){
     const f=x.items.filter(i=>i.grp==="focos"),la=x.items.filter(i=>i.grp==="lamas"),r=x.items.filter(i=>i.grp!=="focos"&&i.grp!=="lamas"),out=[];
     if(la.length){const W=la.reduce((a,i)=>a+i.W,0),nT=Math.ceil(la.length/2);
       out.push({kind:"led",W,t:`${la.length} lama${la.length>1?"s":""} LED`,s:`${la.some(i=>i.man)?"cables a mano":`T 3 m ×${nT} encadenado${nT>1?"s":""}`} · ${m2(la[0].len)} m · ${w0(W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`});}
-    if(r.length){const W=r.reduce((a,i)=>a+i.W,0);out.push({kind:"led",W,t:r.map(i=>i.n).join(" + "),s:`${m2(r.reduce((a,i)=>a+i.len,0))} m · ${w0(W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`});}
+    if(r.length){const W=r.reduce((a,i)=>a+i.W,0),cb=[...new Set(r.map(i=>i.cab).filter(Boolean))].join(" / ");
+      out.push({kind:"led",W,t:r.map(i=>i.n).join(" + "),s:`${cb?cb+" · ":""}${m2(r.reduce((a,i)=>a+i.len,0))} m · ${w0(W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`});}
     f.forEach(i=>out.push({kind:"foco",W:i.W,t:i.n,s:`${i.cab||"cable 3 m 2P + 2 micro en T"} · ${w0(i.W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`}));
     return out;});}
 
@@ -735,7 +752,8 @@ function calcular(cfg){
         if(ts.length===2)add(rgb?"y3RGB":"y3",1,`${tag} ${dn}`);}
       const via=periMan?`cables a mano${rl?" por "+vigasDe(m,rl.sides)+` (≈ ${m2(rl.len)} m)`:""}`:`alargo ${al.map(([l])=>m2c(l)+" m").join(" + ")}${al.length>1?" empalmados":""}${rl?" por "+vigasDe(m,rl.sides):""}${ts.length===2?" + cable 3 vías":""}`;
       ts.forEach(t=>t.from=(enCent?`Centralita (${m.loc})`:cap(pn?"esquina "+pn:CN[G.corner]))+" · "+via);
-      loads.push({n:ts.map(t=>t.viga).join(" + "),W:ts.reduce((a,t)=>a+t.W,0),grp:"peri",man:periMan,g:G.g,out:G.out,rgb,len:ts.reduce((a,t)=>a+t.len,0)});
+      const cab=periMan?"cables a mano":`alargo ${al.map(([l])=>m2c(l)).join(" + ")} m${ts.length===2?" + 3 vías":""}`;
+      loads.push({n:ts.map(t=>t.viga).join(" + "),cab,W:ts.reduce((a,t)=>a+t.W,0),grp:"peri",man:periMan,g:G.g,out:G.out,rgb,len:ts.reduce((a,t)=>a+t.len,0)});
     });
     const lamaLen=Math.max(0,m.A-0.17);
     const lc=m.lamasN?(m.lamCab||{}):{},manual=LAMCAB.some(k=>!LAMCON.includes(k)&&lc[k]>0);
@@ -873,9 +891,9 @@ function trazos(x,y,n,ver,txt){
   return s+(ver?`<text x="${x+10}" y="${y+4}" font-size="10" font-weight="700" class="mono">${esc(t)}</text>`
                 :`<text x="${x}" y="${y-10}" font-size="10" font-weight="700" text-anchor="middle" class="mono">${esc(t)}</text>`);
 }
-function dibujaUnifilar(cfg,r){
+function dibujaUnifilar(cfg,r,cuadro){
   const W=820,bx=110,bw=230,ix=520,iw=280,itemH=46;
-  let y=78,body="",branches=[],pes=[];const cajas={};
+  const dy=cuadro?150:0;let y=78+dy,body="",branches=[],pes=[];const cajas={};
   r.dev.forEach(d=>{
     const n=Math.max(1,d.right.length),h=Math.max(d.trafo?92:76,14+n*itemH);
     const by=y,bh=h-16;cajas[d.id]={by,bh};
@@ -915,7 +933,20 @@ function dibujaUnifilar(cfg,r){
     y+=h;
   });
   /* El esquema empieza en las centrales: la acometida de 230 V y sus protecciones las decide el cliente. */
-  const busEnd=branches.length?Math.max(...branches):78;
+  const busEnd=branches.length?Math.max(...branches):78+dy;
+  /* Opción al imprimir: desde el cuadro del cliente, con PIA, diferencial y línea (propuesta orientativa, la valida el técnico). */
+  if(cuadro){const I=r.I230,L=I<=8?{In:10,s:"1,5"}:I<=13?{In:16,s:"2,5"}:null,nf=n=>n.toLocaleString("es-ES",{maximumFractionDigits:1});
+    const sym=(yy,t1,t2)=>`<rect x="33" y="${yy}" width="14" height="22" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/><line x1="33" y1="${yy+22}" x2="47" y2="${yy}" stroke="var(--ink)" stroke-width="1.5"/><text x="60" y="${yy+10}" font-size="12" font-weight="600">${t1}</text><text x="60" y="${yy+24}" font-size="11" class="mut">${t2}</text>`;
+    const head=`<rect x="10" y="8" width="360" height="30" rx="3" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="6 4"/>
+    <text x="22" y="28" font-size="13" font-weight="600">Cuadro del cliente · ${cfg.sistema==="teleco_ul"?"red del país (UL)":"230 V ~ 50 Hz"}</text>
+    <line x1="40" y1="38" x2="40" y2="${busEnd}" stroke="var(--ink)" stroke-width="2.5"/>
+    ${sym(52,L?`PIA 2P ${L.In} A · curva C`:"PIA: más de 16 A, repartir en 2 líneas","Magnetotérmico (sobrecargas y cortocircuitos)")}
+    ${sym(92,"ID 2P 40 A · 30 mA","Diferencial (ITC-BT-24 / ITC-BT-25)")}
+    <text x="60" y="140" font-size="11" class="mono">${L?`Línea 3G${L.s} mm² (L + N + PE)`:"Repartir en 2 líneas"} · ≈${Math.round(r.W230)} W · ${nf(I)} A</text>
+    <text x="60" y="154" font-size="10" class="mut">Propuesta orientativa según el consumo; la valida el técnico (ITC-BT-19 / 25)</text>
+    ${trazos(40,176,3,true,"3 · L N PE")}
+    <text x="60" y="${210}" font-size="11" class="mono mut">Caja estanca IPX4 en la pérgola (ITC-BT-30) · una derivación por central</text>`;
+    return `<svg viewBox="0 0 ${W} ${y+10}" width="${W}" role="img" aria-label="Esquema unifilar de la pérgola">${head}${body}</svg>`;}
   const head=`<text x="22" y="22" font-size="13" font-weight="600">230 V ~ a cada central</text>
   <text x="22" y="38" font-size="11" class="mut">La acometida y sus protecciones las pone el cliente; aquí se parte de las centrales.</text>
   <circle cx="40" cy="56" r="3.5" fill="var(--ink)"/><line x1="40" y1="56" x2="40" y2="${busEnd}" stroke="var(--ink)" stroke-width="2.5"/>
@@ -1561,7 +1592,7 @@ async function abrirDeDrive(){
 }
 
 /* ---------- pintar ---------- */
-let last=null,plantaH="";
+let last=null,plantaH="",impCuadro=false;
 /* Los desplegables de entrada y recorrido dicen por qué pilares y vigas va cada opción. */
 function etiquetasMod(m,i,pp){
   const esq=k=>pilNom(pilDe(m,k))||CN[k].replace("esquina ",""),k0=CORN.indexOf(m.cent),c=n=>CORN[(k0+n)%4];
@@ -1593,7 +1624,7 @@ function render(){
   $("avisos").innerHTML=r.av.map(([k,t])=>`<li><span class="pill ${k}">${lbl[k]}</span><span>${esc(t)}</span></li>`).join("");
   const nb=r.av.filter(a=>a[0]==="bad").length,nw=r.av.filter(a=>a[0]==="warn").length;
   $("sumAv").textContent=nb?`${nb} error(es) · ${nw} ojo`:nw?`${nw} para revisar`:"Todo dentro de manual";
-  $("unifilar").innerHTML=dibujaUnifilar(cfg,r);
+  $("unifilar").innerHTML=dibujaUnifilar(cfg,r,impCuadro);
   const amp=`<button type="button" class="mini" data-amp>Ampliar</button>`;
   const cj=r.plan.length>1?dibujaConjunto(r.plan,cfg):null;
   /* Solo se redibuja si cambia: así no desaparece el botón que se está tocando. */
@@ -1720,7 +1751,22 @@ $("bCopy").addEventListener("click",()=>{
 });
 /* Imprimir solo funciona abierta como página suelta (no dentro de un visor). */
 let top=false;try{top=window.self===window.top;}catch(e){}
-if(top){$("bPrint").hidden=false;$("bPrint").addEventListener("click",()=>window.print());}
+/* Imprimir: se eligen las hojas y si el unifilar sale desde el cuadro del cliente; se recuerda la elección. */
+const HOJAS=[["avisos","Avisos"],["unifilar","Esquema unifilar"],["consumo","Consumo"],["planta","Planta y tiras LED"],["conexiones","Conexiones por central"],["material","Material"]];
+let impPref={hojas:Object.fromEntries(HOJAS.map(([k])=>[k,true])),cuadro:false};
+try{impPref=Object.assign(impPref,JSON.parse(localStorage.getItem("elya-imp")||"{}"));}catch(e){}
+function abrirImprimir(){
+  $("pHojas").innerHTML=HOJAS.map(([k,t])=>`<label class="chk"><input type="checkbox" data-h="${k}"${impPref.hojas[k]!==false?" checked":""}> ${t}</label>`).join("");
+  $("pCuadro").checked=!!impPref.cuadro;$("dPrint").showModal();
+}
+$("pGo").addEventListener("click",()=>{
+  impPref={hojas:Object.fromEntries([...$("pHojas").querySelectorAll("[data-h]")].map(c=>[c.dataset.h,c.checked])),cuadro:$("pCuadro").checked};
+  try{localStorage.setItem("elya-imp",JSON.stringify(impPref));}catch(e){}
+  HOJAS.forEach(([k])=>document.body.classList.toggle("noimp-"+k,!impPref.hojas[k]));
+  impCuadro=impPref.cuadro;render();$("dPrint").close();setTimeout(()=>window.print(),80);
+});
+window.addEventListener("afterprint",()=>{if(!impCuadro&&!document.body.className.includes("noimp-"))return;impCuadro=false;HOJAS.forEach(([k])=>document.body.classList.remove("noimp-"+k));render();});
+if(top){$("bPrint").hidden=false;$("bPrint").addEventListener("click",abrirImprimir);}
 render();
 eventosMaterial();
 $("bSave").onclick=guardarEnDrive;$("bOpen").onclick=abrirDeDrive;
