@@ -253,7 +253,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
 <main>
   <section class="sheet" id="vacio">
     <div class="hd"><h2>Obra en blanco</h2></div>
-    <div class="bd"><p id="vacioTxt">Arrastra aquí el plano firmado (o la ficha de fabricación) en PDF, o pulsa «+ Añadir módulo» para meter los datos a mano. El esquema, la planta, las conexiones y el material salen en cuanto haya un módulo.</p></div>
+    <div class="bd"><button type="button" id="bRecuperar" class="pri" hidden></button><p id="vacioTxt">Arrastra aquí el plano firmado (o la ficha de fabricación) en PDF, o pulsa «+ Añadir módulo» para meter los datos a mano. El esquema, la planta, las conexiones y el material salen en cuanto haya un módulo.</p></div>
   </section>
   <section class="sheet" data-hoja="avisos">
     <div class="hd"><h2>Avisos</h2><span class="tag" id="sumAv"></span></div>
@@ -1522,7 +1522,8 @@ async function carpetaRaiz(){
 }
 const nombreObra=cfg=>(((cfg.of&&!String(cfg.obra||"").includes(cfg.of))?cfg.of+" · ":"")+(cfg.obra||"Obra sin nombre")).replace(/[\\/:*?"<>|]+/g," ").trim().slice(0,120);
 function snapshotHTML(cfg){
-  const css=document.querySelector("style").textContent,main=document.querySelector("main").cloneNode(true);
+  /* todos los estilos de la app: dentro del enlace de Claude el primer <style> es el de Claude, no el nuestro */
+  const css=[...document.querySelectorAll("style")].map(e=>e.textContent).filter(t=>/--ink/.test(t)||/\.sheet/.test(t)).join("\n")||[...document.querySelectorAll("style")].map(e=>e.textContent).join("\n"),main=document.querySelector("main").cloneNode(true);
   main.querySelectorAll(".noprint").forEach(e=>e.remove());
   main.querySelectorAll("#bom select").forEach(e=>{const sp=document.createElement("span");sp.textContent=e.selectedOptions[0]?e.selectedOptions[0].textContent.replace(/ · \d+$/,""):"";e.replaceWith(sp);});
   main.querySelectorAll("#bom input").forEach(e=>e.replaceWith(document.createTextNode(e.value)));
@@ -1652,7 +1653,8 @@ function render(){
   const sis=$("sistema").value;if(EMISORES[sis]&&!EMISORES[sis].includes($("emisor").value))fillEmisores(sis,$("emisor").value);
   syncForm();
   const cfg=readForm();
-  try{localStorage.setItem(KEY,JSON.stringify(cfg));}catch(e){}
+  /* copia de seguridad de la obra en curso (solo si hay algo): se ofrece recuperarla al volver a abrir */
+  if(cfg.modulos.length)try{localStorage.setItem(KEY,JSON.stringify(Object.assign({},cfg,{_guardado:Date.now()})));}catch(e){}
   cfg.modulos.forEach((m,i)=>etiquetasMod(m,i,cfg.periProd));
   const vacia=!cfg.modulos.length||!cfg.sistema;document.querySelector("main").classList.toggle("vacia",vacia);
   $("vacioTxt").textContent=!cfg.modulos.length?"Arrastra aquí el plano firmado (o la ficha de fabricación) en PDF, o pulsa «+ Añadir módulo» para meter los datos a mano. El esquema, la planta, las conexiones y el material salen en cuanto haya un módulo y un sistema de control."
@@ -1739,9 +1741,13 @@ function toast(t){const d=document.createElement("div");d.className="toast";d.te
 
 /* ---------- arranque ---------- */
 const clone=o=>JSON.parse(JSON.stringify(o));
-let cfg0=VACIA();
-try{const s=JSON.parse(localStorage.getItem(KEY)||"null");if(s&&typeof s==="object"&&Array.isArray(s.modulos))cfg0=Object.assign(clone(BASE),s);}catch(e){}
-writeForm(cfg0);
+/* La app abre siempre en blanco; si quedó una obra a medias en este navegador, se ofrece recuperarla. */
+let previa=null;
+try{const s=JSON.parse(localStorage.getItem(KEY)||"null");if(s&&typeof s==="object"&&Array.isArray(s.modulos)&&s.modulos.length)previa=s;}catch(e){}
+writeForm(VACIA());
+if(previa){const b=$("bRecuperar"),f=previa._guardado?new Date(previa._guardado).toLocaleString("es-ES",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
+  b.textContent=`Recuperar la última obra: ${nombreObra(previa)}${f?" ("+f+")":""}`;b.hidden=false;
+  b.addEventListener("click",()=>{writeForm(Object.assign(clone(BASE),previa));b.hidden=true;render();toast("Obra recuperada");});}
 $("f").addEventListener("input",render);
 $("f").addEventListener("change",e=>{if(e.target.id==="sistema")fillEmisores(e.target.value,$("emisor").value);render();});
 $("f").addEventListener("submit",e=>e.preventDefault());
@@ -1782,6 +1788,7 @@ $("bNueva").addEventListener("click",()=>{
   if(!nuevaT){b.textContent="¿Borrar todo? Pulsa otra vez";b.classList.add("pri");nuevaT=setTimeout(()=>{nuevaT=null;b.textContent="Nueva obra";b.classList.remove("pri");},4000);return;}
   clearTimeout(nuevaT);nuevaT=null;b.textContent="Nueva obra";b.classList.remove("pri");
   plano=null;planoFile=null;$("impRes").hidden=true;$("drive").hidden=true;
+  try{localStorage.removeItem(KEY);}catch(e){}$("bRecuperar").hidden=true;
   writeForm(VACIA());render();window.scrollTo(0,0);toast("Obra nueva en blanco");
 });
 $("bCopy").addEventListener("click",()=>{
