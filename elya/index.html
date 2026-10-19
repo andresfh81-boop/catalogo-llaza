@@ -436,7 +436,7 @@ function modCard(m,i){
   </details>
   <div class="lados"><label class="chk"><input type="checkbox" id="m${i}_viento"${m.viento?" checked":""}> Anemómetro</label><label class="chk"><input type="checkbox" id="m${i}_lluvia"${m.lluvia?" checked":""}> Sensor lluvia</label></div>
   <div class="row"><label>Focos<input type="number" id="m${i}_focN" min="0" max="40" step="1" value="${m.focN||0}"></label><label>Tipo de foco<select id="m${i}_focT">${opt(FOCOS,m.focT||"aries")}</select></label></div>
-  <label>Focos en<select id="m${i}_focL">${opt({per:"Repartidos por el perímetro",sup:"Viga sup.",der:"Viga der.",inf:"Viga inf.",izq:"Viga izq."},m.focL||"per")}</select></label>
+  <label>Focos en<select id="m${i}_focL">${opt({sup:"Viga sup.",der:"Viga der.",inf:"Viga inf.",izq:"Viga izq.",per:"Repartidos por el perímetro"},m.focL||"sup")}</select></label>
   <div class="salidas"><div class="tag">Salidas de la centralita LED (Nexta)</div>
   <div class="row">${[["p1","Perímetro 1"],["p2","Perímetro 2"]].map(([k,t])=>`<label>${t}<select id="m${i}_s_${k}">${opt(SALOPT,String((m.sal||{})[k]||"auto"))}</select></label>`).join("")}</div>
   <div class="row">${[["lam","Lamas"],["foc","Focos"]].map(([k,t])=>`<label>${t}<select id="m${i}_s_${k}">${opt(SALOPT,String((m.sal||{})[k]||"auto"))}</select></label>`).join("")}</div>
@@ -586,14 +586,16 @@ function focosRuta(m){
   const k0=CORN.indexOf(m.cent),segs=[0,1,2,3].map(i=>{const k=(k0+i)%4;return {sd:SIDES[k],a:CORN[k],b:CORN[(k+1)%4],L:sideLen(m,SIDES[k])};});
   const Per=segs.reduce((a,x)=>a+x.L,0);let pos,dir=1;
   if(SIDES.includes(m.focL)){let a=0,i=0;while(segs[i].sd!==m.focL){a+=segs[i].L;i++;}const L=segs[i].L;
-    pos=[...Array(n)].map((_,k)=>a+(k+0.5)*L/n);if(Per-pos[0]<pos[n-1])dir=-1;}
+    /* en una viga: centrados y a 0,50 m entre ellos (la extensión que los une); si no caben, repartidos */
+    const paso=Math.min(0.5,L/n);pos=[...Array(n)].map((_,k)=>a+L/2+(k-(n-1)/2)*paso);if(Per-pos[0]<pos[n-1])dir=-1;}
   else pos=[...Array(n)].map((_,k)=>(k+0.5)*Per/n);
   const at=s=>{let i=0;while(i<3&&s>segs[i].L+1e-9){s-=segs[i].L;i++;}const [ax,ay]=CPOS(m,segs[i].a),[bx,by]=CPOS(m,segs[i].b),t=segs[i].L?s/segs[i].L:0;return {p:[ax+(bx-ax)*t,ay+(by-ay)*t],sd:segs[i].sd};};
   const end=dir>0?pos[n-1]:Per-pos[0],order=dir>0?segs:[...segs].reverse().map(x=>({...x,a:x.b,b:x.a}));
   const pts=[CPOS(m,m.cent)],sides=[];let acc=0;
   for(const sg of order){if(acc>=end-1e-9)break;const take=Math.min(sg.L,end-acc),[ax,ay]=CPOS(m,sg.a),[bx,by]=CPOS(m,sg.b),t=sg.L?take/sg.L:0;
     pts.push([ax+(bx-ax)*t,ay+(by-ay)*t]);sides.push(sg.sd);acc+=take;}
-  return {pos:pos.map(at),ruta:{pts,sides,len:end},vigas:[...new Set(pos.map(s=>at(s).sd))]};
+  const d1=dir>0?pos[0]:Per-pos[n-1],gaps=pos.slice(1).map((s,i)=>s-pos[i]);
+  return {pos:pos.map(at),ruta:{pts,sides,len:end},d1,gaps,vigas:[...new Set(pos.map(s=>at(s).sd))]};
 }
 
 /* ---------- cálculo ---------- */
@@ -611,12 +613,12 @@ function calcular(cfg){
     return o;
   }
   function splitters(o,rgbx,tag){
-    /* Lamas y focos: un cable 3 m 2P + 2 micro en T alimenta 2 y se encadena con otro por cada 2 más (dato SAT).
-       Cada cadena cuenta como una sola derivación de la salida. Con cables de lamas puestos a mano no se añade nada para las lamas. */
+    /* Lamas: un cable 3 m 2P + 2 micro en T alimenta 2 y se encadena con otro por cada 2 más (dato SAT).
+       Cada cadena (lamas, focos) cuenta como una sola derivación de la salida. Con cables de lamas a mano no se añade nada para las lamas. */
     o.forEach(x=>{let k=x.items.filter(i=>i.grp!=="lamas"&&i.grp!=="focos"&&!i.man).length;
-      [["lamas","lama","lamas encadenadas"],["focos","foco","focos encadenados"]].forEach(([g,uno,varios])=>{
-        const L=x.items.filter(i=>i.grp===g);if(!L.length||L.some(i=>i.man))return;
-        add("cabT",Math.ceil(L.length/2),`${tag} OUT${x.s} · ${L.length===1?"1 "+uno:L.length+" "+varios}`);k++;});
+      if(x.items.some(i=>i.grp==="focos"))k++; /* los cables de los focos se calculan con su recorrido (focosRuta) */
+      const L=x.items.filter(i=>i.grp==="lamas");
+      if(L.length&&!L.some(i=>i.man)){add("cabT",Math.ceil(L.length/2),`${tag} OUT${x.s} · ${L.length===1?"1 lama":L.length+" lamas encadenadas"}`);k++;}
       if(k===2)add(rgbx?"y3RGB":"y3",1,`${tag} OUT${x.s}`);else if(k>2)add(rgbx?"sp4RGB":"sp4W",Math.ceil((k-1)/3),`${tag} OUT${x.s}`,true);});
   }
   /* Transformador 24 V + receptor (Somfy, Teleco UL). Un transformador por cada 160 W (80 % de uno de 200 W);
@@ -715,8 +717,11 @@ function calcular(cfg){
     }
     const focR=focosRuta(m);
     plan.push({m,tiras,lamaLen,tag,rm,run,rutas,sis,periMan,focos:focR});
-    /* el cable en T mide 3 m: si la cadena de focos es más larga, hacen falta más (uno por cada 3 m) */
-    if(focR){const extra=Math.ceil(focR.ruta.len/3-1e-9)-Math.ceil(m.focN/2);if(extra>0)add("cabT",extra,`${tag} focos · cadena ≈ ${m2(focR.ruta.len)} m`);}
+    /* Focos (dato SAT): entran por el lateral con el cable 3 m 2P + 2 micro en T (uno por cada 3 m hasta el primer foco)
+       y entre foco y foco van con extensiones de 0,50 m (las que hagan falta para cubrir la separación). */
+    if(focR){add("cabT",Math.max(1,Math.ceil(focR.d1/3-1e-9)),`${tag} focos · hasta el 1.º foco ≈ ${m2(focR.d1)} m`);
+      const ne=focR.gaps.reduce((a,g)=>a+Math.max(1,Math.ceil(g/0.5-1e-9)),0);if(ne)add("ext05",ne,`${tag} entre focos`);
+      if(focR.gaps.some(g=>g>0.5+1e-6))av.push(["info",`${m.nombre}: los focos quedan a ≈ ${m2(Math.max(...focR.gaps))} m entre sí; hacen falta ${ne} extensiones de 0,50 m. Si van juntos, ponlos en una viga.`]);}
     const white=loads.filter(l=>!l.rgb),rgbL=loads.filter(l=>l.rgb);
     if(white.length){
       if(sis==="nexta"){
@@ -1011,7 +1016,7 @@ function recorridos(pm,cfg){
   });
   if(pm.periMan)L.push(`<b style="color:var(--c-al)">Cables del perímetro</b> (a mano): ${PERCAB.filter(k=>m.periCab[k]>0).map(k=>`${m.periCab[k]} × ${esc(C[k][1])}`).join(", ")}.`);
   if(m.lamasN)L.push(`<b style="color:var(--c-lam)">Lamas LED (${m.lamasN})</b>: unir los dos conectores de cada lama (conector de lama + conector de eje) y llevar los cables por el mecanizado de la viga ${esc(vigaDe(m,m.cent[1]==="i"?"izq":"der"))} hasta la centralita${out(pm.lamOut||"OUT2 / OUT4")}.${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?` Cables: ${LAMCAB.filter(k=>m.lamCab[k]>0).map(k=>`${m.lamCab[k]} × ${esc(C[k][1])}`).join(", ")}.`:` Cable 3 m 2P + 2 micro en T: uno por cada 2 lamas, encadenados.`}`);
-  if(m.focN){const fo=(pm.focOut?` → ${pm.focOut}`:"");L.push(`<b>Focos (${m.focN} × ${esc(FOCOS[m.focT]||FOCOS.aries)}, ${FOCO_W} W c/u)</b>: cable 3 m 2P + 2 micro en T, uno por cada 2 focos (o por cada 3 m de cadena, lo que sea más), encadenados, hasta la centralita${pm.sis==="nexta"?fo:""}. ${pm.focos?`Van en ${esc(SIDES.includes(m.focL)?vigaDe(m,m.focL):"el perímetro, repartidos")}; cadena desde la centralita ≈ ${m2(pm.focos.ruta.len)} m por encima de ${esc(vigasDe(m,pm.focos.ruta.sides))}.`:""}`);}
+  if(m.focN){const fo=(pm.focOut?` → ${pm.focOut}`:"");L.push(`<b>Focos (${m.focN} × ${esc(FOCOS[m.focT]||FOCOS.aries)}, ${FOCO_W} W c/u)</b>: entran por el lateral con el cable 3 m 2P + 2 micro en T y entre ellos van con extensiones de 0,50 m, hasta la centralita${pm.sis==="nexta"?fo:""}. ${pm.focos?`Van en ${esc(SIDES.includes(m.focL)?vigaDe(m,m.focL):"el perímetro, repartidos")}; cadena desde la centralita ≈ ${m2(pm.focos.ruta.len)} m por encima de ${esc(vigasDe(m,pm.focos.ruta.sides))}.`:""}`);}
   if(m.viento)L.push(`<b>Anemómetro</b>: cable de 4 m a la entrada de sensores de la central de motor. Colocarlo despejado, sin obstáculos.`);
   if(m.lluvia)L.push(`<b>Sensor de lluvia</b>: alimentación 230 V y contacto del relé (NA) a la entrada de sensores de la central de motor.`);
   return L;
