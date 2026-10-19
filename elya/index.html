@@ -1135,10 +1135,113 @@ function pintaModulo(pm,cfg,X,Y,o){
   return {base,cab,txt};
 }
 const DEFS=`<defs><marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" fill="var(--wall)"/></marker></defs>`;
+/* Planta de un módulo, a escala, como un plano de montaje: vigas con su ancho, pilares, y cada cable en su propio carril
+   por encima de la viga (entre la viga y la tapa), paralelo a los demás, sin cruzarse ni cortarse con los rótulos.
+   Los rótulos de los cables van por fuera de la viga; los nombres de viga y las tiras, por dentro. */
 function dibujaModulo(pm,cfg){
-  const {m}=pm,sc=Math.min(320/m.A,320/m.P),mg=pm.focos?100:84,w=m.A*sc,h=m.P*sc;
-  const r=pintaModulo(pm,cfg,x=>mg+x*sc,y=>mg+(m.P-y)*sc,{fuera:true,cotas:true});
-  return `<svg viewBox="0 0 ${w+2*mg} ${h+2*mg}" role="img" aria-label="Planta de ${esc(m.nombre)}" data-mi="${m._i}">${DEFS}${r.base}${r.cab}${r.txt}</svg>`;
+  const {m,tiras}=pm,A=m.A,P=m.P,sc=Math.min(300/A,300/P),B=30,mg=118,w=A*sc,h=P*sc;
+  const X=x=>mg+x*sc,Y=y=>mg+(P-y)*sc,SP=k=>{const [x,y]=CPOS(m,k);return [X(x),Y(y)];};
+  const ed=(k,hh)=>`<g data-ed="${k}" class="ed">${hh}</g>`,hit=pts=>`<polyline points="${ptsAttr(pts)}" fill="none" stroke="transparent" stroke-width="16"/>`;
+  const T=(x,y,t,o={})=>`<text x="${x}" y="${y}" text-anchor="${o.anchor||"middle"}" dominant-baseline="middle" font-size="${o.fs||10}" font-weight="${o.peso||600}"${o.rot?` transform="rotate(-90 ${x} ${y})"`:""} class="${o.mono===false?"":"mono"}" paint-order="stroke" stroke="var(--paper)" stroke-width="${o.halo||4}" stroke-linejoin="round" style="fill:${o.col||"var(--ink)"}">${esc(t)}</text>`;
+  const ins=k=>[k[1]==="i"?1:-1,k[0]==="i"?-1:1]; /* hacia dentro del módulo desde la esquina, en px */
+  const vert=sd=>sd==="izq"||sd==="der";
+  let fondo="",viga="",tir="",cab="",sim="",txt="";
+  /* lamas (con su LED) y fondo */
+  fondo+=`<rect x="${X(0)}" y="${Y(P)}" width="${w}" height="${h}" fill="var(--bg)"/>`;
+  const lamY=[...Array(m.lamasN)].map((_,i)=>P*(i+1)/(m.lamasN+1));
+  lamY.forEach(yy=>{fondo+=`<line x1="${X(0)+B/2}" y1="${Y(yy)}" x2="${X(A)-B/2}" y2="${Y(yy)}" stroke="var(--line)" stroke-width="7"/><line x1="${X(0)+B/2}" y1="${Y(yy)}" x2="${X(A)-B/2}" y2="${Y(yy)}" stroke="${CC.led}" stroke-width="2"/>`;});
+  /* caída del agua, hacia el lado del motor */
+  const dir=m.motor==="der"?1:-1,ay=Y(P/2);
+  fondo+=`<line x1="${X(A/2-dir*A*0.16)}" y1="${ay}" x2="${X(A/2+dir*A*0.16)}" y2="${ay}" stroke="var(--wall)" stroke-width="1.5" marker-end="url(#ar)"/>`+T(X(A/2),ay-12,"CAÍDA AGUA",{fs:9,col:"var(--muted)",peso:500});
+  /* vigas: banda con el ancho del perfil */
+  viga+=`<path d="M${X(0)-B/2} ${Y(P)-B/2}H${X(A)+B/2}V${Y(0)+B/2}H${X(0)-B/2}Z M${X(0)+B/2} ${Y(P)+B/2}V${Y(0)-B/2}H${X(A)-B/2}V${Y(P)+B/2}Z" fill="var(--soft)" fill-rule="evenodd" stroke="var(--wall)" stroke-width="1.4"/>`;
+  /* pilares (como en la ficha: cuadrado con aspa) */
+  CORN.forEach(k=>{const [x,y]=SP(k),s=B/2+5;viga+=`<rect x="${x-s}" y="${y-s}" width="${2*s}" height="${2*s}" fill="var(--paper)" stroke="var(--wall)" stroke-width="1.6"/><path d="M${x-s} ${y-s}L${x+s} ${y+s}M${x+s} ${y-s}L${x-s} ${y+s}" stroke="var(--wall)" stroke-width="1"/>`;});
+  /* ---- cables: cada uno en su carril ---- */
+  const k0=m.cent,[cx,cy]=SP(k0),[ix,iy]=ins(k0),lat=k0[1]==="i"?"izq":"der";
+  const lista=[];
+  if(pm.rm)lista.push({k:"motor",ed:"motor",r:pm.rm,col:CC.mot,t:`Motor · ${CAB_MOT} · ≈ ${Math.ceil(pm.run)} m`});
+  (pm.rutas||[]).forEach(R=>lista.push({k:"al",ed:"grupo:"+R.corner,r:R.ruta,col:CC.al,R,t:pm.periMan?`Recorrido perímetro ≈ ${m2(R.ruta.len)} m`:`Alargo ${secAl(pm.rgb)} · ${R.al.map(([l])=>m2c(l)).join(" + ")} m${R.alDe==="aprendido"?" (aprendido)":""} · ≈ ${m2(R.ruta.len)} m`}));
+  if(pm.focos)lista.push({k:"foc",ed:"focos",r:pm.focos.ruta,col:CC.foc,dash:"6 3",t:`${m.focN} focos · cable en T${pm.focos.al&&pm.focos.al.length?" + alargo "+pm.focos.al.map(([l])=>m2c(l)).join(" + ")+" m":""} · ≈ ${m2(pm.focos.ruta.len)} m`});
+  if(m.lamasN){const xs=lat==="izq"?0:A,yFar=k0[0]==="s"?lamY[0]:lamY[lamY.length-1],yc=k0[0]==="s"?P:0;
+    lista.push({k:"lam",ed:"lamas",r:{pts:[[xs,yFar],[xs,yc]],sides:[lat]},col:CC.lam,dash:"5 3",t:`${m.lamasN} lamas · cable en T 3 m ×${Math.ceil(m.lamasN/2)}`,lamX:xs});}
+  const ORD={lam:0,foc:1,motor:2,al:3};lista.sort((a,b)=>ORD[a.k]-ORD[b.k]);
+  const n=lista.length,span=B-8,nS=n%2?n+1:n,slots=[...Array(nS).keys()].map(i=>nS>1?-span/2+i*span/(nS-1):0).filter((v,i)=>!(n%2&&i===nS/2));
+  lista.forEach((c,i)=>{c.off=n===1?-span/4:slots[i];
+    c.pts=c.r.pts.map((p,j)=>{let ox=0,oy=0;[c.r.sides[j-1],c.r.sides[j]].forEach(sd=>{if(sd){ox+=NRM[sd][0];oy+=NRM[sd][1];}});return [X(p[0])+ox*c.off,Y(p[1])+oy*c.off];});
+    let extra="";
+    /* lamas: un ramal del carril a cada lama */
+    if(c.k==="lam")lamY.forEach(yy=>{const xx=X(c.lamX)+(lat==="izq"?1:-1)*0;extra+=`<line x1="${X(c.lamX)+NRM[lat][0]*c.off}" y1="${Y(yy)}" x2="${X(c.lamX)-NRM[lat][0]*(B/2)}" y2="${Y(yy)}" stroke="${c.col}" stroke-width="1.6"/>`;});
+    /* focos: un ramal del carril a cada foco */
+    if(c.k==="foc")pm.focos.pos.forEach(f=>{const [nx,ny]=NRM[f.sd],fx=X(f.p[0]),fy=Y(f.p[1]);extra+=`<line x1="${fx+nx*c.off}" y1="${fy+ny*c.off}" x2="${fx-nx*(B/2+9)}" y2="${fy-ny*(B/2+9)}" stroke="${c.col}" stroke-width="1.6"/>`;});
+    /* conductores: trazos oblicuos (UNE-EN 60617) a mitad del tramo más largo */
+    const nc=c.k==="al"&&pm.rgb?4:2;let lb=0,sa=null,sb=null;c.pts.slice(1).forEach((q,j)=>{const l=Math.hypot(q[0]-c.pts[j][0],q[1]-c.pts[j][1]);if(l>lb){lb=l;sa=c.pts[j];sb=q;}});
+    if(sa&&lb>30){const ux=(sb[0]-sa[0])/lb,uy=(sb[1]-sa[1])/lb,mx0=(sa[0]+sb[0])/2+ux*(i-n/2)*18,my0=(sa[1]+sb[1])/2+uy*(i-n/2)*18;
+      for(let q=0;q<nc;q++){const cx2=mx0+ux*(q-(nc-1)/2)*4,cy2=my0+uy*(q-(nc-1)/2)*4;extra+=`<line x1="${cx2-ux*3-uy*5}" y1="${cy2-uy*3+ux*5}" x2="${cx2+ux*3+uy*5}" y2="${cy2+uy*3-ux*5}" stroke="${c.col}" stroke-width="1.4"/>`;}}
+    cab+=ed(c.ed,`<polyline points="${ptsAttr(c.pts)}" fill="none" stroke="${c.col}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"${c.dash?` stroke-dasharray="${c.dash}"`:""}/>${extra}${hit(c.pts)}`);
+    /* lado donde va su rótulo: el del tramo más largo (focos: su viga) */
+    let best=-1,bs=c.r.sides[0];c.r.pts.slice(1).forEach((p,j)=>{const l=Math.hypot(p[0]-c.r.pts[j][0],p[1]-c.r.pts[j][1]);if(l>best){best=l;bs=c.r.sides[j];}});
+    c.lado=c.k==="foc"&&SIDES.includes(m.focL)?m.focL:bs;});
+  /* rótulos de los cables, por fuera de su viga, uno por fila */
+  const filas={izq:0,sup:0,der:0,inf:0},rot=[...lista],gc=(pm.grAl||{})[k0];
+  if(gc&&!pm.periMan)rot.push({ed:"grupo:"+k0,col:CC.al,lado:lat,t:`Alargo ${secAl(pm.rgb)} · ${gc.al.map(([l])=>m2c(l)).join(" + ")} m · centralita → ${gc.y?"Y":"tira"}`});
+  rot.forEach(c=>{const sd=c.lado,[e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=B/2+14+filas[sd]*15;filas[sd]++;
+    txt+=ed(c.ed,T((x1+x2)/2+nx*d,(y1+y2)/2+ny*d,c.t,{col:c.col,rot:vert(sd),fs:10}));});
+  /* ---- tiras LED: en la cara interior de la viga ---- */
+  const gs=gruposTira(m,cfg.periProd),ga=pm.grAl||{},conY=new Set(gs.filter(G=>!G.una&&tiras.filter(t=>t.g===G.g).length===2&&(ga[G.corner]||{y:true}).y).map(G=>G.corner));
+  const fi=B/2+4,inicio={};
+  tiras.forEach(t=>t.sides.forEach(sd=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],L=Math.hypot(x2-x1,y2-y1)||1,ux=(x2-x1)/L,uy=(y2-y1)/L;
+    const a1=conY.has(e1)&&t.corner===e1?fi+26:fi+5,a2=conY.has(e2)&&t.corner===e2?fi+26:fi+5;
+    const p1=[x1-nx*fi+ux*a1,y1-ny*fi+uy*a1],p2=[x2-nx*fi-ux*a2,y2-ny*fi-uy*a2];
+    if(t.corner===e1)inicio[t.n+sd]=p1;else if(t.corner===e2)inicio[t.n+sd]=p2;
+    tir+=ed("tira:"+sd,`<line x1="${p1[0]}" y1="${p1[1]}" x2="${p2[0]}" y2="${p2[1]}" stroke="${CC.led}" stroke-width="4.5" stroke-linecap="round"/>${hit([p1,p2])}`);}));
+  /* entrada de cada grupo de tiras: la Y une sus dos tiras; sin Y, el alargo llega a la punta de la tira */
+  const finAl={};lista.filter(c=>c.k==="al").forEach(c=>{finAl[c.R.corner]=c.pts[c.pts.length-1];});
+  gs.forEach(G=>{const ts=tiras.filter(t=>t.g===G.g);if(!ts.length)return;
+    const [gx,gy]=SP(G.corner),[dx,dy]=ins(G.corner),desde=G.corner===k0?[cx,cy]:finAl[G.corner];if(!desde)return;
+    const col=pm.periMan?"var(--muted)":CC.al;
+    if(conY.has(G.corner)){const q=[gx+dx*(fi+12),gy+dy*(fi+12)];
+      ts.forEach(t=>{const s0=inicio[t.n+t.sides[0]];if(s0)tir+=`<line x1="${q[0]}" y1="${q[1]}" x2="${s0[0]}" y2="${s0[1]}" stroke="${CC.led}" stroke-width="3"/>`;});
+      cab+=`<line x1="${desde[0]}" y1="${desde[1]}" x2="${q[0]}" y2="${q[1]}" stroke="${col}" stroke-width="2.2"/>`;
+      sim+=ed("grupo:"+G.corner,`<circle cx="${q[0]}" cy="${q[1]}" r="8" fill="var(--paper)" stroke="${CC.al}" stroke-width="2"/><text x="${q[0]}" y="${q[1]+3.5}" text-anchor="middle" font-size="10" font-weight="700" style="fill:${CC.al}">Y</text>`);
+}
+    else ts.forEach(t=>{const s0=inicio[t.n+t.sides[0]];if(!s0)return;
+      cab+=ed("grupo:"+G.corner,`<line x1="${desde[0]}" y1="${desde[1]}" x2="${s0[0]}" y2="${s0[1]}" stroke="${col}" stroke-width="2.2"/><circle cx="${s0[0]}" cy="${s0[1]}" r="3.5" fill="${CC.al}"/>`);});});
+  /* ---- símbolos ---- */
+  /* desagües en los dos extremos de la viga del motor, por dentro */
+  const mside=m.motor==="izq"?0:A,mi=m.motor==="izq"?1:-1;
+  [0,P].forEach(yy=>{const x=X(mside),y=Y(yy);viga+=`<circle cx="${x}" cy="${y}" r="6" fill="var(--paper)" stroke="var(--wall)" stroke-width="1.4"/><path d="M${x-4} ${y-4}L${x+4} ${y+4}M${x+4} ${y-4}L${x-4} ${y+4}" stroke="var(--wall)" stroke-width="1.2"/>`;});
+  /* focos */
+  if(pm.focos)pm.focos.pos.forEach(f=>{const [nx,ny]=NRM[f.sd],fx=X(f.p[0])-nx*(B/2+9),fy=Y(f.p[1])-ny*(B/2+9);
+    sim+=ed("focos",`<circle cx="${fx}" cy="${fy}" r="6.5" fill="var(--paper)" stroke="${CC.foc}" stroke-width="2"/><path d="M${fx-4.5} ${fy-4.5}L${fx+4.5} ${fy+4.5}M${fx+4.5} ${fy-4.5}L${fx-4.5} ${fy+4.5}" stroke="${CC.foc}" stroke-width="1.3"/>`);});
+  /* productos puestos a mano */
+  (m.extra||[]).forEach((x,j)=>{if(!C[x.k])return;const l=x.loc||"cent";let px,py;
+    if(l==="cent"){px=cx+ix*(B/2+34);py=cy+iy*(B/2+34);}
+    else if(l.startsWith("c:")){const k=l.slice(2),[qx,qy]=SP(k),[dx,dy]=ins(k);px=qx+dx*(B/2+34);py=qy+dy*(B/2+34);}
+    else{const sd=l.slice(2),[e1,e2]=EXT[sd],L=sideLen(m,sd),t=x.d!=null?Math.min(1,Math.max(0,x.d/L)):0.5,[ax2,ay2]=SP(e1),[bx2,by2]=SP(e2),[nx,ny]=NRM[sd];
+      px=ax2+(bx2-ax2)*t-nx*(B/2+24);py=ay2+(by2-ay2)*t-ny*(B/2+24);}
+    sim+=ed("extra:"+j,`<rect x="${px-7}" y="${py-7}" width="14" height="14" transform="rotate(45 ${px} ${py})" fill="var(--paper)" stroke="${CC.x}" stroke-width="2"/><text x="${px}" y="${py+3.5}" text-anchor="middle" font-size="9" font-weight="700" style="fill:${CC.x}">${j+1}</text>`);});
+  /* motor, sobre su viga */
+  const mp=pm.motorPos||{x:mside,y:Math.min(0.6,P/4)},mx=X(mp.x),my=Y(mp.y);
+  sim+=ed("motor",`<circle cx="${mx}" cy="${my}" r="11" fill="var(--paper)" stroke="${CC.mot}" stroke-width="2.4"/><text x="${mx}" y="${my+4}" text-anchor="middle" font-size="11" font-weight="700" style="fill:${CC.mot}">M</text>`);
+  /* centralita, en su esquina: ahí llegan todos los cables */
+  sim+=ed("cent",`<rect x="${cx-13}" y="${cy-13}" width="26" height="26" rx="3" fill="var(--ink)"/><text x="${cx}" y="${cy+4.5}" text-anchor="middle" font-size="12" font-weight="700" style="fill:var(--paper)">C</text>`);
+  /* nombres de pilar (y la centralita), por fuera en diagonal */
+  CORN.forEach(k=>{const [x,y]=SP(k),[dx,dy]=ins(k),nm=pilNom(pilDe(m,k));
+    const px=x-dx*(B/2+18),py=y-dy*(B/2+18);
+    if(k===k0)txt+=ed("cent",T(px,py,(nm?nm+" · ":"")+"CENTRALITA",{fs:11,peso:700}));else if(nm)txt+=T(px,py,nm,{fs:12,peso:700});});
+  /* nombre de cada viga y su tira, por dentro */
+  SIDES.forEach(sd=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=B/2+(pm.focos&&m.focL===sd?36:24),mx2=(x1+x2)/2,my2=(y1+y2)/2;
+    txt+=T(mx2-nx*d,my2-ny*d,vigaDe(m,sd),{fs:12.5,peso:700,rot:vert(sd)});
+    const t=tiras.find(t=>t.sides[0]===sd);
+    if(t)txt+=ed("tira:"+sd,T(mx2-nx*(d+16),my2-ny*(d+16),`${TIRA_C[t.prod]||C[t.prod][1]}${t.sides.length>1?" · "+m2(t.len)+" m":""}`,{fs:9.5,col:"var(--muted)",rot:vert(sd)}));});
+  /* cotas, por fuera de los rótulos de cables */
+  SIDES.forEach(sd=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=B/2+20+Math.max(1,filas[sd])*15,t=5;
+    const a=[x1+nx*d,y1+ny*d],b=[x2+nx*d,y2+ny*d];
+    fondo+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="var(--muted)" stroke-width="0.8"/>`;
+    [a,b].forEach(([px,py])=>{fondo+=`<line x1="${px-ny*t}" y1="${py-nx*t}" x2="${px+ny*t}" y2="${py+nx*t}" stroke="var(--muted)" stroke-width="0.8"/>`;});
+    txt+=T((a[0]+b[0])/2,(a[1]+b[1])/2,` ${m2(sideLen(m,sd))} m `,{fs:10.5,col:"var(--muted)",rot:vert(sd),halo:8});});
+  return `<svg viewBox="0 0 ${w+2*mg} ${h+2*mg}" role="img" aria-label="Planta de ${esc(m.nombre)}" data-mi="${m._i}">${DEFS}${fondo}${viga}${tir}${cab}${sim}${txt}</svg>`;
 }
 /* Posición de cada módulo en la planta (m, esquina inf. izq.): la escrita a mano; si no, por los pilares que comparte
    con otro ya colocado; los que no comparten ninguno, en fila a la derecha. */
