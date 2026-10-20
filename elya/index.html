@@ -121,6 +121,9 @@ button.del{padding:7px 10px;font-size:13px;color:var(--bad)}
 .zbar button{min-width:40px}
 .zbox{overflow:auto;padding:12px;touch-action:pan-x pan-y pinch-zoom}
 .zbox svg{display:block;margin:0 auto;height:auto}
+.zbox .pags{margin:0 auto;display:grid;gap:12px}.zbox .pags img{width:100%;display:block;border:1px solid var(--line);background:#fff}
+.unides{display:flex;gap:6px;align-items:center;font-size:13px;margin-left:auto}.unides select{width:auto;padding:3px 6px}
+.adjbox{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:8px;font-size:13px}.adjbox span{display:flex;flex-wrap:wrap;gap:6px}
 @media print{.zoom{display:none!important}.plantas figcaption button{display:none}}
 main{display:grid;gap:20px;min-width:0}
 .sheet{background:var(--paper);border:1px solid var(--line);border-radius:6px;min-width:0}
@@ -168,6 +171,7 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
 .dprint::backdrop{background:rgba(0,0,0,.35)}
 .dprint form{display:grid;gap:10px}.dprint h3{font-size:18px}
 .phojas{display:grid;gap:4px}.dprint .btns{display:flex;gap:8px;justify-content:flex-end}
+.dcfg{max-width:560px;max-height:calc(100vh - 40px)}.dcfg form{gap:8px}.dcfg .cfgs{border:1px solid var(--line);border-radius:4px;padding:8px 10px;display:grid;gap:8px}.dcfg legend{font-weight:700;font-size:13px}
 .ded{max-width:460px;max-height:calc(100vh - 40px)}.ded form{gap:8px}.ded .edinfo{font-size:13px;background:var(--bg);border-radius:4px;padding:8px 10px;display:grid;gap:3px}
 .ded label.lc{display:grid;grid-template-columns:1fr 70px;align-items:center;gap:8px;font-size:13px}.ded .edadd{display:grid;gap:6px;border-top:1px solid var(--line);padding-top:8px}
 svg .ed{cursor:pointer}svg .ed:hover{filter:drop-shadow(0 0 3px var(--c-x))}
@@ -192,6 +196,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <button type="button" id="bOpen" hidden>Abrir de Drive</button>
     <button type="button" id="bCopy">Copiar material</button>
     <button type="button" id="bPrint" hidden>Imprimir / PDF</button>
+    <button type="button" id="bCfg">Configurar desde cero</button>
     <button type="button" id="bNueva">Nueva obra</button>
   </div>
 </header>
@@ -202,6 +207,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <fieldset>
     <legend>Plano de fabricación</legend>
     <label class="drop" id="drop"><input type="file" id="fPlano" accept="application/pdf,.pdf,image/*" multiple hidden><b>Arrastra aquí los planos de la obra</b><span>Mejor la ficha de fabricación (PLANO.pdf) y el plano firmado juntos: de la ficha salen vigas, pilares y centralita, y del nombre del firmado las medidas. También vale uno solo; el firmado escaneado o una foto los lee Claude (desde el enlace de Claude). Toca para elegirlos.</span></label>
+    <div id="adjBox" class="adjbox" hidden><b>Planos adjuntos</b><span id="adjList"></span></div>
     <div id="impRes" class="impres" hidden></div>
   </fieldset>
   <fieldset>
@@ -266,7 +272,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
 <main>
   <section class="sheet" id="vacio">
     <div class="hd"><h2>Obra en blanco</h2></div>
-    <div class="bd"><button type="button" id="bRecuperar" class="pri" hidden></button><p id="vacioTxt">Arrastra aquí el plano firmado (o la ficha de fabricación) en PDF, o pulsa «+ Añadir módulo» para meter los datos a mano. El esquema, la planta, las conexiones y el material salen en cuanto haya un módulo.</p></div>
+    <div class="bd"><button type="button" id="bRecuperar" class="pri" hidden></button> <button type="button" id="bCfg2">Configurar una pérgola desde cero</button><p id="vacioTxt">Arrastra aquí el plano firmado (o la ficha de fabricación) en PDF, o pulsa «+ Añadir módulo» para meter los datos a mano. El esquema, la planta, las conexiones y el material salen en cuanto haya un módulo.</p></div>
   </section>
   <section class="sheet" data-hoja="avisos">
     <div class="hd"><h2>Avisos</h2><span class="tag" id="sumAv"></span></div>
@@ -274,7 +280,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   </section>
 
   <section class="sheet" data-hoja="unifilar">
-    <div class="hd"><h2>Esquema unifilar</h2><span class="tag">Hoja 1</span></div>
+    <div class="hd"><h2>Esquema unifilar</h2><label class="noprint unides">Desde<select id="uniDesde"><option value="cent">la centralita</option><option value="cuadro">el cuadro eléctrico</option></select></label><span class="tag">Hoja 1</span></div>
     <div class="bd scroll" id="unifilar"></div>
     <div class="bd noprint" style="padding-top:0">
       <p class="hint">Unifilar según UNE-EN 60617: cada circuito es una sola línea. Los trazos oblicuos dan el número de conductores (// = 2, /// = 3; con más, un trazo y el número); detrás, la sección si se conoce (2 × 0,75 = dos conductores de 0,75 mm²). Línea discontinua = radio, sin cable. Símbolos: M = motor · zigzag = tira LED · triángulo = sensor · antena = emisor. El lado de 24 V DC es muy baja tensión (ITC-BT-36).</p>
@@ -311,10 +317,44 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <h3>Imprimir los planos eléctricos</h3>
   <p class="hint">Hojas que salen en el papel o en el PDF:</p>
   <div id="pHojas" class="phojas"></div>
-  <label class="chk"><input type="checkbox" id="pCuadro"> Unifilar desde el cuadro del cliente (PIA, diferencial y línea)</label>
+  <p class="hint" style="margin:0">Esquema unifilar desde:</p>
+  <label class="chk"><input type="radio" name="pDesde" value="cent" id="pDesdeCent"> La centralita (sin la acometida)</label>
+  <label class="chk"><input type="radio" name="pDesde" value="cuadro" id="pCuadro"> El cuadro eléctrico del cliente (PIA, diferencial y línea)</label>
   <p class="hint" id="pPrintHint">En la ventana de imprimir, elige «Guardar como PDF» para tener el archivo.</p>
   <div class="btns"><button type="button" id="pSave">Guardar para imprimir</button><button type="button" id="pGo" class="pri">Imprimir</button><button value="cancel">Cancelar</button></div>
   <p class="hint" id="pSaveHint">«Guardar para imprimir» deja en el móvil o el ordenador una página con estas hojas: ábrela con el navegador y pulsa «Imprimir / Guardar PDF».</p>
+</form></dialog>
+<dialog id="dCfg" class="dprint dcfg"><form method="dialog">
+  <h3>Configurar una pérgola desde cero</h3>
+  <p class="hint">Elige lo que lleva y la app monta los módulos, el esquema y el material. Después se afina todo en la planta (tocando cada cosa) y en cada módulo.</p>
+  <fieldset class="cfgs"><legend>1 · Estructura</legend>
+    <label>Obra / cliente<input type="text" id="cf_obra" placeholder="Nombre de la obra"></label>
+    <div class="row"><label>Montaje<select id="cf_mont"><option value="auto">Autoportante</option><option value="pared">Pared / portería (pared arriba en la planta)</option></select></label>
+    <label>Tipología<select id="cf_tip"><option value="testa">Testa</option><option value="inglete">Inglete</option></select></label></div>
+    <div class="row"><label>Módulos<input type="number" id="cf_n" min="1" max="6" step="1" value="1"></label>
+    <label>Unidos<select id="cf_disp"><option value="a">Uno al lado del otro (a lo largo de las lamas)</option><option value="p">Uno detrás de otro (en la salida)</option></select></label></div>
+    <div class="row"><label>Lama A (m, máx. 4,50)<input type="number" id="cf_A" min="1" max="4.5" step="0.01" value="4"></label><label>Salida P (m, máx. 6)<input type="number" id="cf_P" min="1" max="6" step="0.01" value="5"></label></div>
+    <div class="row"><label>Alto H (m, máx. 3)<input type="number" id="cf_H" min="1.8" max="3.5" step="0.01" value="2.5"></label><label>Lado del motor / desagüe<select id="cf_mot"><option value="der">Derecho</option><option value="izq">Izquierdo</option></select></label></div>
+  </fieldset>
+  <fieldset class="cfgs"><legend>2 · Sistema motor</legend>
+    <label>Centralita del motor<select id="cf_sis"><option value="nexta">Cherubini Nexta · TKM100 ONE</option><option value="teleco_eu">Teleco EU 868 · central 2 Mot + LED</option><option value="teleco_ul">Teleco UL 916 · central PLA</option><option value="somfy">Somfy io · Pergola io Louver Control</option></select></label>
+    <div class="lados"><label class="chk"><input type="checkbox" id="cf_viento"> Anemómetro (solo Nexta)</label><label class="chk"><input type="checkbox" id="cf_lluvia"> Sensor de lluvia</label></div>
+  </fieldset>
+  <fieldset class="cfgs"><legend>3 · Sistema luces</legend>
+    <label>Sistema de luces<select id="cf_sisL"><option value="auto">Igual que el motor</option><option value="nexta">Cherubini Nexta · TKL / STL</option><option value="teleco_eu">Teleco EU · salida LED de la central</option><option value="teleco_ul">Teleco UL · receptor RGB + BL</option><option value="somfy">Somfy io · receptor io LED</option></select></label>
+    <div class="row"><label>LED perimetral<select id="cf_led"><option value="none">No</option><option value="dir">Directo</option><option value="ind">Indirecto</option><option value="ambos">Directo + indirecto</option></select></label>
+    <label>Luz<select id="cf_luz"><option value="w3000">Blanco cálido 3000 K</option><option value="w4000">Blanco neutro 4000 K</option><option value="rgb">RGB</option></select></label></div>
+    <label>Producto<select id="cf_prod"><option value="rollo">LED ELYA (5 / 7 m)</option><option value="neon">Neón perimetral (4,50 / 6 m)</option></select></label>
+    <div class="row"><label>Lamas con LED por módulo<input type="number" id="cf_lam" min="0" max="40" step="1" value="0"></label><label>Focos<select id="cf_focL"><option value="none">No</option><option value="lam">En lamas</option><option value="sup">En la viga de arriba</option><option value="inf">En la viga de abajo</option><option value="per">Repartidos por el perímetro</option></select></label></div>
+    <div class="row"><label>Lamas con focos / nº de focos<input type="number" id="cf_focN" min="0" max="40" step="1" value="2"></label><label>Focos por lama<input type="number" id="cf_focPL" min="1" max="8" step="1" value="2"></label></div>
+    <label>Tipo de foco<select id="cf_focT"><option value="aries">Foco Aries bi-emisión</option><option value="fMiAL">Foco LED mini AL</option><option value="fMiNG">Foco LED mini NG</option></select></label>
+    <label class="chk"><input type="checkbox" id="cf_indep" checked> Encendidos independientes (perímetro, indirecto, lamas y focos aparte)</label>
+  </fieldset>
+  <fieldset class="cfgs"><legend>4 · Tomas en pilar</legend>
+    <div class="row"><label>Schuko 230 V IP54<input type="number" id="cf_sch" min="0" max="6" step="1" value="0"></label><label>USB A+C<input type="number" id="cf_usb" min="0" max="6" step="1" value="0"></label></div>
+  </fieldset>
+  <p class="hint" id="cf_av"></p>
+  <div class="btns"><button type="button" id="cf_ok" class="pri">Crear la obra</button><button value="cancel">Cancelar</button></div>
 </form></dialog>
 <dialog id="dEd" class="dprint ded"><form method="dialog">
   <h3 id="edTit"></h3>
@@ -754,6 +794,7 @@ function calcular(cfg){
   if(sisL!==sis&&emL!==emisor&&mods.some(m=>m.luz!=="none"||m.lamasN||m.focN))add(emL,1,"luces");
   if(!mods.length)av.push(["bad","Añade al menos un módulo."]);
   if(cfg.altoFalta)av.push(["warn","Falta el alto H de la pérgola: se calcula con 2,50 m. Ponlo del plano."]);
+  if(H>3)av.push(["warn",`Alto ${m2(H)} m: el manual ELYA pone 3,00 m como máximo; más alto, consultar con fábrica.`]);
   if(H>3)av.push(["warn",`Altura ${m2(H)} m: por encima de 3,00 m hay que consultar a fábrica.`]);
   const totW=l=>l.reduce((a,b)=>a+b.W,0);
   function reparte(lst,salidas){
@@ -777,7 +818,9 @@ function calcular(cfg){
   function trafoReceptor(lst,tag,loc,rgbx,rx,mkRx){
     const nTr=nTrafos(totW(lst)),gr=nTr>1?reparte(lst,[...Array(nTr).keys()]):[{items:lst,W:totW(lst)}];
     gr.forEach((g,k)=>{
-      const n=nTr>1?` ${k+1}/${nTr}`:"",id=`tr${tag}_${k}`,tr=g.W<=120?"tr150":"tr200",o=reparte(g.items,[1]);splitters(o,rgbx,tag);
+      /* receptor io LED Somfy: hasta 4 salidas blancas de 90 W (guía de instalación) */
+      const n=nTr>1?` ${k+1}/${nTr}`:"",id=`tr${tag}_${k}`,tr=g.W<=120?"tr150":"tr200",o=reparte(g.items,rx==="somLed"?[1,2,3,4]:[1]);splitters(o,rgbx,tag);
+      if(rx==="somLed")o.forEach(x=>{if(x.W>90)av.push(["bad",`${tag}: salida ${x.s} del receptor io LED con ${w0(x.W)}; el máximo por salida es 90 W.`]);});
       dev.push({id,t:`${tag} · Transformador${n} · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",trafo:true,Wfix:g.W,alimenta:`Receptor${n} (24 V DC, cable hacia abajo)`,right:[]});
       dev.push(Object.assign(mkRx(o,n,k),{feed:"24",from:id}));
       add(tr,1,tag);add(rx,1,"",rx==="somLed");
@@ -807,6 +850,8 @@ function calcular(cfg){
     const rm=rutaDesde(m,[motorPos.x,motorPos.y],m.motor,m.cent);
     const cx=m.cent[1]==="i"?0:m.A,cy=m.cent[0]==="i"?0:m.P;
     const run=rm.len+1; /* + 1 m para bajar a la centralita y holgura */
+    /* manual Teleco PLA: cable del motor 2 × 1,5 mm² hasta 6 m; más largo, 2 × 2,5 mm² */
+    if(sis==="teleco_eu"||ul)av.push(["warn",`${m.nombre}: con central Teleco, el manual pide para el motor cable de 2 × ${run>6?"2,5":"1,5"} mm² (2 × 1,5 mm² hasta 6 m; ${m2(run)} m aquí).`]);
     if(caidaMot(run)/24>0.1)av.push(["warn",`${m.nombre}: cable del motor de ≈ ${Math.ceil(run)} m: caída ≈ ${m2(caidaMot(run))} V (${Math.round(caidaMot(run)/24*100)} %) a 3,6 A con 2×0,75 mm².`]);
     add("motor",1);add("mang",Math.ceil(run),`${tag} motor → centralita`,true);
     if((m.motor==="izq"&&m.cent[1]==="i")||(m.motor==="der"&&m.cent[1]==="d"))av.push(["info",`${m.nombre}: centralita en el mismo lado que el motor. El manual la pone en el lado contrario (el desagüe va en el lado motor); si el plano lo marca así, vale.`]);
@@ -917,15 +962,18 @@ function calcular(cfg){
         /* Central(es) de luces, aparte de la del motor (TKM). Auto: las que hagan falta por metros de LED y por 250 W;
            cada central se lleva grupos enteros (una pareja de tiras, todas las lamas, la línea de focos). */
         const kc=m.ledc||cfg.ledCentral,tkl=kc==="tkl",maxM=kc==="stl100"?10:25,maxO=tkl?120:null,maxW=kc==="stl100"?100:250;
-        const nAuto=Math.max(1,Math.ceil(white.reduce((a,l)=>a+l.len,0)/maxM-1e-9),Math.ceil(totW(white)/maxW-1e-9)),nC=m.ledN>0?m.ledN:nAuto;
+        const nAuto=Math.max(1,Math.ceil(white.reduce((a,l)=>a+l.len,0)/maxM-1e-9),Math.ceil(totW(white)/maxW-1e-9)),nC0=m.ledN>0?m.ledN:nAuto;
         if(m.ledN>0&&m.ledN<nAuto)av.push(["warn",`${m.nombre}: has puesto ${m.ledN} central(es) de luces y por metros o vatios hacen falta ${nAuto}.`]);
         /* cada encendido entero en una central si cabe (así cada central necesita menos canales); si no cabe, por grupos */
         const encW=l=>l.grp==="peri"?(m.ledPos==="ambos"&&l.niv==="i"?"ind":"dir"):l.grp;
         const trozos=["dir","ind","lamas","focos","extra"].flatMap(c=>{const t=white.filter(l=>encW(l)===c);if(!t.length)return [];
           const cabeT=t.reduce((a,l)=>a+l.len,0)<=maxM&&totW(t)<=maxW;return cabeT||c==="lamas"||c==="focos"?[t]:t.map(l=>[l]);});
-        const sets=[...Array(nC)].map(()=>({L:[],c:0})),peso=t=>t.reduce((a,l)=>a+l.len+l.W/20,0);
+        const peso=t=>t.reduce((a,l)=>a+l.len+l.W/20,0);
         /* con directo + indirecto y dos centrales: el directo a la primera y el indirecto a la segunda */
-        trozos.forEach(t=>{const fij=nC>1&&m.ledPos==="ambos"&&t[0].grp==="peri"?sets[t[0].niv==="i"?1:0]:null,dst=fij||[...sets].sort((x,y)=>x.c-y.c)[0];dst.L.push(...t);dst.c+=peso(t);});
+        const asigna=k=>{const S=[...Array(k)].map(()=>({L:[],c:0}));trozos.forEach(t=>{const fij=k>1&&m.ledPos==="ambos"&&t[0].grp==="peri"?S[t[0].niv==="i"?1:0]:null,dst=fij||[...S].sort((x,y)=>x.c-y.c)[0];dst.L.push(...t);dst.c+=peso(t);});return S;};
+        const cabeS=S=>S.every(x=>x.L.reduce((a,l)=>a+l.len,0)<=maxM+1e-6&&totW(x.L)<=maxW+1e-6);
+        /* en Auto, si al repartir por grupos alguna central se pasa, una central más (hasta 4) */
+        let nC=nC0,sets=asigna(nC);if(!(m.ledN>0))while(!cabeS(sets)&&nC<4){nC++;sets=asigna(nC);}
         const pmA=plan[plan.length-1];pmA.salReal={};pmA.xOut={};pmA.nLed=nC;const lamO=[],focO=[];
         sets.forEach((S,j)=>{const Lw=S.L;if(!Lw.length)return;const cN=nC>1?` L${j+1}`:"",cS=nC>1?` (L${j+1})`:"";
         const o=(tkl?[1,2,3,4]:[1,2]).map(s=>({s,items:[],W:0})),put=(s,l)=>{const x=o.find(x=>x.s===s);x.items.push(l);x.W+=l.W;};
@@ -1181,7 +1229,7 @@ function pintaModulo(pm,cfg,X,Y,o){
   /* focos y su cadena de cables en T */
   if(pm.focos){const F=pm.focos,dF=36,pts=linea(F.ruta,dF);
     cab+=ed("focos",`<polyline points="${ptsAttr(pts)}" fill="none" stroke="${CC.foc}" stroke-width="2.5" stroke-dasharray="7 3" stroke-linejoin="round"/>`+(o.fuera?`<polyline points="${ptsAttr(pts)}" fill="none" stroke="transparent" stroke-width="16"/>`:""));
-    F.pos.forEach(f=>{const [nx,ny]=NRM[f.sd],fx=X(f.p[0])+nx*dF*sg,fy=Y(f.p[1])+ny*dF*sg;
+    F.pos.forEach(f=>{const [nx,ny]=f.sd?NRM[f.sd]:[0,0],fx=X(f.p[0])+nx*dF*sg,fy=Y(f.p[1])+ny*dF*sg;
       txt+=`<circle data-ed="focos" class="ed" cx="${fx}" cy="${fy}" r="8" fill="var(--paper)" stroke="${CC.foc}" stroke-width="2.5"/><text x="${fx}" y="${fy+3.5}" text-anchor="middle" font-size="9" font-weight="700" style="fill:${CC.foc}">F</text>`;});
     /* rótulo en el último tramo (donde están los focos), un poco por fuera para no pisar otros cables */
     if(o.fuera){const a=pts[pts.length-2],b=pts[pts.length-1],sdL=F.ruta.sides[F.ruta.sides.length-1],[nx,ny]=NRM[sdL],ver=Math.abs(b[0]-a[0])<1;
@@ -1762,6 +1810,7 @@ function contraste(fi,pc,nombre){
   ${mot.length?`<div class="hint">Plano cliente: motor a la ${mot[0]==="izq"?"izquierda":"derecha"} (en su vista). Márcalo en el módulo.</div>`:""}</div>`;
 }
 async function importaVarios(files){
+  adjPon(files);
   if(files.length<2)return importaPlano(files[0]);
   const pdfs=files.filter(f=>/\.pdf$/i.test(f.name)),fichas=[];
   for(const f of pdfs){try{const T=await textoPlano(await f.arrayBuffer());if(interpretaPlano(T).mods.length)fichas.push(f);}catch(e){}}
@@ -1979,7 +2028,9 @@ async function abrirDeDrive(){
 }
 
 /* ---------- pintar ---------- */
-let last=null,plantaH="",impCuadro=false;
+let last=null,plantaH="",impCuadro=null; /* null = como en pantalla; true / false = lo elegido al imprimir */
+/* unifilar en pantalla: desde la centralita o desde el cuadro eléctrico (se recuerda en este navegador) */
+let verCuadro=false;try{verCuadro=localStorage.getItem("elya-uni")==="cuadro";}catch(e){}
 /* Los desplegables de entrada y recorrido dicen por qué pilares y vigas va cada opción. */
 function etiquetasMod(m,i,pp){
   const esq=k=>pilNom(pilDe(m,k))||CN[k].replace("esquina ",""),k0=CORN.indexOf(m.cent),c=n=>CORN[(k0+n)%4];
@@ -2014,7 +2065,7 @@ function render(){
   $("avisos").innerHTML=r.av.map(([k,t])=>`<li><span class="pill ${k}">${lbl[k]}</span><span>${esc(t)}</span></li>`).join("");
   const nb=r.av.filter(a=>a[0]==="bad").length,nw=r.av.filter(a=>a[0]==="warn").length;
   $("sumAv").textContent=nb?`${nb} error(es) · ${nw} ojo`:nw?`${nw} para revisar`:"Todo dentro de manual";
-  $("unifilar").innerHTML=dibujaUnifilar(cfg,r,impCuadro);
+  $("unifilar").innerHTML=dibujaUnifilar(cfg,r,impCuadro===null?verCuadro:impCuadro);
   const amp=`<button type="button" class="mini" data-amp>Ampliar</button>`;
   const cj=r.plan.length>1?dibujaConjunto(r.plan,cfg):null;
   /* Solo se redibuja si cambia: así no desaparece el botón que se está tocando. */
@@ -2096,10 +2147,12 @@ try{const s=JSON.parse(localStorage.getItem(KEY)||"null");if(s&&typeof s==="obje
 writeForm(VACIA());
 if(previa){const b=$("bRecuperar"),f=previa._guardado?new Date(previa._guardado).toLocaleString("es-ES",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
   b.textContent=`Recuperar la última obra: ${nombreObra(previa)}${f?" ("+f+")":""}`;b.hidden=false;
-  b.addEventListener("click",()=>{writeForm(Object.assign(clone(BASE),previa));b.hidden=true;render();toast("Obra recuperada");});}
+  b.addEventListener("click",async()=>{writeForm(Object.assign(clone(BASE),previa));b.hidden=true;render();toast("Obra recuperada");adjuntos=await adjCarga();adjPinta();});}
 $("f").addEventListener("input",render);
 $("f").addEventListener("change",e=>{if(e.target.id==="sistema")fillEmisores(e.target.value,$("emisor").value);if(e.target.id==="sistema"||e.target.id==="sisLuz")fillEmisorL();render();});
 $("f").addEventListener("submit",e=>e.preventDefault());
+$("uniDesde").value=verCuadro?"cuadro":"cent";
+$("uniDesde").addEventListener("change",e=>{verCuadro=e.target.value==="cuadro";impPref.cuadro=verCuadro;try{localStorage.setItem("elya-uni",verCuadro?"cuadro":"cent");}catch(x){}render();});
 /* nº de lamas con LED ↔ lista de lamas: cambiar el número las reparte; escribir la lista pone el número */
 $("f").addEventListener("input",e=>{const mm=e.target.id&&e.target.id.match(/^m(\d+)_(lamasN|lamL|focLam|focPL|lamT)$/);if(!mm)return;const i=mm[1],g=k=>$(`m${i}_${k}`);
   if(mm[2]==="lamasN")g("lamL").value=reparteLamas(Math.max(0,parseInt(g("lamasN").value)||0),parseInt(g("lamT").value)||parseInt(g("lamT").placeholder)||1).join(", ");
@@ -2107,7 +2160,53 @@ $("f").addEventListener("input",e=>{const mm=e.target.id&&e.target.id.match(/^m(
   if((mm[2]==="focLam"||mm[2]==="focPL")&&numLista(g("focLam").value).length){g("focL").value="lam";g("focN").value=numLista(g("focLam").value).length*(parseInt(g("focPL").value)||2);}},true);
 /* Ampliar un dibujo de la planta: se copia a una capa a pantalla completa, con + / − y «Ajustar» (cabe entero). */
 let zW=0,zK=1;
-function zoomA(k){zK=Math.min(8,Math.max(0.5,k));const sv=$("zBox").querySelector("svg");if(sv)sv.style.width=Math.round(zW*zK)+"px";}
+function zoomA(k){zK=Math.min(8,Math.max(0.5,k));const sv=$("zBox").querySelector("svg,.pags");if(sv)sv.style.width=Math.round(zW*zK)+"px";}
+/* ---------- Planos adjuntos: los PDF o fotos que se sueltan en la app se pueden ver aquí (y se guardan en este
+   navegador con la obra, para verlos al recuperarla) ---------- */
+let adjuntos=[];
+const adjDB=()=>new Promise((ok,ko)=>{try{const r=indexedDB.open("elya-adjuntos",1);r.onupgradeneeded=()=>r.result.createObjectStore("f");r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error);}catch(e){ko(e);}});
+async function adjGuarda(){try{const db=await adjDB(),tx=db.transaction("f","readwrite");tx.objectStore("f").put(adjuntos.map(f=>({name:f.name,type:f.type,blob:f})),"ultima");}catch(e){}}
+async function adjCarga(){try{const db=await adjDB();return await new Promise(ok=>{const q=db.transaction("f").objectStore("f").get("ultima");q.onsuccess=()=>ok((q.result||[]).map(x=>new File([x.blob],x.name,{type:x.type})));q.onerror=()=>ok([]);});}catch(e){return [];}}
+function adjPinta(){$("adjBox").hidden=!adjuntos.length;$("adjList").innerHTML=adjuntos.map((f,i)=>`<button type="button" class="mini" data-adj="${i}">Ver ${esc(f.name)}</button>`).join("");}
+function adjPon(files){const fs=[...files].filter(f=>/pdf|image/.test(f.type)||/\.(pdf|jpe?g|png|webp)$/i.test(f.name));if(!fs.length)return;
+  adjuntos=fs;adjPinta();adjGuarda();}
+async function adjVer(i){const f=adjuntos[i];if(!f)return;
+  $("zTit").textContent=f.name;$("zBox").innerHTML=`<div class="pags"><p class="hint">Cargando…</p></div>`;$("zoom").hidden=false;document.body.style.overflow="hidden";
+  zW=Math.max(300,$("zBox").clientWidth-24);zoomA(1);
+  try{let urls;
+    if(/pdf/.test(f.type)||/\.pdf$/i.test(f.name))urls=(await paginasComoImagen(await f.arrayBuffer(),8)).map(b=>URL.createObjectURL(b));
+    else urls=[URL.createObjectURL(f)];
+    $("zBox").querySelector(".pags").innerHTML=urls.map((u,k)=>`<img src="${u}" alt="${esc(f.name)} · página ${k+1}">`).join("");
+  }catch(e){$("zBox").querySelector(".pags").innerHTML=`<p class="hint">No se puede abrir este archivo (${esc(e.message||"error")}).</p>`;}}
+/* ---------- Configurar desde cero: monta la obra con lo que se elige (límites del manual ELYA Autoportante:
+   módulo de 4,50 × 6,00 m como máximo y alto de 3,00 m; la electrónica en un pilar del lado contrario al motor) ---------- */
+function cfgAbre(){$("cf_av").textContent="";$("dCfg").showModal();}
+function cfgCrea(){
+  const v=id=>$(id).value,nv=(id,d)=>{const x=parseFloat(v(id));return isFinite(x)?x:d;},n=Math.max(1,Math.min(6,Math.round(nv("cf_n",1))));
+  const A=Math.max(1,nv("cf_A",4)),P=Math.max(1,nv("cf_P",5)),H=nv("cf_H",2.5),av=[];
+  if(A>4.5)av.push("la lama pasa de 4,50 m");if(P>6)av.push("la salida pasa de 6,00 m");if(H>3)av.push("el alto pasa de 3,00 m (consultar con fábrica)");
+  const sis=v("cf_sis"),mot=v("cf_mot"),led=v("cf_led"),focL=v("cf_focL"),pared=v("cf_mont")==="pared",disp=v("cf_disp");
+  const mods=[...Array(n)].map((_,i)=>{const m=NUEVO(i+1);
+    Object.assign(m,{A,P,motor:mot,cent:mot==="der"?"si":"sd",aloj:"pilar",pos:disp==="a"?{x:i*A,y:0}:{x:0,y:i*P},
+      luz:led==="none"?"none":v("cf_luz"),ledPos:led==="none"?"dir":led,viento:i===0&&$("cf_viento").checked&&sis==="nexta",lluvia:i===0&&$("cf_lluvia").checked&&sis!=="somfy",
+      focT:v("cf_focT"),focPL:Math.max(1,Math.round(nv("cf_focPL",2)))});
+    const T=lamTDef(m),nl=Math.max(0,Math.round(nv("cf_lam",0)));m.lamLed=reparteLamas(nl,T);m.lamasN=m.lamLed.length;
+    if(focL==="lam"){m.focL="lam";m.focLam=reparteLamas(Math.max(0,Math.round(nv("cf_focN",2))),T).filter(k=>!m.lamLed.includes(k));m.focN=m.focLam.length*m.focPL;}
+    else if(focL!=="none"){m.focL=focL;m.focN=Math.max(0,Math.round(nv("cf_focN",2)));}
+    /* pilares compartidos entre módulos con el mismo nombre, numerados en el sentido de las agujas del reloj desde arriba a la izq. */
+    if(disp==="a"){const top=k=>"P"+(k+1),bot=k=>"P"+(2*n+2-k);m.pil={si:top(i),sd:top(i+1),id:bot(i+1),ii:bot(i)};}
+    else{const L=j=>"P"+(n+1-j),Rr=j=>"P"+(n+2+(n-j));m.pil={ii:L(i),si:L(i+1),sd:Rr(i+1),id:Rr(i)};}
+    m.ref=m.pil[m.cent];
+    /* con pared (arriba), el lado de la pared no lleva tira */
+    if(pared&&(disp==="a"||i===n-1))m.lados={...m.lados,sup:false};
+    return m;});
+  writeForm(Object.assign(VACIA(),{obra:v("cf_obra"),alto:H,tipol:v("cf_tip"),sistema:sis,emisor:EMISORES[sis][0],sisLuz:v("cf_sisL"),
+    periProd:v("cf_prod"),indep:$("cf_indep").checked,schuko:Math.max(0,Math.round(nv("cf_sch",0))),usb:Math.max(0,Math.round(nv("cf_usb",0))),modulos:mods}));
+  difsCliente=[];adjuntos=[];adjPinta();render();$("dCfg").close();window.scrollTo(0,0);
+  toast(av.length?`Obra creada. Ojo: ${av.join("; ")}.`:"Obra creada: afínala en la planta y en cada módulo");
+}
+$("bCfg").addEventListener("click",cfgAbre);$("bCfg2").addEventListener("click",cfgAbre);$("cf_ok").addEventListener("click",cfgCrea);
+$("adjBox").addEventListener("click",e=>{const b=e.target.closest("[data-adj]");if(b)adjVer(+b.dataset.adj);});
 $("planta").addEventListener("click",e=>{if(edClick(e))return;const f=e.target.closest("figure");if(!f||!(e.target.closest("svg")||e.target.closest("[data-amp]")))return;
   const sv=f.querySelector("svg");if(!sv)return;
   $("zTit").textContent=f.querySelector("figcaption span").textContent;$("zBox").innerHTML=sv.outerHTML;$("zoom").hidden=false;document.body.style.overflow="hidden";
@@ -2249,7 +2348,7 @@ $("bNueva").addEventListener("click",()=>{
   if(!nuevaT){b.textContent="¿Borrar todo? Pulsa otra vez";b.classList.add("pri");nuevaT=setTimeout(()=>{nuevaT=null;b.textContent="Nueva obra";b.classList.remove("pri");},4000);return;}
   clearTimeout(nuevaT);nuevaT=null;b.textContent="Nueva obra";b.classList.remove("pri");
   plano=null;planoFile=null;$("impRes").hidden=true;$("drive").hidden=true;
-  try{localStorage.removeItem(KEY);}catch(e){}$("bRecuperar").hidden=true;
+  try{localStorage.removeItem(KEY);}catch(e){}$("bRecuperar").hidden=true;adjuntos=[];adjPinta();adjGuarda();
   writeForm(VACIA());render();window.scrollTo(0,0);toast("Obra nueva en blanco");
 });
 $("bCopy").addEventListener("click",()=>{
@@ -2265,7 +2364,7 @@ let impPref={hojas:Object.fromEntries(HOJAS.map(([k])=>[k,true])),cuadro:false};
 try{impPref=Object.assign(impPref,JSON.parse(localStorage.getItem("elya-imp")||"{}"));}catch(e){}
 function abrirImprimir(){
   $("pHojas").innerHTML=HOJAS.map(([k,t])=>`<label class="chk"><input type="checkbox" data-h="${k}"${impPref.hojas[k]!==false?" checked":""}> ${t}</label>`).join("");
-  $("pCuadro").checked=!!impPref.cuadro;$("dPrint").showModal();
+  const cu=verCuadro;$("pCuadro").checked=!!cu;$("pDesdeCent").checked=!cu;$("dPrint").showModal();
 }
 function leePrefImp(){
   impPref={hojas:Object.fromEntries([...$("pHojas").querySelectorAll("[data-h]")].map(c=>[c.dataset.h,c.checked])),cuadro:$("pCuadro").checked};
@@ -2273,9 +2372,9 @@ function leePrefImp(){
 }
 /* Página suelta para imprimir o guardar como PDF: las hojas elegidas, con el unifilar desde el cuadro si se pidió. */
 function documentoImprimir(){
-  impCuadro=impPref.cuadro;render();
+  impCuadro=!!impPref.cuadro;render();
   const cfg=last?last.cfg:readForm();let html=snapshotHTML(cfg);
-  impCuadro=false;render();
+  impCuadro=null;render();
   const d=new DOMParser().parseFromString(html,"text/html");
   d.querySelectorAll("[data-hoja]").forEach(sec=>{if(impPref.hojas[sec.dataset.hoja]===false)sec.remove();});
   d.querySelectorAll("#vacio,[data-amp],.zoom").forEach(e=>e.remove());
@@ -2303,9 +2402,9 @@ $("pSave").addEventListener("click",guardarParaImprimir);
 $("pGo").addEventListener("click",()=>{
   leePrefImp();
   HOJAS.forEach(([k])=>document.body.classList.toggle("noimp-"+k,!impPref.hojas[k]));
-  impCuadro=impPref.cuadro;render();$("dPrint").close();setTimeout(()=>window.print(),80);
+  impCuadro=!!impPref.cuadro;render();$("dPrint").close();setTimeout(()=>window.print(),80);
 });
-window.addEventListener("afterprint",()=>{if(!impCuadro&&!document.body.className.includes("noimp-"))return;impCuadro=false;HOJAS.forEach(([k])=>document.body.classList.remove("noimp-"+k));render();});
+window.addEventListener("afterprint",()=>{if(impCuadro===null&&!document.body.className.includes("noimp-"))return;impCuadro=null;HOJAS.forEach(([k])=>document.body.classList.remove("noimp-"+k));render();});
 /* Dentro del enlace de Claude no se puede abrir la ventana de imprimir: ahí se guarda la página para imprimir. */
 $("bPrint").hidden=false;$("bPrint").addEventListener("click",abrirImprimir);
 if(!top){$("pGo").hidden=true;$("pPrintHint").hidden=true;$("pSave").classList.add("pri");}
