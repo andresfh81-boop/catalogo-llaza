@@ -453,6 +453,14 @@ const LUZ={none:"Sin tira",w3000:"Blanco cálido 3000 K",w4000:"Blanco neutro 40
 const LAMCAB=["cabEje","cabT","sp4Mi","ext05","conMM","c1m","y3","sp4W","conEje","conRGBW"];
 /* Los conectores no cuentan como «cables a mano»: con solo conectores, los cables en T siguen saliendo solos. */
 const LAMCON=["conEje","conRGBW"];
+/* Lamas numeradas: la 1 es la de la viga sup. (arriba en la planta). Paso ≈ 0,207 m (fichas: 27 lamas en 5,50 m,
+   23 en 4,77 m). Se elige en qué lamas va el LED y en cuáles los focos; el cable entra siempre por el lateral (la viga
+   donde acaban las lamas, la de la centralita), nunca por delante de la lama. */
+const lamTDef=m=>Math.max(1,Math.round(m.P/0.207)),lamT=m=>m.lamT>0?m.lamT:lamTDef(m);
+const numLista=(t,max)=>[...new Set(String(t||"").split(/[^\d]+/).map(Number).filter(n=>n>=1&&(!max||n<=max)))].sort((a,b)=>a-b);
+const reparteLamas=(n,T)=>n>0?[...new Set([...Array(n)].map((_,i)=>Math.round((i+1)*(T+1)/(n+1))))]:[];
+const lamLED=m=>m.lamLed&&m.lamLed.length?m.lamLed:reparteLamas(m.lamasN||0,lamT(m));
+const lamY=(m,k)=>m.P-(k-0.5)*m.P/lamT(m);
 /* Focos: 3 W cada uno (dato SAT). */
 const FOCO_W=3,FOCOS={aries:"Foco Aries bi-emisión",fMiAL:"Foco LED mini AL",fMiNG:"Foco LED mini NG"};
 const SALOPT={auto:"Auto",1:"OUT1",2:"OUT2",3:"OUT3",4:"OUT4"};
@@ -514,7 +522,8 @@ function modCard(m,i){
   </details>
   <div class="lados"><label class="chk"><input type="checkbox" id="m${i}_viento"${m.viento?" checked":""}> Anemómetro</label><label class="chk"><input type="checkbox" id="m${i}_lluvia"${m.lluvia?" checked":""}> Sensor lluvia</label></div>
   <div class="row"><label>Focos<input type="number" id="m${i}_focN" min="0" max="40" step="1" value="${m.focN||0}"></label><label>Tipo de foco<select id="m${i}_focT">${opt(FOCOS,m.focT||"aries")}</select></label></div>
-  <label>Focos en<select id="m${i}_focL">${opt({sup:"Viga sup.",der:"Viga der.",inf:"Viga inf.",izq:"Viga izq.",per:"Repartidos por el perímetro"},m.focL||"sup")}</select></label>
+  <label>Focos en<select id="m${i}_focL">${opt({sup:"Viga sup.",der:"Viga der.",inf:"Viga inf.",izq:"Viga izq.",per:"Repartidos por el perímetro",lam:"En lamas (elige cuáles)"},m.focL||"sup")}</select></label>
+  <div class="row"><label>Lamas con focos (nº)<input type="text" id="m${i}_focLam" value="${esc((m.focLam||[]).join(", "))}" placeholder="ej. 3, 10"></label><label>Focos por lama<input type="number" id="m${i}_focPL" min="1" max="8" step="1" value="${m.focPL||2}"></label></div>
   <div class="salidas"><div class="tag">Central de luces (Nexta) · la del motor es la TKM</div>
   <label>Centrales de luces (aparte de la del motor)<select id="m${i}_ledn">${opt({0:"Auto (las que hagan falta)",1:"1",2:"2",3:"3",4:"4"},String(m.ledN||0))}</select></label>
   <label>Central LED blanca<select id="m${i}_ledc">${opt({"":"Como la general",tkl:"TKL250 ONE · 4 salidas",stl250:"STILO STL250 · 2 salidas",stl100:"STILO STL100 · 2 salidas"},m.ledc||"")}</select></label>
@@ -522,7 +531,9 @@ function modCard(m,i){
   <div class="row">${[["i1","Indirecto 1"],["i2","Indirecto 2"]].map(([k,t])=>`<label>${t}<select id="m${i}_s_${k}">${opt(SALOPT,String((m.sal||{})[k]||"auto"))}</select></label>`).join("")}</div>
   <div class="row">${[["lam","Lamas"],["foc","Focos"]].map(([k,t])=>`<label>${t}<select id="m${i}_s_${k}">${opt(SALOPT,String((m.sal||{})[k]||"auto"))}</select></label>`).join("")}</div>
   <p class="hint">Perímetro 1 = tiras de la esquina de la centralita (o la primera entrada); Perímetro 2 = las otras. Indirecto 1 / 2 = lo mismo para el LED indirecto cuando el módulo lleva directo + indirecto (Auto: OUT2 y OUT4 en la TKL, OUT2 en la STL). Auto: perímetro a OUT1 y OUT3, lamas repartidas en OUT2 y OUT4, focos a la salida con menos carga.</p></div>
-  <label>Lamas con LED (blanco cálido)<input type="number" id="m${i}_lamasN" min="0" max="40" step="1" value="${m.lamasN}"></label>
+  <div class="row"><label>Lamas en total<input type="number" id="m${i}_lamT" min="1" max="80" step="1" value="${m.lamT>0?m.lamT:""}" placeholder="${lamTDef(m)} (auto)"></label><label>Lamas con LED (blanco cálido)<input type="number" id="m${i}_lamasN" min="0" max="80" step="1" value="${lamLED(m).length}"></label></div>
+  <label>Nº de las lamas con LED<input type="text" id="m${i}_lamL" value="${esc(lamLED(m).join(", "))}" placeholder="ej. 5, 12, 19, 26"></label>
+  <p class="hint">Lama 1 = la de la viga de arriba en la planta. También se elige tocando cada lama en la planta.</p>
   <details class="lamcab"${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?" open":""}><summary>Cables y conectores de las lamas, desde la centralita (a tu elección)</summary>
     <p class="hint">Pon la cantidad de cada cable. Cables a 0 = la app pone 1 cable 3 m 2P + 2 micro en T por cada 2 lamas de cada salida, encadenados. Conector de eje a 0 = uno por lama.</p>
     ${LAMCAB.map(k=>`<label class="lc"><span>${esc(C[k][1])} <span class="mono mut">${C[k][0]}</span></span><input type="number" id="m${i}_lc_${k}" min="0" max="99" step="1" value="${(m.lamCab||{})[k]||""}" placeholder="0"></label>`).join("")}
@@ -547,12 +558,15 @@ function readMods(){
       lados:{sup:g("sup").checked,inf:g("inf").checked,izq:g("izq").checked,der:g("der").checked},
       extra:(()=>{const xs=[];for(let j=0;g(`x${j}_k`);j++)xs.push({k:g(`x${j}_k`).value,q:Math.max(1,Math.round(parseFloat(g(`x${j}_q`).value)||1)),loc:g(`x${j}_loc`).value,d:fnum(g(`x${j}_d`).value),W:Math.max(0,fnum(g(`x${j}_w`).value)||0),s:g(`x${j}_s`).value});return xs;})(),
       focN:Math.max(0,Math.round(parseFloat(g("focN").value)||0)),focT:g("focT").value,focL:g("focL").value,
+      focLam:numLista(g("focLam").value),focPL:Math.max(1,Math.round(parseFloat(g("focPL").value)||2)),lamT:Math.max(0,Math.round(parseFloat(g("lamT").value)||0)),lamLed:numLista(g("lamL").value),
       ledc:g("ledc").value,ledN:parseInt(g("ledn").value,10)||0,ledPos:g("lpos").value,sal:{p1:g("s_p1").value,p2:g("s_p2").value,i1:g("s_i1").value,i2:g("s_i2").value,lam:g("s_lam").value,foc:g("s_foc").value},
       periCab:Object.fromEntries(PERCAB.map(k=>[k,Math.max(0,Math.round(parseFloat(g("pc_"+k).value)||0))]).filter(([,v])=>v>0)),
       lamCab:Object.fromEntries(LAMCAB.map(k=>[k,Math.max(0,Math.round(parseFloat(g("lc_"+k).value)||0))]).filter(([,v])=>v>0)),
       ent:g("ent").value,rut:g("rut").value,pos:{x:fnum(g("px").value),y:fnum(g("py").value)},
       med:{sup:g("md_sup").value,inf:g("md_inf").value,izq:g("md_izq").value,der:g("md_der").value},lamasN:Math.max(0,Math.round(parseFloat(g("lamasN").value)||0)),viento:g("viento").checked,lluvia:g("lluvia").checked});
   }
+  out.forEach(m=>{m.lamLed=m.lamLed.filter(k=>k<=lamT(m));if(m.lamLed.length)m.lamasN=m.lamLed.length;
+    if(m.focL==="lam"){m.focLam=m.focLam.filter(k=>k<=lamT(m));m.focN=m.focLam.length*m.focPL;}});
   return out;
 }
 function readForm(){
@@ -706,6 +720,15 @@ function alargos(d,rgb){
    centralita, por el camino más corto a lo largo de las vigas. Coordenadas del módulo, en m. */
 function focosRuta(m){
   const n=m.focN||0;if(!n)return null;
+  if(m.focL==="lam"){
+    /* en lamas: la cadena va por el lateral (viga de la centralita) y de ahí por cada lama hasta sus focos */
+    const ks=(m.focLam||[]).filter(k=>k<=lamT(m));if(!ks.length)return null;
+    const lat=m.cent[1]==="i"?"izq":"der",xs=lat==="izq"?0:m.A,yc=m.cent[0]==="i"?0:m.P,npl=m.focPL||2;
+    const lamas=ks.map(k=>{const y=lamY(m,k),xsF=[...Array(npl)].map((_,i)=>m.A/2+(i-(npl-1)/2)*0.5).sort((a,b)=>Math.abs(a-xs)-Math.abs(b-xs));return {k,y,xs:xsF,dx:Math.abs(xsF[0]-xs)};});
+    const yFar=lamas.reduce((a,l)=>Math.abs(l.y-yc)>Math.abs(a-yc)?l.y:a,lamas[0].y),yNear=lamas.reduce((a,l)=>Math.abs(l.y-yc)<Math.abs(a-yc)?l.y:a,lamas[0].y);
+    return {lam:true,lamas,lat,pos:lamas.flatMap(l=>l.xs.map(x=>({p:[x,l.y],sd:null,k:l.k}))),ruta:{pts:[[xs,yc],[xs,yFar]],sides:[lat],len:Math.abs(yFar-yc)},
+      d1:Math.abs(yNear-yc),gaps:[],vigas:[lat]};
+  }
   const k0=CORN.indexOf(m.cent),segs=[0,1,2,3].map(i=>{const k=(k0+i)%4;return {sd:SIDES[k],a:CORN[k],b:CORN[(k+1)%4],L:sideLen(m,SIDES[k])};});
   const Per=segs.reduce((a,x)=>a+x.L,0);let pos,dir=1;
   if(SIDES.includes(m.focL)){let a=0,i=0;while(segs[i].sd!==m.focL){a+=segs[i].L;i++;}const L=segs[i].L;
@@ -856,7 +879,7 @@ function calcular(cfg){
     }));
     const lamaLen=Math.max(0,m.A-0.17);
     const lc=m.lamasN?(m.lamCab||{}):{},manual=LAMCAB.some(k=>!LAMCON.includes(k)&&lc[k]>0);
-    for(let i=0;i<m.lamasN;i++)loads.push({n:`Lama ${i+1}`,W:lamaLen*cfg.wm,grp:"lamas",rgb:false,len:lamaLen,man:manual});
+    lamLED(m).forEach(k=>loads.push({n:`Lama ${k}`,W:lamaLen*cfg.wm,grp:"lamas",rgb:false,len:lamaLen,man:manual}));
     /* cables de lamas puestos a mano: van tal cual al material y la app no añade divisores para las lamas */
     LAMCAB.forEach(k=>{if(lc[k]>0)add(k,lc[k],`${tag} lamas`);});
     /* productos puestos a mano: al material con su sitio; si consumen, son una carga más (a su salida o a la de menos carga) */
@@ -867,14 +890,22 @@ function calcular(cfg){
     if(m.focN>0)loads.push({n:`Focos ×${m.focN}`,W:FOCO_W*m.focN,grp:"focos",rgb:false,len:0});
     if(m.focN)add(focK,m.focN,`${tag} · ${FOCO_W} W c/u`);
     if(m.lamasN){
-      add("lamaW",m.lamasN,`${tag} cortar a ≈${m2(lamaLen)} m`);add("conLama",m.lamasN);if(!(lc.conEje>0))add("conEje",m.lamasN);
+      add("lamaW",m.lamasN,`${tag} lamas ${lamLED(m).join(", ")} · cortar a ≈${m2(lamaLen)} m`);add("conLama",m.lamasN);if(!(lc.conEje>0))add("conEje",m.lamasN);
       if(lamaLen>4.5)av.push(["bad",`${m.nombre}: lama de ≈${m2(lamaLen)} m, la tira de lama es de 4,50 m.`]);
     }
     const focR=focosRuta(m);
     plan.push({m,tiras,lamaLen,tag,rm,run,rutas,sis:sisL,periMan,focos:focR,motorPos,motY,grAl,rgb});
     /* Focos (dato SAT): entran por el lateral con el cable 3 m 2P + 2 micro en T; si el primer foco queda a más de 3 m
        de la centralita, alargo hasta el cable en T. Entre foco y foco, extensiones de 0,50 m. */
-    if(focR){add("cabT",1,`${tag} focos`);add("tapon",1,`${tag} último foco`);
+    if(focR&&focR.lam){
+      /* focos en lamas: cable en T por cada 2 lamas, encadenados por el lateral; en cada lama, del lateral al primer foco
+         y entre focos, extensiones de 0,50 m (o alargo si es largo); tapón en el último foco de cada lama */
+      const nl=focR.lamas.length,cT=Math.ceil(nl/2);add("cabT",cT,`${tag} focos en lamas ${focR.lamas.map(l=>l.k).join(", ")}`);add("tapon",nl,`${tag} último foco de cada lama`);
+      focR.al=focR.d1>3+1e-6?alargos(focR.d1-3,false):[];focR.al.forEach(([l,k])=>add(k,1,`${tag} focos · lateral hasta la primera lama`));
+      let nE=0;const alL=[];focR.lamas.forEach(l=>{const npl=l.xs.length;nE+=npl-1;if(l.dx<=1.5+1e-6)nE+=Math.max(1,Math.ceil(l.dx/0.5-1e-9));else alL.push(...alargos(l.dx,false));});
+      if(nE)add("ext05",nE,`${tag} focos en lamas (lateral → focos y entre focos)`,true);alL.forEach(([l,k])=>add(k,1,`${tag} focos · por la lama`,true));
+      const lf=loads.find(l=>l.grp==="focos");if(lf){lf.n=`${m.focN} × ${FOCOS[m.focT]||FOCOS.aries} (lamas ${focR.lamas.map(l=>l.k).join(", ")})`;lf.cab=`T 3 m ×${cT} por el lateral + ${nE} ext. 0,5 m`;}
+    }else if(focR){add("cabT",1,`${tag} focos`);add("tapon",1,`${tag} último foco`);
       focR.al=focR.d1>3+1e-6?alargos(focR.d1-3,false):[];
       const lf=loads.find(l=>l.grp==="focos"),nE=focR.gaps.reduce((a,g)=>a+Math.max(1,Math.ceil(g/0.5-1e-9)),0);
       if(lf){lf.n=`${m.focN} × ${FOCOS[m.focT]||FOCOS.aries}`;lf.cab=`${focR.al.length?"alargo "+focR.al.map(([l])=>m2c(l)).join(" + ")+" m "+secAl(false)+" + T 3 m":"cable T 3 m"}${nE?` + ${nE} ext. 0,5 m`:""}`;}focR.al.forEach(([l,k])=>add(k,1,`${tag} focos · hasta el cable en T`));
@@ -1113,7 +1144,7 @@ function pintaModulo(pm,cfg,X,Y,o){
   let base="",cab="",txt="";
   /* pérgola: vigas en gris */
   base+=`<rect x="${X(0)}" y="${Y(P)}" width="${X(A)-X(0)}" height="${Y(0)-Y(P)}" fill="var(--bg)" stroke="var(--wall)" stroke-width="6"/>`;
-  for(let i=0;i<m.lamasN;i++){const yy=P*(i+1)/(m.lamasN+1);base+=`<line x1="${X(0.12)}" y1="${Y(yy)}" x2="${X(A-0.12)}" y2="${Y(yy)}" stroke="${CC.led}" stroke-width="2" stroke-opacity=".7"/>`;}
+  for(const k of lamLED(m)){const yy=lamY(m,k);base+=`<line x1="${X(0.12)}" y1="${Y(yy)}" x2="${X(A-0.12)}" y2="${Y(yy)}" stroke="${CC.led}" stroke-width="2" stroke-opacity=".7"/>`;}
   const dir=m.motor==="der"?1:-1,ay=Y(P*0.5),ax0=X(A/2-dir*A*0.18),ax1=X(A/2+dir*A*0.18);
   base+=`<line x1="${ax0}" y1="${ay}" x2="${ax1}" y2="${ay}" stroke="var(--wall)" stroke-width="1.5" marker-end="url(#ar)"/><text x="${X(A/2)}" y="${ay-6}" text-anchor="middle" font-size="9" class="mono" style="fill:var(--wall)">CAÍDA AGUA</text>`;
   if(o.tag)base+=`<text x="${X(A/2)}" y="${ay+22}" text-anchor="middle" font-size="18" font-weight="700" style="fill:var(--wall)">${esc(o.tag)}</text>`;
@@ -1174,7 +1205,7 @@ function pintaModulo(pm,cfg,X,Y,o){
     if(G.corner===m.cent&&!rot15&&o.fuera){rot15=true;const [zx,zy]=yCirc(m.cent),gs=gruposTira(m,cfg.periProd).filter(H=>H.corner===m.cent&&tiras.some(t=>t.g===H.g)),ga=(pm.grAl||{})[m.cent],al=ga?ga.al.map(([l])=>m2c(l)).join(" + "):"1,5";
       txt+=ed("grupo:"+m.cent,`<text x="${zx-ix*6}" y="${zy+iy*34+4}" text-anchor="${ix>0?"start":"end"}" font-size="10" font-weight="700" style="fill:${CC.al}">${gs.length>1?gs.length+" × ":""}alargo ${al} m ${secAl(pm.rgb)}${ga&&ga.alDe==="aprendido"?" (aprendido)":""}</text>`);}});
   /* lamas con LED: por el mecanizado de la viga lateral de la centralita */
-  if(m.lamasN){const xs=k0[1]==="i"?0:A,yl=P*m.lamasN/(m.lamasN+1),yi=P/(m.lamasN+1),xx=X(xs)+ix*16;
+  if(m.lamasN){const xs=k0[1]==="i"?0:A,ys=lamLED(m).map(k=>lamY(m,k)),yi=Math.min(...ys),yl=Math.max(...ys),xx=X(xs)+ix*16;
     cab+=ed("lamas",`<line x1="${xx}" y1="${Y(k0[0]==="s"?yi:yl)}" x2="${xx}" y2="${cy+iy*14}" stroke="${CC.lam}" stroke-width="3" stroke-dasharray="5 3"/>`+(o.fuera?`<line x1="${xx}" y1="${Y(k0[0]==="s"?yi:yl)}" x2="${xx}" y2="${cy+iy*14}" stroke="transparent" stroke-width="16"/>`:""));}
   /* pilares y su nombre */
   CORN.forEach(k=>{const [x,y]=SP(k);base+=`<rect x="${x-7}" y="${y-7}" width="14" height="14" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.6"/><path d="M${x-7} ${y-7}L${x+7} ${y+7}M${x+7} ${y-7}L${x-7} ${y+7}" stroke="var(--ink)" stroke-width="1.2"/>`;
@@ -1225,8 +1256,13 @@ function dibujaModulo(pm,cfg){
   let fondo="",viga="",tir="",cab="",sim="",txt="";
   /* lamas (con su LED) y fondo */
   fondo+=`<rect x="${X(0)}" y="${Y(P)}" width="${w}" height="${h}" fill="var(--bg)"/>`;
-  const lamY=[...Array(m.lamasN)].map((_,i)=>P*(i+1)/(m.lamasN+1));
-  lamY.forEach(yy=>{fondo+=`<line x1="${X(0)+hX}" y1="${Y(yy)}" x2="${X(A)-hX}" y2="${Y(yy)}" stroke="var(--line)" stroke-width="7"/><line x1="${X(0)+hX}" y1="${Y(yy)}" x2="${X(A)-hX}" y2="${Y(yy)}" stroke="${CC.led}" stroke-width="2"/>`;});
+  /* todas las lamas, con su número (la 1 arriba); las de LED en amarillo; se tocan para elegir LED o focos */
+  const TL=lamT(m),ledK=new Set(lamLED(m)),focK=new Set(m.focL==="lam"?m.focLam||[]:[]),latX=m.cent[1]==="i"?0:A,numX=latX?X(0)+hX+7:X(A)-hX-7;
+  for(let k=1;k<=TL;k++){const yy=Y(lamY(m,k)),pit=h/TL;
+    fondo+=ed("lama:"+k,`<rect x="${X(0)+hX}" y="${yy-pit/2}" width="${w-2*hX}" height="${pit}" fill="transparent"/><line x1="${X(0)+hX}" y1="${yy}" x2="${X(A)-hX}" y2="${yy}" stroke="var(--line)" stroke-width="${Math.min(3,pit*0.3)}"/>`+
+      (ledK.has(k)||focK.has(k)||k===1||k===TL||k%5===0?`<text x="${numX}" y="${yy}" dominant-baseline="middle" text-anchor="${latX?"start":"end"}" font-size="${Math.min(8,pit*0.8)}" font-weight="${ledK.has(k)||focK.has(k)?700:400}" class="mono" paint-order="stroke" stroke="var(--bg)" stroke-width="3" style="fill:${ledK.has(k)||focK.has(k)?"var(--ink)":"var(--muted)"}">${k}</text>`:""));}
+  const lamYs=lamLED(m).map(k=>lamY(m,k));
+  lamYs.forEach(yy=>{fondo+=`<line x1="${X(0)+hX}" y1="${Y(yy)}" x2="${X(A)-hX}" y2="${Y(yy)}" stroke="${CC.led}" stroke-width="2"/>`;});
   /* caída del agua, hacia el lado del motor */
   const dir=m.motor==="der"?1:-1,ay=Y(P*0.42);
   fondo+=`<line x1="${X(A/2-dir*A*0.16)}" y1="${ay}" x2="${X(A/2+dir*A*0.16)}" y2="${ay}" stroke="var(--wall)" stroke-width="1.5" marker-end="url(#ar)"/>`+T(X(A/2),ay-12,"CAÍDA AGUA",{fs:9,col:"var(--muted)",peso:500});
@@ -1239,18 +1275,19 @@ function dibujaModulo(pm,cfg){
   const lista=[];
   if(pm.rm)lista.push({k:"motor",ed:"motor",r:pm.rm,col:CC.mot,t:`Motor · ${CAB_MOT} · ≈ ${Math.ceil(pm.run)} m`});
   (pm.rutas||[]).forEach(R=>lista.push({k:"al",ed:"grupo:"+R.key,r:R.ruta,col:CC.al,R,t:pm.periMan?`Recorrido perímetro ≈ ${m2(R.ruta.len)} m`:`Alargo${nivTxt(m,R.niv)&&m.ledPos==="ambos"?" "+nivTxt(m,R.niv):""} ${secAl(pm.rgb)} · ${R.al.map(([l])=>m2c(l)).join(" + ")} m${R.alDe==="aprendido"?" (aprendido)":""} · ≈ ${m2(R.ruta.len)} m`}));
-  if(pm.focos)lista.push({k:"foc",ed:"focos",r:pm.focos.ruta,col:CC.foc,dash:"6 3",t:`${m.focN} focos · cable en T${pm.focos.al&&pm.focos.al.length?" + alargo "+pm.focos.al.map(([l])=>m2c(l)).join(" + ")+" m":""} · ≈ ${m2(pm.focos.ruta.len)} m`});
-  if(m.lamasN){const xs=lat==="izq"?0:A,yFar=k0[0]==="s"?lamY[0]:lamY[lamY.length-1],yc=k0[0]==="s"?P:0;
-    lista.push({k:"lam",ed:"lamas",r:{pts:[[xs,yFar],[xs,yc]],sides:[lat]},col:CC.lam,dash:"5 3",t:`${m.lamasN} lamas · cable en T 3 m ×${Math.ceil(m.lamasN/2)}`,lamX:xs});}
+  if(pm.focos)lista.push({k:"foc",ed:"focos",r:pm.focos.ruta,col:CC.foc,dash:"6 3",t:pm.focos&&pm.focos.lam?`${m.focN} focos en lamas ${pm.focos.lamas.map(l=>l.k).join(", ")} · por el lateral`:`${m.focN} focos · cable en T${pm.focos.al&&pm.focos.al.length?" + alargo "+pm.focos.al.map(([l])=>m2c(l)).join(" + ")+" m":""} · ≈ ${m2(pm.focos.ruta.len)} m`});
+  if(m.lamasN){const xs=lat==="izq"?0:A,yFar=k0[0]==="s"?Math.min(...lamYs):Math.max(...lamYs),yc=k0[0]==="s"?P:0;
+    lista.push({k:"lam",ed:"lamas",r:{pts:[[xs,yFar],[xs,yc]],sides:[lat]},col:CC.lam,dash:"5 3",t:`LED lamas ${lamLED(m).join(", ")} · cable en T 3 m ×${Math.ceil(m.lamasN/2)}`,lamX:xs});}
   const ORD={lam:0,foc:1,motor:2,al:3};lista.sort((a,b)=>ORD[a.k]-ORD[b.k]);
   const n=lista.length,lo=-1,hi=B/2-3;
   lista.forEach((c,i)=>{c.off=n===1?(lo+hi)/2:lo+i*(hi-lo)/(n-1);
     c.pts=c.r.pts.map((p,j)=>{let ox=0,oy=0;[c.r.sides[j-1],c.r.sides[j]].forEach(sd=>{if(sd){ox+=NRM[sd][0];oy+=NRM[sd][1];}});return [X(p[0])+ox*c.off,Y(p[1])+oy*c.off];});
     let extra="";
     /* lamas: un ramal del carril a cada lama */
-    if(c.k==="lam")lamY.forEach(yy=>{const xx=X(c.lamX)+(lat==="izq"?1:-1)*0;extra+=`<line x1="${X(c.lamX)+NRM[lat][0]*c.off}" y1="${Y(yy)}" x2="${X(c.lamX)-NRM[lat][0]*hX}" y2="${Y(yy)}" stroke="${c.col}" stroke-width="1.6"/>`;});
+    if(c.k==="lam")lamYs.forEach(yy=>{const xx=X(c.lamX)+(lat==="izq"?1:-1)*0;extra+=`<line x1="${X(c.lamX)+NRM[lat][0]*c.off}" y1="${Y(yy)}" x2="${X(c.lamX)-NRM[lat][0]*hX}" y2="${Y(yy)}" stroke="${c.col}" stroke-width="1.6"/>`;});
     /* focos: un ramal del carril a cada foco */
-    if(c.k==="foc")pm.focos.pos.forEach(f=>{const [nx,ny]=NRM[f.sd],fx=X(f.p[0]),fy=Y(f.p[1]);extra+=`<line x1="${fx+nx*c.off}" y1="${fy+ny*c.off}" x2="${fx-nx*(hw(f.sd)+9)}" y2="${fy-ny*(hw(f.sd)+9)}" stroke="${c.col}" stroke-width="1.6"/>`;});
+    if(c.k==="foc"&&pm.focos.lam)pm.focos.lamas.forEach(l=>{const yy=Y(l.y),xf=X(l.xs[l.xs.length-1]);extra+=`<line x1="${X(latX)+NRM[lat][0]*c.off}" y1="${yy}" x2="${xf}" y2="${yy}" stroke="${c.col}" stroke-width="1.6" stroke-dasharray="5 3"/>`;});
+    else if(c.k==="foc")pm.focos.pos.forEach(f=>{const [nx,ny]=NRM[f.sd],fx=X(f.p[0]),fy=Y(f.p[1]);extra+=`<line x1="${fx+nx*c.off}" y1="${fy+ny*c.off}" x2="${fx-nx*(hw(f.sd)+9)}" y2="${fy-ny*(hw(f.sd)+9)}" stroke="${c.col}" stroke-width="1.6"/>`;});
     /* conductores: trazos oblicuos (UNE-EN 60617) a mitad del tramo más largo */
     const nc=c.k==="al"&&pm.rgb?4:2;let lb=0,sa=null,sb=null;c.pts.slice(1).forEach((q,j)=>{const l=Math.hypot(q[0]-c.pts[j][0],q[1]-c.pts[j][1]);if(l>lb){lb=l;sa=c.pts[j];sb=q;}});
     if(sa&&lb>30){const ux=(sb[0]-sa[0])/lb,uy=(sb[1]-sa[1])/lb,mx0=(sa[0]+sb[0])/2+ux*(i-n/2)*18,my0=(sa[1]+sb[1])/2+uy*(i-n/2)*18;
@@ -1258,7 +1295,7 @@ function dibujaModulo(pm,cfg){
     cab+=ed(c.ed,`<polyline points="${ptsAttr(c.pts)}" fill="none" stroke="${c.col}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"${c.dash?` stroke-dasharray="${c.dash}"`:""}/>${extra}${hit(c.pts)}`);
     /* lado donde va su rótulo: el del tramo más largo (focos: su viga) */
     let best=-1,bs=c.r.sides[0];c.r.pts.slice(1).forEach((p,j)=>{const l=Math.hypot(p[0]-c.r.pts[j][0],p[1]-c.r.pts[j][1]);if(l>best){best=l;bs=c.r.sides[j];}});
-    c.lado=c.k==="foc"&&SIDES.includes(m.focL)?m.focL:bs;});
+    c.lado=c.k==="foc"&&SIDES.includes(m.focL)?m.focL:c.k==="foc"&&pm.focos.lam?lat:bs;});
   /* rótulos de los cables, por fuera de su viga, uno por fila */
   const filas={izq:0,sup:0,der:0,inf:0},rot=[...lista];
   NIV(m).forEach(nv=>{const key=k0+(nv==="i"?":i":""),gc=(pm.grAl||{})[key];
@@ -1292,7 +1329,7 @@ function dibujaModulo(pm,cfg){
   const mside=m.motor==="izq"?0:A,mi=m.motor==="izq"?1:-1;
   [0,P].forEach(yy=>{const x=X(mside),y=Y(yy);viga+=`<circle cx="${x}" cy="${y}" r="6" fill="var(--paper)" stroke="var(--wall)" stroke-width="1.4"/><path d="M${x-4} ${y-4}L${x+4} ${y+4}M${x+4} ${y-4}L${x-4} ${y+4}" stroke="var(--wall)" stroke-width="1.2"/>`;});
   /* focos */
-  if(pm.focos)pm.focos.pos.forEach(f=>{const [nx,ny]=NRM[f.sd],fx=X(f.p[0])-nx*(hw(f.sd)+9),fy=Y(f.p[1])-ny*(hw(f.sd)+9);
+  if(pm.focos)pm.focos.pos.forEach(f=>{const [nx,ny]=f.sd?NRM[f.sd]:[0,0],fx=X(f.p[0])-nx*(f.sd?hw(f.sd)+9:0),fy=Y(f.p[1])-ny*(f.sd?hw(f.sd)+9:0);
     sim+=ed("focos",`<circle cx="${fx}" cy="${fy}" r="6.5" fill="var(--paper)" stroke="${CC.foc}" stroke-width="2"/><path d="M${fx-4.5} ${fy-4.5}L${fx+4.5} ${fy+4.5}M${fx+4.5} ${fy-4.5}L${fx-4.5} ${fy+4.5}" stroke="${CC.foc}" stroke-width="1.3"/>`);});
   /* productos puestos a mano */
   (m.extra||[]).forEach((x,j)=>{if(!C[x.k])return;const l=x.loc||"cent";let px,py;
@@ -1305,7 +1342,7 @@ function dibujaModulo(pm,cfg){
   const mp=pm.motorPos||{x:mside,y:Math.min(0.6,P/4)},mx=X(mp.x),my=Y(mp.y);
   sim+=ed("motor",`<circle cx="${mx}" cy="${my}" r="11" fill="var(--paper)" stroke="${CC.mot}" stroke-width="2.4"/><text x="${mx}" y="${my+4}" text-anchor="middle" font-size="11" font-weight="700" style="fill:${CC.mot}">M</text>`);
   /* centrales de luces (L), junto a la del motor */
-  for(let j=0;j<(pm.nLed||0);j++){const lx=cx+ix*(hX+66),ly=cy+iy*(hY+68+j*30);
+  for(let j=0;j<(pm.nLed||0);j++){const lx=cx-ix*(hX+20+j*28),ly=cy-iy*(hY+70);
     sim+=ed("cent",`<line x1="${cx}" y1="${cy}" x2="${lx}" y2="${ly}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 2"/><rect x="${lx-11}" y="${ly-11}" width="22" height="22" rx="3" fill="var(--paper)" stroke="var(--ink)" stroke-width="2"/><text x="${lx}" y="${ly+4}" text-anchor="middle" font-size="10" font-weight="700" style="fill:var(--ink)">L${pm.nLed>1?j+1:""}</text>`);}
   /* centralita del motor, en su esquina: ahí llegan todos los cables */
   sim+=ed("cent",`<rect x="${cx-13}" y="${cy-13}" width="26" height="26" rx="3" fill="var(--ink)"/><text x="${cx}" y="${cy+4.5}" text-anchor="middle" font-size="12" font-weight="700" style="fill:var(--paper)">C</text>`);
@@ -1317,12 +1354,12 @@ function dibujaModulo(pm,cfg){
   /* nombre de cada viga dentro de la viga, en la parte de dentro (los cables van por la de fuera);
      la tira que lleva, por dentro del módulo */
   SIDES.forEach(sd=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=hw(sd)+12+(pm.focos&&m.focL===sd?16:0);
-    const tv=pm.focos&&m.focL===sd?0.22:sd===lat&&m.lamasN%2?0.5+0.5/(m.lamasN+1):0.5,vx=x1+(x2-x1)*tv,vy=y1+(y2-y1)*tv,dv=(hw(sd)+3)/2;
+    const tv=pm.focos&&m.focL===sd?0.22:sd===lat?0.5+0.5/TL:0.5,vx=x1+(x2-x1)*tv,vy=y1+(y2-y1)*tv,dv=(hw(sd)+3)/2;
     txt+=T(vx-nx*dv,vy-ny*dv,vigaDe(m,sd),{fs:BW(sd)>30?11.5:9.5,peso:700,rot:vert(sd),halo:0});
     const mx2=(x1+x2)/2,my2=(y1+y2)/2;
     const t=tiras.find(t=>t.sides[0]===sd);
     const tt=t&&`${amb?"2 × ":""}${TIRA_C[t.prod]||C[t.prod][1]}${t.sides.length>1?" · "+m2(t.len)+" m":""}${m.ledPos==="ind"?" · indirecta":""}`;
-    if(t)txt+=ed("tira:"+sd,T(mx2-nx*d,my2-ny*d,tt,{fs:cabe(tt,Math.hypot(x2-x1,y2-y1)-2*B,9.5),col:"var(--muted)",rot:vert(sd)}));});
+    if(t)txt+=ed("tira:"+sd,T(mx2-nx*(d+(vert(sd)?14:0)),my2-ny*d,tt,{fs:cabe(tt,Math.hypot(x2-x1,y2-y1)-2*B,9.5),col:"var(--muted)",rot:vert(sd)}));});
   /* cotas, por fuera de los rótulos de cables */
   SIDES.forEach(sd=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=hw(sd)+20+Math.max(1,filas[sd])*15,t=5;
     const a=[x1+nx*d,y1+ny*d],b=[x2+nx*d,y2+ny*d];
@@ -1375,8 +1412,10 @@ function recorridos(pm,cfg){
     else{const R=(pm.rutas||[]).find(r=>r.g===G.g&&r.niv===nv);if(R)L.push(`${tt}: alargo ${secAl(pm.rgb)} ${R.al.map(([l])=>m2c(l)+" m").join(" + ")}${R.al.length>1?" empalmados":""} (recorrido ≈ ${m2(R.ruta.len)} m) por encima de ${esc(vigasDe(m,R.ruta.sides))} hasta la esquina ${esc(esq(G.corner))}${y3}${out("OUT"+sR)}.`);}
   }));
   if(pm.periMan)L.push(`<b style="color:var(--c-al)">Cables del perímetro</b> (a mano): ${PERCAB.filter(k=>m.periCab[k]>0).map(k=>`${m.periCab[k]} × ${esc(C[k][1])}`).join(", ")}.`);
-  if(m.lamasN)L.push(`<b style="color:var(--c-lam)">Lamas LED (${m.lamasN})</b>: unir los dos conectores de cada lama (conector de lama + conector de eje) y llevar los cables por el mecanizado de la viga ${esc(vigaDe(m,m.cent[1]==="i"?"izq":"der"))} hasta la centralita${out(pm.lamOut||"OUT2 / OUT4")}.${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?` Cables: ${LAMCAB.filter(k=>m.lamCab[k]>0).map(k=>`${m.lamCab[k]} × ${esc(C[k][1])}`).join(", ")}.`:` Cable 3 m 2P + 2 micro en T: uno por cada 2 lamas, encadenados.`}`);
-  if(m.focN){const fo=(pm.focOut?` → ${pm.focOut}`:"");L.push(`<b>Focos (${m.focN} × ${esc(FOCOS[m.focT]||FOCOS.aries)}, ${FOCO_W} W c/u)</b>: entran por el lateral con el cable 3 m 2P + 2 micro en T${pm.focos&&pm.focos.al&&pm.focos.al.length?` (antes, alargo ${pm.focos.al.map(([l])=>m2c(l)+" m").join(" + ")} desde la centralita)`:""} y entre ellos van con extensiones de 0,50 m, hasta la centralita${pm.sis==="nexta"?fo:""}. ${pm.focos?`Van en ${esc(SIDES.includes(m.focL)?vigaDe(m,m.focL):"el perímetro, repartidos")}; cadena desde la centralita ≈ ${m2(pm.focos.ruta.len)} m por encima de ${esc(vigasDe(m,pm.focos.ruta.sides))}.`:""}`);}
+  if(m.lamasN)L.push(`<b style="color:var(--c-lam)">Lamas LED (${m.lamasN}: lamas ${lamLED(m).join(", ")} de ${lamT(m)})</b>: unir los dos conectores de cada lama (conector de lama + conector de eje) y llevar los cables por el mecanizado de la viga ${esc(vigaDe(m,m.cent[1]==="i"?"izq":"der"))} hasta la centralita${out(pm.lamOut||"OUT2 / OUT4")}.${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?` Cables: ${LAMCAB.filter(k=>m.lamCab[k]>0).map(k=>`${m.lamCab[k]} × ${esc(C[k][1])}`).join(", ")}.`:` Cable 3 m 2P + 2 micro en T: uno por cada 2 lamas, encadenados.`}`);
+  if(m.focN&&pm.focos&&pm.focos.lam){const F=pm.focos,fo=pm.sis==="nexta"&&pm.focOut?` → ${pm.focOut}`:"";
+    L.push(`<b>Focos en lamas (${m.focN} × ${esc(FOCOS[m.focT]||FOCOS.aries)}, ${FOCO_W} W c/u)</b>: lamas ${F.lamas.map(l=>l.k).join(", ")}, ${m.focPL||2} por lama a 0,50 m. El cable entra por el lateral (mecanizado de la viga ${esc(vigaDe(m,F.lat))}) con el cable 3 m 2P + 2 micro en T (uno por cada 2 lamas, encadenados) y por cada lama hasta sus focos, con extensiones de 0,50 m${F.al&&F.al.length?`; antes, alargo ${F.al.map(([l])=>m2c(l)+" m").join(" + ")} por el lateral`:""}; tapón en el último foco de cada lama, hasta la centralita${fo}.`);}
+  else if(m.focN){const fo=(pm.focOut?` → ${pm.focOut}`:"");L.push(`<b>Focos (${m.focN} × ${esc(FOCOS[m.focT]||FOCOS.aries)}, ${FOCO_W} W c/u)</b>: entran por el lateral con el cable 3 m 2P + 2 micro en T${pm.focos&&pm.focos.al&&pm.focos.al.length?` (antes, alargo ${pm.focos.al.map(([l])=>m2c(l)+" m").join(" + ")} desde la centralita)`:""} y entre ellos van con extensiones de 0,50 m, hasta la centralita${pm.sis==="nexta"?fo:""}. ${pm.focos?`Van en ${esc(SIDES.includes(m.focL)?vigaDe(m,m.focL):"el perímetro, repartidos")}; cadena desde la centralita ≈ ${m2(pm.focos.ruta.len)} m por encima de ${esc(vigasDe(m,pm.focos.ruta.sides))}.`:""}`);}
   (m.extra||[]).forEach((x,j)=>{if(!C[x.k])return;const so=pm.sis==="nexta"&&x.W>0&&pm.xOut&&pm.xOut[j]?` → ${pm.xOut[j]}`:"";
     L.push(`<b style="color:var(--c-x)">◆ ${j+1}</b> ${x.q} × ${esc(C[x.k][1])} (${C[x.k][0]}) en ${esc(dondeX(m,x))}${x.W>0?` · ${w0(x.W*x.q)}`:""}${so}.`);});
   if(m.viento)L.push(`<b>Anemómetro</b>: cable de 4 m a la entrada de sensores de la central de motor. Colocarlo despejado, sin obstáculos.`);
@@ -1547,7 +1586,9 @@ function aplicaFicha(ms){
   if(fi.sistema&&$("sistema").value!==fi.sistema){$("sistema").value=fi.sistema;fillEmisores(fi.sistema,$("emisor").value);}
   if(/INGLETE/i.test(fi.tipo||""))$("tipol").value="inglete";else if(/TESTA/i.test(fi.tipo||""))$("tipol").value="testa";
   if(fi.schuko!=null)$("schuko").value=fi.schuko?1:0;if(fi.usb!=null)$("usb").value=fi.usb?1:0;
-  return ms.map((m,i)=>Object.assign(m,fi.ledPeri===false?{luz:"none"}:{},i===0?{lluvia:!!fi.lluvia,viento:!!fi.viento}:{}));
+  /* «Nº Lamas: 27 Unidades» o «52 (26+26) Unidades»: lamas de cada módulo */
+  const nl=String(fi.lamas||""),par=nl.match(/\(([\d+\s]+)\)/),lt=par?par[1].split("+").map(Number):[parseInt(nl)||0];
+  return ms.map((m,i)=>Object.assign(m,fi.ledPeri===false?{luz:"none"}:{},i===0?{lluvia:!!fi.lluvia,viento:!!fi.viento}:{},lt[i]>0||(lt.length===1&&lt[0]>0&&ms.length===1)?{lamT:lt[i]||lt[0]}:{}));
 }
 function modulosDelPlano(){
   const ref=plano.mods.find(m=>m.n===plano.refN)||plano.mods[0],ppm=ref.w/plano.refA;
@@ -1558,7 +1599,7 @@ function modulosDelPlano(){
     /* De la ficha se toma la geometría, las tiras, la centralita y los nombres de pilares y vigas que trae el plano. */
     motor:(prev[i]&&prev[i].motor)||"der",cent:m.c?m.c.corner:"si",aloj:"viga",ref:m.c?m.c.viga:"",pil:{si:m.pil.si||"",sd:m.pil.sd||"",ii:m.pil.ii||"",id:m.pil.id||""},vig:{...m.vig},
     luz:Object.values(m.lados).some(Boolean)?((prev[i]&&prev[i].luz!=="none"&&prev[i].luz)||"w3000"):"none",
-    lados:Object.values(m.lados).some(Boolean)?m.lados:{...LADOS_ALL},lamasN:(prev[i]&&prev[i].lamasN)||0,viento:!!(prev[i]&&prev[i].viento),lluvia:!!(prev[i]&&prev[i].lluvia)}));
+    lados:Object.values(m.lados).some(Boolean)?m.lados:{...LADOS_ALL},lamasN:(prev[i]&&prev[i].lamasN)||0,lamLed:(prev[i]&&prev[i].lamLed)||[],viento:!!(prev[i]&&prev[i].viento),lluvia:!!(prev[i]&&prev[i].lluvia)}));
 }
 function pintaImport(){
   const r=plano,box=$("impRes");box.hidden=false;
@@ -1588,6 +1629,7 @@ Léelas con cuidado y devuelve SOLO un objeto JSON con esta forma (null si un da
  "modulos": [{"n": 1,
    "ancho_mm": medida del módulo paralela a las lamas (las lamas se ven como líneas finas paralelas dentro del módulo),
    "proyeccion_mm": medida del módulo perpendicular a las lamas (ojo: en los planos Umara la cota «(Proyección)» suele ser la de las lamas y «(Ancho)» la otra; fíjate en el dibujo de las lamas, y ninguna lama pasa de 4500 mm),
+   "lamas_led_num": [números de las lamas con LED de ese módulo, p. ej. [5,12,19,26]] | [],
    "lamas_led": número de lamas con LED de ese módulo (0 si no lleva; el cajetín puede decir p. ej. «LAMAS LED: 8 · Modulo 1 (5,12,19,26) · Modulo 2/3 (4,9)», que son 4 en el módulo 1 y 2 en cada uno de los módulos 2 y 3),
    "motor": "izq" | "der",
    "pilares": {"si": "", "sd": "", "ii": "", "id": ""},
@@ -1639,7 +1681,7 @@ function datosCajetin(T){
   const ledPos=luz==="none"?null:ldir&&lind?"ambos":lind?"ind":ldir?"dir":null;
   const nMod=num(g(/(\d+)[ \t]+M[ÓO]DULOS?\b/i))||1;
   /* lamas con LED por módulo: «Modulo 1 (5,12,19,26)», «Modulo 2/3 (4,9)» */
-  const lam={};for(const m of acc.matchAll(/M[óo]dulo\s*([\d\/]+)\s*\(([\d,\s]+)\)/gi)){const n=m[2].split(",").filter(x=>x.trim()).length;m[1].split("/").forEach(k=>lam[+k]=n);}
+  const lam={},lamN={};for(const m of acc.matchAll(/M[óo]dulo\s*([\d\/]+)\s*\(([\d,\s]+)\)/gi)){const ns=numLista(m[2]);m[1].split("/").forEach(k=>{lam[+k]=ns.length;lamN[+k]=ns;});}
   const d={obra:g(/REFERENCIA:\s*([^\n]+)/i),oferta:g(/OFERTA:\s*(\d+)/i),cliente:g(/CLIENTE:\s*([^\n]+)/i),
     modelo:["ELYA",g(/ELYA\s*\n\s*([^\n]+)/i)].filter(Boolean).join(" "),montaje,electronica:SIS[elec]?elec:null,
     alto_total_mm:num(g(/H\s*Total:\s*(\d+)/i)),h_libre_mm:num(g(/H\s*Libre:\s*(\d+)/i)),pilares:num(g(/(\d+)\s*PILARES/i)),medidas:g(/(\d{3,5}\s*x\s*\d{3,5})/i),luz,ledPos,viento:/ANEM|VIENTO/i.test(acc),lluvia:/LLUVIA/i.test(acc),modulos:[],dudas:[]};
@@ -1657,11 +1699,11 @@ function datosCajetin(T){
        comprobado con el nº de lamas de la ficha (23 lamas ≈ 4,9 m → lamas de 3,0 m). */
     const dims=J.match(/(\d{3,5})\s*x\s*(\d{3,5})/i);
     d.modulos.push({n:1,ancho_mm:proy||(dims?+dims[2]:null),proyeccion_mm:ancho||(dims?+dims[1]:null),motor:motorT&&/izq/i.test(motorT.s)?"izq":"der",
-      pilares:pil,centralita,pared:montaje&&montaje!=="autoportante"?"sup":null,lamas_led:lam[1]||0});
+      pilares:pil,centralita,pared:montaje&&montaje!=="autoportante"?"sup":null,lamas_led:lam[1]||0,lamas_led_num:lamN[1]||[]});
     if(!motorT)d.dudas.push("No encuentro el lado del motor en el plano: márcalo a mano.");
   }else{
     const dims=J.match(/(\d{3,5})\s*x\s*(\d{3,5})/i),anT=ancho||(dims?+dims[1]:null),pr=proy||(dims?+dims[2]:null);
-    for(let i=1;i<=nMod;i++)d.modulos.push({n:i,ancho_mm:pr,proyeccion_mm:anT?Math.round(anT/nMod):null,motor:"der",pilares:{},centralita:null,pared:null,lamas_led:lam[i]||0});
+    for(let i=1;i<=nMod;i++)d.modulos.push({n:i,ancho_mm:pr,proyeccion_mm:anT?Math.round(anT/nMod):null,motor:"der",pilares:{},centralita:null,pared:null,lamas_led:lam[i]||0,lamas_led_num:lamN[i]||[]});
     d.dudas.push(`Plano de ${nMod} módulos: reparto el ancho total a partes iguales; los motores y las centralitas de cada módulo hay que meterlos a mano. Mejor: arrastra a la vez la ficha de fabricación y este plano.`);
   }
   return d;
@@ -1671,7 +1713,7 @@ function aplicaPlanoClaude(d,nombreArchivo,quien){
   const mods=(Array.isArray(d.modulos)?d.modulos:[]).map((m,i)=>{
     const c=m.centralita||{},pil=m.pilares||{},lados={...LADOS_ALL};
     if(m.pared&&lados[m.pared]!==undefined)lados[m.pared]=false;
-    return {nombre:"Módulo "+(m.n||i+1),A:mm(m.ancho_mm)||4,P:mm(m.proyeccion_mm)||4,viento:!!d.viento&&i===0,lluvia:!!d.lluvia&&i===0,lamasN:Math.max(0,parseInt(m.lamas_led)||0),motor:m.motor==="izq"?"izq":"der",
+    return {nombre:"Módulo "+(m.n||i+1),A:mm(m.ancho_mm)||4,P:mm(m.proyeccion_mm)||4,viento:!!d.viento&&i===0,lluvia:!!d.lluvia&&i===0,lamLed:Array.isArray(m.lamas_led_num)?numLista(m.lamas_led_num.join(",")):[],lamasN:Math.max(0,parseInt(m.lamas_led)||0),motor:m.motor==="izq"?"izq":"der",
       cent:ESQ[c.esquina]?c.esquina:"si",aloj:c.alojada==="pilar"?"pilar":"viga",ref:String(c.ref||""),
       pil:{si:String(pil.si||""),sd:String(pil.sd||""),ii:String(pil.ii||""),id:String(pil.id||"")},vig:{},
       luz:LUZ[d.luz]?d.luz:"none",ledPos:LEDPOS[d.ledPos||d.led_pos]?(d.ledPos||d.led_pos):"dir",lados};
@@ -1759,6 +1801,7 @@ function aplicaLedCliente(pc){
   else if(LUZ[pc.luz]||pc.ledPos)ms.forEach(m=>{if(m.luz==="none"&&pc.luz&&pc.luz!=="none"){m.luz=pc.luz;hechos.push("con LED perimetral");}
     if(m.luz!=="none"&&pc.luz&&pc.luz!=="none"&&m.luz!==pc.luz){m.luz=pc.luz;hechos.push(LUZ[pc.luz]);}
     if(m.luz!=="none"&&pc.ledPos&&m.ledPos!==pc.ledPos){m.ledPos=pc.ledPos;hechos.push(LEDPOS[pc.ledPos]);}});
+  (pc.modulos||[]).forEach((cm,i)=>{const ns=cm&&(cm.lamas_led_num||[]);if(ms[i]&&ns&&ns.length&&ns.join()!==lamLED(ms[i]).join()){ms[i].lamLed=ns;ms[i].lamasN=ns.length;hechos.push(`${ms[i].nombre}: LED en las lamas ${ns.join(", ")}`);}});
   if(ms.length&&pc.lluvia!=null&&!!ms[0].lluvia!==!!pc.lluvia){ms[0].lluvia=!!pc.lluvia;hechos.push(pc.lluvia?"con sensor de lluvia":"sin sensor de lluvia");}
   if(ms.length&&pc.viento!=null&&!!ms[0].viento!==!!pc.viento){ms[0].viento=!!pc.viento;hechos.push(pc.viento?"con anemómetro":"sin anemómetro");}
   if(SIS[pc.electronica]&&$("sistema").value!==SIS[pc.electronica]){$("sistema").value=SIS[pc.electronica];fillEmisores(SIS[pc.electronica],$("emisor").value);hechos.push("electrónica "+cap(pc.electronica));}
@@ -1943,6 +1986,7 @@ function etiquetasMod(m,i,pp){
   const se=$(`m${i}_ent`),sr=$(`m${i}_rut`);if(!se||!sr)return;
   SIDES.forEach(sd=>{const t=$(`m${i}_t_${sd}`),v=$(`m${i}_v_${sd}`);if(t)t.textContent=vigaDe(m,sd);if(v)v.placeholder=vigaAuto(m,sd);});
   for(let j=0;$(`m${i}_x${j}_loc`);j++){const se=$(`m${i}_x${j}_loc`),L=LOCS(m);[...se.options].forEach((o,n)=>{if(L[n])o.text=L[n][1];});}
+  const lt=$(`m${i}_lamT`);if(lt)lt.placeholder=`${lamTDef(m)} (auto)`;
   const fl=$(`m${i}_focL`);if(fl)[...fl.options].forEach(o=>{if(SIDES.includes(o.value))o.text=`Viga ${vigaDe(m,o.value)}`;});
   CORN.forEach(k=>{const p=$(`m${i}_p_${k}`);if(p)p.placeholder=`P${pilDe(m,k)} · ${ESQ[k].toLowerCase()}`;});
   const una=gruposTira(Object.assign({},m,{ent:"auto"}),pp).some(G=>G.una);
@@ -2056,6 +2100,11 @@ if(previa){const b=$("bRecuperar"),f=previa._guardado?new Date(previa._guardado)
 $("f").addEventListener("input",render);
 $("f").addEventListener("change",e=>{if(e.target.id==="sistema")fillEmisores(e.target.value,$("emisor").value);if(e.target.id==="sistema"||e.target.id==="sisLuz")fillEmisorL();render();});
 $("f").addEventListener("submit",e=>e.preventDefault());
+/* nº de lamas con LED ↔ lista de lamas: cambiar el número las reparte; escribir la lista pone el número */
+$("f").addEventListener("input",e=>{const mm=e.target.id&&e.target.id.match(/^m(\d+)_(lamasN|lamL|focLam|focPL|lamT)$/);if(!mm)return;const i=mm[1],g=k=>$(`m${i}_${k}`);
+  if(mm[2]==="lamasN")g("lamL").value=reparteLamas(Math.max(0,parseInt(g("lamasN").value)||0),parseInt(g("lamT").value)||parseInt(g("lamT").placeholder)||1).join(", ");
+  if(mm[2]==="lamL")g("lamasN").value=numLista(g("lamL").value).length;
+  if((mm[2]==="focLam"||mm[2]==="focPL")&&numLista(g("focLam").value).length){g("focL").value="lam";g("focN").value=numLista(g("focLam").value).length*(parseInt(g("focPL").value)||2);}},true);
 /* Ampliar un dibujo de la planta: se copia a una capa a pantalla completa, con + / − y «Ajustar» (cabe entero). */
 let zW=0,zK=1;
 function zoomA(k){zK=Math.min(8,Math.max(0.5,k));const sv=$("zBox").querySelector("svg");if(sv)sv.style.width=Math.round(zW*zK)+"px";}
@@ -2112,12 +2161,15 @@ function edPinta(todo){
   else if(tipo==="motor"){tit="Motor y su cable";loc="v:"+m.motor;
     info=`<span><b>Manguera ${CAB_MOT}</b> · ${C.mang[0]}</span><span>300/500 V · cobre flexible clase 5 · aislamiento y cubierta PVC · 70 °C · 2 hilos: azul y marrón</span><span>≈ ${Math.ceil(pm.run)} m hasta la centralita · motor 24 V DC 3,6 A · caída ≈ ${m2(caidaMot(pm.run))} V (${Math.round(caidaMot(pm.run)/24*100)} %)</span>`;
     body=edCopia(P+"motor","Lado del motor / desagüe")+edCopia(P+"motY","Extremo del motor");}
+  else if(tipo==="lama"){const k=+arg,led=lamLED(m).includes(k),fo=m.focL==="lam"&&(m.focLam||[]).includes(k);tit=`Lama ${k} de ${lamT(m)}`;
+    info=`<span>${m2(pm.lamaLen)} m · el cable entra por el lateral (viga ${esc(vigaDe(m,m.cent[1]==="i"?"izq":"der"))}).</span>`;
+    body=`<label class="chk"><input type="checkbox" data-lamled="${k}"${led?" checked":""}> LED en esta lama</label><label class="chk"><input type="checkbox" data-lamfoc="${k}"${fo?" checked":""}> Focos en esta lama</label>`+edCopia(P+"focPL","Focos por lama")+edCopia(P+"focT","Tipo de foco")+edCopia(P+"lamT","Lamas en total");}
   else if(tipo==="lamas"){tit="Cables y conectores de las lamas";
     info=`<span>${m.lamasN} lamas LED · ${m2(pm.lamaLen)} m c/u. Cables a 0 = 1 cable 3 m 2P + 2 micro en T por cada 2 lamas, encadenados.</span>`;
-    body=edCopia(P+"lamasN","Lamas con LED")+LAMCAB.map(kk=>edCopia(P+"lc_"+kk,C[kk][1])).join("")+(nexta?edCopia(P+"s_lam","Salida"):"");}
+    body=edCopia(P+"lamasN","Lamas con LED")+edCopia(P+"lamL","Nº de las lamas con LED")+LAMCAB.map(kk=>edCopia(P+"lc_"+kk,C[kk][1])).join("")+(nexta?edCopia(P+"s_lam","Salida"):"");}
   else if(tipo==="focos"){tit="Focos";loc=SIDES.includes(m.focL)?"v:"+m.focL:"cent";
     info=pm.focos?`<span>${m.focN} focos · cadena ≈ ${m2(pm.focos.ruta.len)} m${pm.focos.al&&pm.focos.al.length?" · alargo "+pm.focos.al.map(([l])=>m2c(l)).join(" + ")+" m":""}</span>`:"";
-    body=edCopia(P+"focN","Focos")+edCopia(P+"focT","Tipo")+edCopia(P+"focL","Focos en")+(nexta?edCopia(P+"s_foc","Salida"):"");}
+    body=edCopia(P+"focN","Focos")+edCopia(P+"focT","Tipo")+edCopia(P+"focL","Focos en")+edCopia(P+"focLam","Lamas con focos (nº)")+edCopia(P+"focPL","Focos por lama")+(nexta?edCopia(P+"s_foc","Salida"):"");}
   else if(tipo==="extra"){const j=+arg,x=m.extra[j];tit=`Producto a mano ${j+1}`;loc=x&&x.loc||"cent";
     info=x&&C[x.k]?`<span>${esc(C[x.k][1])} · ${C[x.k][0]}</span>`:"";
     body=edCopia(`${P}x${j}_k`,"Producto")+edCopia(`${P}x${j}_q`,"Cantidad")+edCopia(`${P}x${j}_loc`,"Dónde")+edCopia(`${P}x${j}_d`,"A (m) desde el principio de la viga")+`<button type="button" class="mini" data-edxdel="${j}">Quitar este producto</button>`;}
@@ -2128,6 +2180,12 @@ function edPinta(todo){
 }
 function edAplica(ev){
   const t=ev.target,{i,k}=edCtx||{};if(!edCtx)return;
+  /* lama tocada: poner o quitar el LED o los focos de esa lama */
+  if((t.dataset.lamled||t.dataset.lamfoc)&&ev.type==="change"){const n=+(t.dataset.lamled||t.dataset.lamfoc),id=t.dataset.lamled?`m${i}_lamL`:`m${i}_focLam`,el=$(id);
+    const L=new Set(numLista(el.value));if(t.checked)L.add(n);else L.delete(n);el.value=[...L].sort((a,b)=>a-b).join(", ");
+    el.dispatchEvent(new Event("input",{bubbles:true}));
+    if(t.dataset.lamfoc&&L.size)$(`m${i}_focL`).value="lam";
+    $(`m${i}_focL`).dispatchEvent(new Event("change",{bubbles:true}));edPinta(false);return;}
   const [tipo,arg]=k.split(":");
   if(t.dataset.src){const o=$(t.dataset.src);if(o.type==="checkbox")o.checked=t.checked;else o.value=t.value;
     o.dispatchEvent(new Event(ev.type,{bubbles:true}));
