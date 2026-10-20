@@ -436,8 +436,12 @@ const MOTOR_W=3.6*24;
    aislamiento y cubierta de PVC, 70 °C. Caída de tensión a 3,6 A: ΔU = 2·L·I·ρ/S, ρ = 0,021 Ω·mm²/m (cobre a 70 °C). */
 const CAB_MOT="H05VV-F 2×0,75 mm²",caidaMot=L=>2*L*3.6*0.021/0.75;
 /* Nombre corto de cada tira, para rotularla en la planta. */
-const TIRA_C={rW5:"Rollo 3000 K · 5 m",rW7:"Rollo 3000 K · 7 m",rN5:"Rollo 4000 K · 5 m",rN7:"Rollo 4000 K · 7 m",nP45:"Neón · 4,50 m",nP6:"Neón · 6 m",rgbP6:"RGB neón · 6 m"};
+const TIRA_C={rW5:"LED 3000 K · 5 m",rW7:"LED 3000 K · 7 m",rN5:"LED 4000 K · 5 m",rN7:"LED 4000 K · 7 m",nP45:"Neón · 4,50 m",nP6:"Neón · 6 m",rgbP6:"RGB neón · 6 m"};
 const ESQ={si:"Sup. izq.",sd:"Sup. der.",ii:"Inf. izq.",id:"Inf. der."};
+/* TKL (manual «TKL CHERUBINI», Drive): canales que se habilitan con P2 y salidas que encienden juntas en cada modo.
+   1 canal: las 4 juntas · 2: OUT1+3 y OUT2+4 · 3: OUT1+2 juntas, OUT3 y OUT4 sueltas · 4: las 4 sueltas. */
+const TKL_MODOS=[{n:1,col:"rojo",g:[[1,2,3,4]]},{n:2,col:"verde",g:[[1,3],[2,4]]},{n:3,col:"azul",g:[[1,2],[3],[4]]},{n:4,col:"amarillo",g:[[1],[2],[3],[4]]}];
+const ENC={dir:"perímetro",ind:"indirecto",lam:"lamas",foc:"focos",x:"productos a mano"};
 /* Perfil LED perimetral: dos alojamientos, arriba (luz indirecta) y abajo (luz directa) (dato SAT). Con los dos, cada uno
    lleva sus tiras, sus alargos y sus cables de 3 vías, a salidas distintas para encenderlos aparte. */
 const LEDPOS={dir:"Directo (alojamiento de abajo)",ind:"Indirecto (alojamiento de arriba)",ambos:"Directo + indirecto (encendido aparte)"};
@@ -884,7 +888,10 @@ function calcular(cfg){
         const kc=m.ledc||cfg.ledCentral,tkl=kc==="tkl",maxM=kc==="stl100"?10:25,maxO=tkl?120:null,maxW=kc==="stl100"?100:250;
         const nAuto=Math.max(1,Math.ceil(white.reduce((a,l)=>a+l.len,0)/maxM-1e-9),Math.ceil(totW(white)/maxW-1e-9)),nC=m.ledN>0?m.ledN:nAuto;
         if(m.ledN>0&&m.ledN<nAuto)av.push(["warn",`${m.nombre}: has puesto ${m.ledN} central(es) de luces y por metros o vatios hacen falta ${nAuto}.`]);
-        const trozos=[...white.filter(l=>l.grp==="peri").map(l=>[l]),...[white.filter(l=>l.grp==="lamas"),white.filter(l=>l.grp==="focos")].filter(x=>x.length),...white.filter(l=>l.grp==="extra").map(l=>[l])];
+        /* cada encendido entero en una central si cabe (así cada central necesita menos canales); si no cabe, por grupos */
+        const encW=l=>l.grp==="peri"?(m.ledPos==="ambos"&&l.niv==="i"?"ind":"dir"):l.grp;
+        const trozos=["dir","ind","lamas","focos","extra"].flatMap(c=>{const t=white.filter(l=>encW(l)===c);if(!t.length)return [];
+          const cabeT=t.reduce((a,l)=>a+l.len,0)<=maxM&&totW(t)<=maxW;return cabeT||c==="lamas"||c==="focos"?[t]:t.map(l=>[l]);});
         const sets=[...Array(nC)].map(()=>({L:[],c:0})),peso=t=>t.reduce((a,l)=>a+l.len+l.W/20,0);
         /* con directo + indirecto y dos centrales: el directo a la primera y el indirecto a la segunda */
         trozos.forEach(t=>{const fij=nC>1&&m.ledPos==="ambos"&&t[0].grp==="peri"?sets[t[0].niv==="i"?1:0]:null,dst=fij||[...sets].sort((x,y)=>x.c-y.c)[0];dst.L.push(...t);dst.c+=peso(t);});
@@ -895,29 +902,42 @@ function calcular(cfg){
         const sal=m.sal||{},nOut=tkl?4:2,okS=v=>{const n=parseInt(v,10);return n>=1&&n<=nOut?n:0;};
         if(!j)Object.entries(sal).forEach(([k,v])=>{if(v&&v!=="auto"&&!okS(v))av.push(["warn",`${m.nombre}: la ${tkl?"TKL":"STL"} no tiene OUT${v}; para ${{p1:"perímetro 1",p2:"perímetro 2",i1:"indirecto 1",i2:"indirecto 2",lam:"lamas",foc:"focos"}[k]} uso el reparto automático.`]);});
         /* directo + indirecto: el indirecto a sus salidas (TKL: OUT2 / OUT4, con las lamas; STL: OUT2) para encenderlos aparte */
-        const amb=m.ledPos==="ambos";
+        const amb=m.ledPos==="ambos",cat=l=>l.grp==="peri"?(amb&&l.niv==="i"?"ind":"dir"):l.grp==="lamas"?"lam":l.grp==="focos"?"foc":"x";
+        const cats=["dir","ind","lam","foc","x"].filter(c=>Lw.some(l=>cat(l)===c));
+        const lam=Lw.filter(l=>l.grp==="lamas"),foc=Lw.filter(l=>l.grp==="focos");
+        if(tkl&&cfg.indep&&cats.length>=3){
+          /* 3 encendidos: el primero a OUT1+OUT2 (juntas en modo 3 canales), los otros a OUT3 y OUT4; 4 encendidos: uno por salida */
+          const dest=Object.fromEntries(cats.map((c,i)=>[c,cats.length===3?[[1,2],[3],[4]][i]:[[1],[2],[3],[4]][Math.min(i,3)]]));
+          Lw.forEach(l=>{const c=cat(l),d=dest[c],man=l.grp==="peri"?okS(sal[amb&&l.niv==="i"?(l.out===1?"i1":"i2"):(l.out===1?"p1":"p2")]):l.grp==="lamas"?okS(sal.lam):l.grp==="focos"?okS(sal.foc):okS(l.sal);
+            put(man||(d.length>1?(l.grp==="peri"?d[l.out===1?0:1]:[...o].filter(x=>d.includes(x.s)).sort((a,b)=>a.W-b.W)[0].s):d[0]),l);});
+        }else{
         Lw.filter(l=>l.grp==="peri").forEach(l=>{const ind=amb&&l.niv==="i",k=ind?(l.out===1?"i1":"i2"):(l.out===1?"p1":"p2");
           put(okS(sal[k])||(ind?(tkl?(l.out===1?2:4):2):(l.out===1?1:(tkl?3:(amb?1:2)))),l);});
-        const lam=Lw.filter(l=>l.grp==="lamas");
         if(okS(sal.lam))lam.forEach(l=>put(okS(sal.lam),l));else reparte(lam,tkl?[2,4]:[1,2]).forEach(r=>r.items.forEach(l=>put(r.s,l)));
-        const foc=Lw.filter(l=>l.grp==="focos");
-        Lw.filter(l=>l.grp==="extra").forEach(l=>put(okS(l.sal)||[...o].sort((a,b)=>a.W-b.W)[0].s,l));
-        if(foc.length){const fs=okS(sal.foc)||[...o].sort((a,b)=>a.W-b.W)[0].s;foc.forEach(l=>put(fs,l));}
+        /* focos y productos a mano: a la salida con menos carga; con encendido independiente, mejor una cuya pareja
+           (OUT1+3 / OUT2+4) no lleve otra cosa, para que basten 2 canales */
+        const pareja=n=>({1:3,3:1,2:4,4:2})[n],libre=c=>[...o].filter(x=>[x.s,pareja(x.s)].every(n=>{const y=o.find(z=>z.s===n);return !y||y.items.every(i=>cat(i)===c);}));
+        const sitio=c=>{const L=tkl&&cfg.indep?libre(c):[];return (L.length?L:[...o]).sort((a,b)=>a.W-b.W)[0].s;};
+        Lw.filter(l=>l.grp==="extra").forEach(l=>put(okS(l.sal)||sitio("x"),l));
+        if(foc.length){const fs=okS(sal.foc)||sitio("foc");foc.forEach(l=>put(fs,l));}
+        }
         /* salidas reales, para los recorridos escritos */
         const dondeG=g=>[...new Set(o.filter(x=>x.items.some(i=>i.grp===g)).map(x=>"OUT"+x.s))].join(" / ");
         o.forEach(x=>x.items.forEach(i=>{if(i.grp==="peri")pmA.salReal[(i.niv==="i"&&amb?"i":"")+i.out]=x.s+cS;if(i.grp==="extra")pmA.xOut[parseInt(i.n)-1]="OUT"+x.s+cS;}));if(dondeG("lamas"))lamO.push(dondeG("lamas")+cS);if(dondeG("focos"))focO.push(dondeG("focos")+cS);
-        const conLamas=lam.length>0,conPeri=Lw.some(l=>l.grp==="peri");
-        /* TKL a 2 canales: OUT1+OUT3 encienden juntas y OUT2+OUT4 juntas. */
-        if(tkl&&cfg.indep&&conLamas&&conPeri&&[[1,3],[2,4]].some(par=>{const g=new Set(o.filter(x=>par.includes(x.s)).flatMap(x=>x.items.map(i=>i.grp)));return g.has("peri")&&g.has("lamas")&&!amb;}))
-          av.push(["warn",`${m.nombre}: con encendido independiente la TKL enciende juntas OUT1 + OUT3 y juntas OUT2 + OUT4. Con estas salidas, perímetro y lamas comparten canal.`]);
+        /* canales de la TKL: el modo más sencillo en el que ningún canal junta dos encendidos distintos */
+        const cOut=n=>new Set((o.find(x=>x.s===n)||{items:[]}).items.map(cat));
+        o.forEach(x=>{const cs=[...new Set(x.items.map(cat))];if(cfg.indep&&cs.length>1)av.push(["warn",`${m.nombre}${cS}: OUT${x.s} lleva ${cs.map(c=>ENC[c]).join(" y ")}: se encienden juntos. Cambia la salida en la planta o en «Salidas».`]);});
         if(!j&&amb&&!cfg.indep)av.push(["warn",`${m.nombre}: lleva LED directo + indirecto. Para encenderlos aparte marca «Lamas y perímetro con encendido independiente».`]);
-        if(nC===1&&amb&&tkl&&conLamas&&cfg.indep)av.push(["info",`${m.nombre}: la TKL tiene 2 canales: OUT1 + OUT3 (directo) y OUT2 + OUT4 (indirecto); las lamas encienden con el indirecto.`]);
-        const modo=amb&&tkl?(cfg.indep?`2 canales (P2 → LED verde): OUT1+OUT3 directo · OUT2+OUT4 indirecto${conLamas?" y lamas":""}`:"1 canal (P2 → LED rojo): las 4 salidas encienden juntas"):tkl?(conLamas&&conPeri&&cfg.indep?"2 canales (P2 → LED verde): OUT1+OUT3 perímetro · OUT2+OUT4 lamas":"1 canal (P2 → LED rojo): las 4 salidas encienden juntas"):"OUT1 / OUT2 (ver manual STL)";
+        let modo="OUT1 / OUT2 (ver manual STL)";
+        if(tkl){const M=!cfg.indep||cats.length<=1?TKL_MODOS[0]:TKL_MODOS.find(M=>M.g.every(gr=>new Set(gr.flatMap(n=>[...cOut(n)])).size<=1))||TKL_MODOS[3];
+          const grupos=M.g.map(gr=>{const cs=[...new Set(gr.flatMap(n=>[...cOut(n)]))];return cs.length?`${gr.map(n=>"OUT"+n).join("+")} ${cs.map(c=>ENC[c]).join(" + ")}`:"";}).filter(Boolean);
+          modo=`${M.n} canal${M.n>1?"es":""} (P2 → LED ${M.col})${M.n>1?": "+grupos.join(" · "):": las 4 salidas encienden juntas"}`;
+          if(M.n>1)modo+=`. Memoriza en el emisor un canal por encendido (P1 → color de cada canal)`;}
         splitters(o,false,tag+cN);
         const M=Lw.reduce((a,l)=>a+l.len,0);
         if(M>maxM)av.push(["bad",`${m.nombre}${cS}: ${m2(M)} m de LED blanco, la central da para ${maxM} m. Hace falta otra central.`]);
         else if(M>maxM*0.9)av.push(["warn",`${m.nombre}: ${m2(M)} m de LED blanco, cerca del máximo de ${maxM} m de la central.`]);
-        if(maxO)o.forEach(x=>{if(x.W>maxO)av.push(["bad",`${m.nombre}: OUT${x.s} con ${w0(x.W)}, el máximo por salida de la TKL250 es ${maxO} W.`]);});
+        if(maxO)o.forEach(x=>{if(x.W>maxO)av.push(["bad",`${m.nombre}: OUT${x.s} con ${w0(x.W)}, el máximo por salida de la TKL250 es ${maxO} W. Pásalo a otra salida o pon otra central de luces («Centrales de luces» en Auto o 2).`]);});
         outs.push({k:kc,modo,o,tag:tag+cN,nombre:m.nombre});
         dev.push({id:"led"+mi+(j?"_"+j:""),t:`${tag}${cN} · Luces · `+(tkl?"TKL250 ONE":kc==="stl250"?"STL250":"STL100")+` · ${loc}`,code:C[kc][0],model:C[kc][2],feed:"230",psu:true,right:[...ledRight(o),{kind:"radio",t:C[emL][1],s:emL===emisor?"mismo emisor":C[emL][0],wires:[["r",""]],pin:"Radio"}]});
         add(kc,1);
@@ -993,7 +1013,7 @@ function icon(kind,x,y){
   return `<rect x="${x+8}" y="${y-8}" width="20" height="16" rx="2" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/>`;
 }
 /* Esquema unifilar (UNE-EN 60617): cada circuito es una sola línea y el número de conductores se marca con trazos
-   oblicuos, uno por conductor; con más de 3, un solo trazo y el número. Si se conoce, la sección va detrás: 2 × 0,75. */
+   oblicuos, uno por conductor; con más de 3, un solo trazo y el número. Si se conoce, la sección va detrás, en mm²: 2 × 0,75 mm². */
 function trazos(x,y,n,ver,txt){
   const k=n>3?1:n;let s="";
   for(let i=0;i<k;i++){const o=(i-(k-1)/2)*6;
@@ -1033,7 +1053,8 @@ function dibujaUnifilar(cfg,r,cuadro){
       if(radio)body+=`<line x1="${bx+bw}" y1="${cy}" x2="${ix}" y2="${cy}" stroke="var(--w-r)" stroke-width="2" stroke-dasharray="5 4"/>`;
       else{body+=`<line x1="${bx+bw}" y1="${cy}" x2="${ix}" y2="${cy}" stroke="var(--ink)" stroke-width="2"/>`;
         /* sensor de una sola línea de señal: cable del fabricante, sin número */
-        body+=trazos(ix-40,cy,ws.length,false,it.kind==="motor"?`${ws.length} × 0,75`:String(ws.length));}
+        /* sección en mm² cuando se conoce: manguera del motor y alargos del perímetro (0,75 mm², dato SAT) */
+        body+=trazos(ix-40,cy,ws.length,false,it.kind==="motor"||(it.kind==="led"&&/alargo/.test(it.s||""))?`${ws.length} × 0,75 mm²`:String(ws.length));}
       body+=`<text x="${bx+bw+8}" y="${cy-8}" font-size="10" class="mono mut">${esc(it.pin)}</text>`;
       const wl=ws.map(w=>w[1]).filter(Boolean).join(" / ");
       if(wl)body+=`<text x="${ix-6}" y="${cy+16}" font-size="10" text-anchor="end" class="mono mut">${esc(wl)}</text>`;
@@ -1401,7 +1422,7 @@ function conexiones(cfg,r){
     if(tkl.length)out.push({t:"TKL250 ONE (LED blanco, una por módulo)",code:C.tkl[0],li:[
       "Alimentación 230 V: marrón = fase · azul = neutro.",
       "Salidas LED 24 V: hilos grises 1 a 4 = OUT1 a OUT4. Máx. 120 W por salida y 250 W en total. No poner 250 W en una sola salida.",
-      "Canales (P2 mantenido): rojo 1 · verde 2 (OUT1+3 y OUT2+4) · azul 3 · amarillo 4.",
+      "Canales (P2 mantenido > 2 s, soltar en el color y pulsar P2 para guardar): rojo 1 (las 4 juntas) · verde 2 (OUT1+3 y OUT2+4) · azul 3 (OUT1+2 juntas, OUT3 y OUT4) · amarillo 4 (las 4 sueltas).",
       ...tkl.map(lo=>`${lo.tag}: ${lo.modo}.`),...tkl.flatMap(outLines),
       "Pulsador NA: marrón = salida 1 · verde = común · blanco = salida 2 · negro = salida 3 · gris = salida 4.",
       "Si cambias los canales después de memorizar emisores, se pierden los emisores."
