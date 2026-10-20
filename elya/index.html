@@ -485,6 +485,9 @@ const MOTOR_W=3.6*24;
    aislamiento y cubierta de PVC, 70 °C. Caída de tensión a 3,6 A: ΔU = 2·L·I·ρ/S, ρ = 0,021 Ω·mm²/m (cobre a 70 °C). */
 const CAB_MOT="H05VV-F 2×0,75 mm²",caidaMot=L=>2*L*3.6*0.021/0.75;
 /* Nombre corto de cada tira, para rotularla en la planta. */
+/* largo de cada rollo / tira del catálogo (m); el instalador la corta a la medida del lado */
+const ROLLO_L={rW5:5,rW7:7,rN5:5,rN7:7,nP45:4.5,nP6:6,rgbP6:6};
+const corte=t=>ROLLO_L[t.prod]&&t.len<ROLLO_L[t.prod]-0.005?` · cortar a ${m2(t.len)} m`:"";
 const TIRA_C={rW5:"LED 3000 K · 5 m",rW7:"LED 3000 K · 7 m",rN5:"LED 4000 K · 5 m",rN7:"LED 4000 K · 7 m",nP45:"Neón · 4,50 m",nP6:"Neón · 6 m",rgbP6:"RGB neón · 6 m"};
 const ESQ={si:"Sup. izq.",sd:"Sup. der.",ii:"Inf. izq.",id:"Inf. der."};
 /* TKL (manual «TKL CHERUBINI», Drive): canales que se habilitan con P2 y salidas que encienden juntas en cada modo.
@@ -931,7 +934,7 @@ function calcular(cfg){
       t.prod=prodTira(m,cfg,t.len,med);
       if(med&&t.len>med+1e-6)av.push(["bad",`${m.nombre}, tira de ${t.viga}: has elegido ${m2(med)} m y el lado mide ${m2(t.len)} m, no llega.`]);
       t.W=t.len*(rgb?cfg.wmRGB:cfg.wm);
-      add(t.prod,1,`${tag} ${t.viga} ${m2(t.len)} m${nivTxt(m,t.niv)?" · "+nivTxt(m,t.niv):""}`);
+      add(t.prod,1,`${tag} ${t.viga}${nivTxt(m,t.niv)?" ("+nivTxt(m,t.niv)+")":""}: ${ROLLO_L[t.prod]?"tira de "+m2c(ROLLO_L[t.prod])+" m":""}${corte(t)||" · "+m2(t.len)+" m"}`);
       if(t.len>maxLen+1e-6)av.push(["bad",`${m.nombre}, tira de ${t.viga} (${m2(t.len)} m): el producto más largo es de ${maxLen} m.`]);
     });
     /* cables del perímetro puestos a mano: van tal cual al material y la app no pone alargos ni cables de 3 vías */
@@ -1496,7 +1499,7 @@ function dibujaModulo(pm,cfg){
     txt+=T(vx-nx*dv,vy-ny*dv,vigaDe(m,sd),{fs:Math.max(6.5,Math.min(11,BW(sd)*0.78)),peso:700,rot:vert(sd),halo:0});
     const mx2=(x1+x2)/2,my2=(y1+y2)/2;
     const t=tiras.find(t=>t.sides[0]===sd);
-    const tt=t&&`${amb?"2 × ":""}${TIRA_C[t.prod]||C[t.prod][1]}${t.sides.length>1?" · "+m2(t.len)+" m":""}${m.ledPos==="ind"?" · indirecta":""}`;
+    const tt=t&&`${amb?"2 × ":""}${TIRA_C[t.prod]||C[t.prod][1]}${corte(t)?" → "+m2(t.len)+" m":""}${m.ledPos==="ind"?" · indirecta":""}`;
     if(t)txt+=ed("tira:"+sd,T(mx2-nx*(d+(vert(sd)?14:0)),my2-ny*d,tt,{fs:cabe(tt,Math.hypot(x2-x1,y2-y1)-2*B,9.5),col:"var(--muted)",rot:vert(sd)}));});
   /* cotas, por fuera de los rótulos de cables */
   SIDES.forEach(sd=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=laneOut+18+Math.max(1,filas[sd])*14,t=5;
@@ -2166,7 +2169,7 @@ function render(){
   const sisN={nexta:"Cherubini Nexta",teleco_eu:"Teleco EU",teleco_ul:"Teleco UL",somfy:"Somfy io"}[cfg.sistema];
   $("cajetin").innerHTML=[["Obra",cfg.obra||"—"],["OF",cfg.of||"—"],["Módulos",String(cfg.modulos.length)],["Alto",`${m2(cfg.alto)} m`],["Control",sisN],["Fecha",new Date().toLocaleDateString("es-ES")]].map(([b,s])=>`<div><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join("");
   const filas=r.plan.flatMap(pm=>[
-    ...pm.tiras.map((t,i)=>`<tr><td>${esc(pm.tag)}</td><td><span class="pill" style="background:var(--c-led);color:#1d2329">${esc(t.viga)}</span></td><td>${esc(t.from)}</td><td class="qty">${m2(t.len)} m</td><td class="qty">${w0(t.W)}</td><td class="code">${C[t.prod][0]}<div class="hint">${esc(C[t.prod][1])}</div></td></tr>`),
+    ...pm.tiras.map((t,i)=>`<tr><td>${esc(pm.tag)}</td><td><span class="pill" style="background:var(--c-led);color:#1d2329">${esc(t.viga)}</span></td><td>${esc(t.from)}</td><td class="qty">${m2(t.len)} m</td><td class="qty">${w0(t.W)}</td><td class="code">${C[t.prod][0]}<div class="hint">${esc(C[t.prod][1])}${esc(corte(t))}</div></td></tr>`),
     ...(pm.m.lamasN?[`<tr><td>${esc(pm.tag)}</td><td><span class="pill" style="background:var(--lama)">Lamas</span></td><td>Centralita (${esc(pm.m.loc)}) · ${pm.m.lamasN} lamas</td><td class="qty">${m2(pm.lamaLen)} m c/u</td><td class="qty">${w0(pm.m.lamasN*pm.lamaLen*cfg.wm)}</td><td class="code">${C.lamaW[0]}</td></tr>`]:[])]);
   $("tiras").innerHTML=filas.length?`<table><thead><tr><th>Mód.</th><th>Viga</th><th>Sale de</th><th>Largo</th><th>Consumo</th><th>Producto</th></tr></thead><tbody>${filas.join("")}</tbody></table>`:`<p class="hint">Sin iluminación.</p>`;
   $("conx").innerHTML=conexiones(cfg,r);
