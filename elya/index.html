@@ -1376,7 +1376,7 @@ function dibujaModulo(pm,cfg){
   for(let k=1;k<=TL;k++){const yy=Y(lamY(m,k)),pit=h/TL;
     fondo+=ed("lama:"+k,`<rect x="${X(0)+hX}" y="${yy-pit/2}" width="${w-2*hX}" height="${pit}" fill="transparent"/><line x1="${X(0)+hX}" y1="${yy}" x2="${X(A)-hX}" y2="${yy}" stroke="var(--line)" stroke-width="${Math.min(3,pit*0.3)}"/>`+
       (ledK.has(k)||focK.has(k)||k===1||k===TL||k%5===0?`<text x="${numX}" y="${yy}" dominant-baseline="middle" text-anchor="${latX?"start":"end"}" font-size="${Math.min(8,pit*0.8)}" font-weight="${ledK.has(k)||focK.has(k)?700:400}" class="mono" paint-order="stroke" stroke="var(--bg)" stroke-width="3" style="fill:${ledK.has(k)||focK.has(k)?"var(--ink)":"var(--muted)"}">${k}</text>`:""));}
-  [MEDIA_L/2,P-MEDIA_L/2].forEach(yy=>{fondo+=`<line x1="${X(0)+hX}" y1="${Y(yy)}" x2="${X(A)-hX}" y2="${Y(yy)}" stroke="var(--line)" stroke-width="2" stroke-dasharray="6 3"/><text x="${numX}" y="${Y(yy)}" dominant-baseline="middle" text-anchor="${latX?"start":"end"}" font-size="7" class="mono" paint-order="stroke" stroke="var(--bg)" stroke-width="3" style="fill:var(--muted)">½</text>`;});
+  [MEDIA_L/2,P-MEDIA_L/2].forEach(yy=>{fondo+=`<line x1="${X(0)+hX}" y1="${Y(yy)}" x2="${X(A)-hX}" y2="${Y(yy)}" stroke="var(--line)" stroke-width="2" stroke-dasharray="6 3"/>`;}); /* medias lamas: sin número (no cuentan como lama) */
   const lamYs=lamLED(m).map(k=>lamY(m,k));
   lamYs.forEach(yy=>{fondo+=`<line x1="${X(0)+hX}" y1="${Y(yy)}" x2="${X(A)-hX}" y2="${Y(yy)}" stroke="${CC.led}" stroke-width="2"/>`;});
   /* giro de las lamas como en el plano: 0° = cerrada, 135° = abierta (lado de apertura, donde está la lama 1) */
