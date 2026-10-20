@@ -329,7 +329,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <p class="hint">Elige lo que lleva y la app monta los módulos, el esquema y el material. Después se afina todo en la planta (tocando cada cosa) y en cada módulo.</p>
   <fieldset class="cfgs"><legend>1 · Estructura</legend>
     <label>Obra / cliente<input type="text" id="cf_obra" placeholder="Nombre de la obra"></label>
-    <div class="row"><label>Montaje<select id="cf_mont"><option value="auto">Autoportante</option><option value="pared">Pared / portería (pared arriba en la planta)</option></select></label>
+    <div class="row"><label>Montaje<select id="cf_mont"><option value="auto">Autoportante</option><option value="pared">Pared / portería (pared arriba; 2 pilares delante y 2 semipilares en la pared en testa)</option></select></label>
     <label>Tipología<select id="cf_tip"><option value="testa">Testa</option><option value="inglete">Inglete</option></select></label></div>
     <div class="row"><label>Módulos<input type="number" id="cf_n" min="1" max="6" step="1" value="1"></label>
     <label>Unidos<select id="cf_disp"><option value="a">Uno al lado del otro (a lo largo de las lamas)</option><option value="p">Uno detrás de otro (en la salida)</option></select></label></div>
@@ -811,6 +811,10 @@ function calcular(cfg){
   if(!mods.length)av.push(["bad","Añade al menos un módulo."]);
   if(cfg.altoFalta)av.push(["warn","Falta el alto H de la pérgola: se calcula con 2,50 m. Ponlo del plano."]);
   if(H>3)av.push(["warn",`Alto ${m2(H)} m: el manual ELYA pone 3,00 m como máximo; más alto, consultar con fábrica.`]);
+  /* manuales ELYA (autoportante y pared / portería): 2 módulos, 7,00 m de ancho (a lo largo de las lamas) y 6,00 m de salida como máximo */
+  if(mods.length>=2){const ps=posiciones(mods),x0=Math.min(...ps.map(q=>q.x)),x1=Math.max(...ps.map((q,i)=>q.x+mods[i].A));
+    if(mods.length===2&&x1-x0>7+1e-6)av.push(["bad",`Con 2 módulos el ancho máximo (a lo largo de las lamas) es 7,00 m y aquí son ${m2(x1-x0)} m.`]);
+    if(mods.length>2)av.push(["warn",`${mods.length} módulos: los manuales ELYA solo dan medidas para 1 y 2 módulos (2 módulos: 7,00 × 6,00 m). Consultar con fábrica.`]);}
   if(H>3)av.push(["warn",`Altura ${m2(H)} m: por encima de 3,00 m hay que consultar a fábrica.`]);
   const totW=l=>l.reduce((a,b)=>a+b.W,0);
   function reparte(lst,salidas){
@@ -1787,7 +1791,7 @@ function aplicaPlanoClaude(d,nombreArchivo,quien){
   const mm=v=>{const n=parseFloat(v);return n>0?Math.round(n/10)/100:null;};
   const mods=(Array.isArray(d.modulos)?d.modulos:[]).map((m,i)=>{
     const c=m.centralita||{},pil=m.pilares||{},lados={...LADOS_ALL};
-    if(m.pared&&lados[m.pared]!==undefined)lados[m.pared]=false;
+    /* manual ELYA Pared / Portería: la tira A recorre también la viga de pared, así que ese lado lleva tira */
     return {nombre:"Módulo "+(m.n||i+1),A:mm(m.ancho_mm)||4,P:mm(m.proyeccion_mm)||4,viento:!!d.viento&&i===0,lluvia:!!d.lluvia&&i===0,lamLed:Array.isArray(m.lamas_led_num)?numLista(m.lamas_led_num.join(",")):[],lamasN:Math.max(0,parseInt(m.lamas_led)||0),motor:m.motor==="izq"?"izq":"der",
       cent:ESQ[c.esquina]?c.esquina:"si",aloj:c.alojada==="pilar"?"pilar":"viga",ref:String(c.ref||""),
       pil:{si:String(pil.si||""),sd:String(pil.sd||""),ii:String(pil.ii||""),id:String(pil.id||"")},vig:{},
@@ -2225,8 +2229,9 @@ function cfgCrea(){
     if(disp==="a"){const top=k=>"P"+(k+1),bot=k=>"P"+(2*n+2-k);m.pil={si:top(i),sd:top(i+1),id:bot(i+1),ii:bot(i)};}
     else{const L=j=>"P"+(n+1-j),Rr=j=>"P"+(n+2+(n-j));m.pil={ii:L(i),si:L(i+1),sd:Rr(i+1),id:Rr(i)};}
     m.ref=m.pil[m.cent];
-    /* con pared (arriba), el lado de la pared no lleva tira */
-    if(pared&&(disp==="a"||i===n-1))m.lados={...m.lados,sup:false};
+    /* con pared (arriba): la tira también va en la viga de pared (manual Pared / Portería); la centralita, en un pilar
+       frontal (abajo) del lado contrario al motor */
+    if(pared&&(disp==="a"||i===0)){m.cent=mot==="der"?"ii":"id";m.ref=m.pil[m.cent];}
     return m;});
   writeForm(Object.assign(VACIA(),{obra:v("cf_obra"),alto:H,tipol:v("cf_tip"),sistema:sis,emisor:EMISORES[sis][0],sisLuz:v("cf_sisL"),
     periProd:v("cf_prod"),indep:$("cf_indep").checked,schuko:Math.max(0,Math.round(nv("cf_sch",0))),usb:Math.max(0,Math.round(nv("cf_usb",0))),modulos:mods}));
