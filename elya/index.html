@@ -489,6 +489,10 @@ const ESQ={si:"Sup. izq.",sd:"Sup. der.",ii:"Inf. izq.",id:"Inf. der."};
    1 canal: las 4 juntas · 2: OUT1+3 y OUT2+4 · 3: OUT1+2 juntas, OUT3 y OUT4 sueltas · 4: las 4 sueltas. */
 const TKL_MODOS=[{n:1,col:"rojo",g:[[1,2,3,4]]},{n:2,col:"verde",g:[[1,3],[2,4]]},{n:3,col:"azul",g:[[1,2],[3],[4]]},{n:4,col:"amarillo",g:[[1],[2],[3],[4]]}];
 const ENC={dir:"perímetro",ind:"indirecto",lam:"lamas",foc:"focos",x:"productos a mano"};
+/* Canales de cada emisor (fichas y catálogo). */
+const CANALES={hoblo6:6,hobloMF:20,eco1:1,pop:1,noonEU:9,noonUL:9,situo:5};
+const ENCAN=[["mot","Motor"],["peri","Perímetro"],["ind","Indirecto"],["lam","LED lamas"],["foc","Focos"]];
+const ENCAN_m={mot:"motor",peri:"perímetro",ind:"indirecto",lam:"LED lamas",foc:"focos"};
 /* Perfil LED perimetral: dos alojamientos, arriba (luz indirecta) y abajo (luz directa) (dato SAT). Con los dos, cada uno
    lleva sus tiras, sus alargos y sus cables de 3 vías, a salidas distintas para encenderlos aparte. */
 const LEDPOS={dir:"Directo (alojamiento de abajo)",ind:"Indirecto (alojamiento de arriba)",ambos:"Directo + indirecto (encendido aparte)"};
@@ -576,6 +580,10 @@ function modCard(m,i){
     ${PERCAB.map(k=>`<label class="lc"><span>${esc(C[k][1])} <span class="mono mut">${C[k][0]}</span></span><input type="number" id="m${i}_pc_${k}" min="0" max="99" step="1" value="${(m.periCab||{})[k]||""}" placeholder="0"></label>`).join("")}
   </details>
   <label class="chk"><input type="checkbox" id="m${i}_aisl"${m.aisl?" checked":""}> Aislante en lamas (porexpán)</label>
+  <details class="lamcab"${Object.values(m.can||{}).some(v=>v&&v!=="auto")?" open":""}><summary>Canales del mando (emisor)</summary>
+    <p class="hint">Auto: canal 1 motor, 2 perímetro, 3 LED de lamas o focos…; con varios módulos sigue la numeración. Elige otro canal si quieres.</p>
+    <div class="row">${ENCAN.map(([k,t])=>`<label>${t}<select id="m${i}_c_${k}">${opt(Object.fromEntries([["auto","Auto"],...[...Array(20)].map((_,n)=>[String(n+1),"Canal "+(n+1)])]),String((m.can||{})[k]||"auto"))}</select></label>`).join("")}</div>
+  </details>
   <details class="lamcab"${m.calN||m.altN||m.cortN?" open":""}><summary>Otros equipos (en pruebas: calefactores, altavoces, cortinas)</summary>
     <p class="hint">Aún sin probar en la ELYA ni código en el catálogo: salen en el esquema y el material como «sin código» para no olvidarlos.</p>
     <div class="row"><label>Calefactores<input type="number" id="m${i}_calN" min="0" max="8" step="1" value="${m.calN||0}"></label><label>W c/u<input type="number" id="m${i}_calW" min="0" max="4000" step="50" value="${m.calW||2000}"></label></div>
@@ -619,7 +627,7 @@ function readMods(){
       lados:{sup:g("sup").checked,inf:g("inf").checked,izq:g("izq").checked,der:g("der").checked},
       extra:(()=>{const xs=[];for(let j=0;g(`x${j}_k`);j++)xs.push({k:g(`x${j}_k`).value,q:Math.max(1,Math.round(parseFloat(g(`x${j}_q`).value)||1)),loc:g(`x${j}_loc`).value,d:fnum(g(`x${j}_d`).value),W:Math.max(0,fnum(g(`x${j}_w`).value)||0),s:g(`x${j}_s`).value});return xs;})(),
       focN:Math.max(0,Math.round(parseFloat(g("focN").value)||0)),focT:g("focT").value,focL:g("focL").value,
-      aisl:g("aisl").checked,calN:Math.max(0,parseInt(g("calN").value)||0),calW:Math.max(0,parseFloat(g("calW").value)||0),altN:Math.max(0,parseInt(g("altN").value)||0),cortN:Math.max(0,parseInt(g("cortN").value)||0),
+      aisl:g("aisl").checked,can:Object.fromEntries(ENCAN.map(([k])=>[k,g("c_"+k).value])),calN:Math.max(0,parseInt(g("calN").value)||0),calW:Math.max(0,parseFloat(g("calW").value)||0),altN:Math.max(0,parseInt(g("altN").value)||0),cortN:Math.max(0,parseInt(g("cortN").value)||0),
       focLam:numLista(g("focLam").value),focPL:Math.max(1,Math.round(parseFloat(g("focPL").value)||2)),lamT:Math.max(0,Math.round(parseFloat(g("lamT").value)||0)),lamLed:numLista(g("lamL").value),
       ledc:g("ledc").value,ledN:parseInt(g("ledn").value,10)||0,ledPos:g("lpos").value,sal:{p1:g("s_p1").value,p2:g("s_p2").value,i1:g("s_i1").value,i2:g("s_i2").value,lam:g("s_lam").value,foc:g("s_foc").value},
       periCab:Object.fromEntries(PERCAB.map(k=>[k,Math.max(0,Math.round(parseFloat(g("pc_"+k).value)||0))]).filter(([,v])=>v>0)),
@@ -1115,7 +1123,29 @@ function calcular(cfg){
   /* Lo que va por fuente de 24 V se divide por su rendimiento (90 %); lo que es directo a 230 V (MT-R), tal cual. */
   const W24=dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0),0),W230=dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0)/(d.directo?1:0.9),0),I230=W230/230;
   if(cfg.schuko)av.push(["info","Las tomas de 230 V llevan conductor de protección (verde-amarillo) y en exterior han de ser IPX4 como mínimo (ITC-BT-30). La toma Schuko del catálogo es IP54."]);
-  return {av,bom,dev,plan,outs,W24,W230,I230};
+  /* ---- canales del mando: por módulo motor, perímetro, indirecto, lamas y focos; con varios módulos sigue la numeración.
+     Sin encendido independiente, las luces de un módulo van en un solo canal. Se puede fijar cada uno a mano. ---- */
+  const canales=[],usados={};
+  const usa=(em,v)=>{(usados[em]=usados[em]||new Set()).add(v);};
+  const libre=em=>{const u=usados[em]=usados[em]||new Set();let c=1;while(u.has(c))c++;return c;};
+  /* primero los fijados a mano, para no repetirlos en Auto */
+  mods.forEach((m,mi)=>ENCAN.forEach(([k])=>{const v=parseInt((m.can||{})[k],10);if(v>0)usa(k==="mot"?emisor:emL,v);}));
+  mods.forEach((m,mi)=>{const tag="M"+(mi+1),lleva={mot:true,peri:m.luz!=="none"&&m.luz!=="rgb"||m.luz==="rgb",ind:m.luz!=="none"&&m.ledPos==="ambos",lam:m.lamasN>0,foc:m.focN>0};
+    let compartido=null;
+    ENCAN.forEach(([k,t])=>{if(!lleva[k])return;const em=k==="mot"?emisor:emL,man=parseInt((m.can||{})[k],10);let c;
+      if(man>0)c=man;else if(k!=="mot"&&!cfg.indep&&compartido)c=compartido;else{c=libre(em);usa(em,c);}
+      if(k!=="mot"&&!cfg.indep&&!compartido)compartido=c;
+      canales.push({mi,tag,k,t,c,em});});});
+  /* en el unifilar: el canal junto al mando de cada central */
+  dev.forEach(d=>{const mi=parseInt((d.id.match(/\d+/)||[])[0],10),cs=canales.filter(x=>x.mi===mi);if(!cs.length)return;
+    const radio=(d.right||[]).find(i=>i.kind==="radio");if(!radio)return;
+    const esMot=/^(tkm|tel|som)/.test(d.id),txt=d.right.map(i=>i.t).join(" ");
+    const mias=esMot?cs.filter(x=>x.k==="mot"||(/^tel/.test(d.id)&&x.k!=="mot")):cs.filter(x=>x.k!=="mot"&&(x.k==="peri"?/\+|V\d/.test(txt):x.k==="ind"?/indirecto/.test(txt):x.k==="lam"?/lamas/i.test(txt):/foco/i.test(txt)));
+    if(mias.length)radio.s=mias.map(x=>`canal ${x.c}${esMot&&mias.length===1?"":" "+ENCAN_m[x.k]}`).join(" · ");});
+  /* aviso si el emisor no tiene tantos canales */
+  [...new Set(canales.map(x=>x.em))].forEach(em=>{const max=Math.max(...canales.filter(x=>x.em===em).map(x=>x.c)),cap=CANALES[em];
+    if(cap&&max>cap)av.push(["warn",`${C[em][1]} tiene ${cap} canal${cap>1?"es":""} y hacen falta ${max}. ${cfg.sistema==="nexta"||sisL==="nexta"?"Usa el Hoblo multifunción (HB80-PRG200, 20 canales) o más emisores.":"Usa más emisores."}`]);});
+  return {av,bom,dev,plan,outs,W24,W230,I230,canales};
 }
 
 /* ---------- dibujo: esquema unifilar ---------- */
@@ -1559,6 +1589,7 @@ function conexiones(cfg,r){
     if(stl.length)out.push({t:"STILO LED (LED blanco)",code:C[stl[0].k][0],li:["Alimentación 230 V. 2 salidas LED 24 V.",...stl.map(lo=>`${lo.tag}: ${lo.modo}.`),...stl.flatMap(outLines),"Bornas y límites por salida: ver manual STILO LED."],src:"Manual STILO LED (Drive)"});
     if(r.dev.some(d=>/^rgbw/.test(d.id)))out.push({t:"TKL RGBW 250 W",code:C.tklrgbw[0],li:["Alimentación 230 V.","Salida RGBW por conector "+C.conRGBW[0]+" (CON-EP55/RGBS+W, 4 × RGB + 1 × blanco).","Máx. 250 W en total."],src:"Guía rápida TKL RGBW (Drive)"});
   }
+  if(r.canales&&r.canales.length)out.push({t:"Canales del mando",code:"",li:r.canales.map(x=>`Canal ${x.c} (${C[x.em][1]}): ${ENCAN_m[x.k]} ${x.tag}`).concat(["TKM: P1 corto y subida en el canal del motor. TKL: P1 hasta el color del canal de la central y subida en el canal del mando (manuales Cherubini)."]),src:"Reparto de la app (Auto) o elegido en cada módulo"});
   out.push({t:"Recorrido de cables (manual ELYA)",code:"",li:[
     "Centralita: dentro de la viga o del pilar que indica la ficha de fabricación (número de viga o de pilar).",
     "Motor: cable por la parte superior del larguero hasta la centralita de su módulo.",
