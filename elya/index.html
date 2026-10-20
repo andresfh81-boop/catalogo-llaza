@@ -509,7 +509,12 @@ const reparteLamas=(n,T)=>n>0?[...new Set([...Array(n)].map((_,i)=>Math.round((i
 const lamLED=m=>m.lamLed&&m.lamLed.length?m.lamLed:reparteLamas(m.lamasN||0,lamT(m));
 /* la lama 1 es la del extremo del motor (dato SAT): arriba si el motor va arriba, abajo si va abajo */
 const motYde=m=>m.motY==="s"||m.motY==="i"?m.motY:m.cent[0];
-const lamY=(m,k)=>motYde(m)==="i"?(k-0.5)*m.P/lamT(m):m.P-(k-0.5)*m.P/lamT(m);
+/* hojas de corte: además de las lamas enteras («Nº Lamas» de la ficha) cada módulo lleva una MEDIA LAMA en cada extremo
+   (fija, sin número ni LED). La lama 1 es la primera entera junto a la media lama del lado del motor. */
+const MEDIA_L=0.1,lamPaso=m=>(m.P-2*MEDIA_L)/lamT(m);
+/* lama 1 = la del lado de apertura (135° en el plano; dato SAT). Auto = el extremo del motor */
+const abDe=m=>m.ab==="s"||m.ab==="i"?m.ab:motYde(m);
+const lamY=(m,k)=>abDe(m)==="i"?MEDIA_L+(k-0.5)*lamPaso(m):m.P-MEDIA_L-(k-0.5)*lamPaso(m);
 /* Focos: 3 W cada uno (dato SAT). */
 const FOCO_W=3,FOCOS={aries:"Foco Aries bi-emisión",fMiAL:"Foco LED mini AL",fMiNG:"Foco LED mini NG"};
 const SALOPT={auto:"Auto",1:"OUT1",2:"OUT2",3:"OUT3",4:"OUT4"};
@@ -551,6 +556,7 @@ function modCard(m,i){
   <div class="mhd"><input type="text" id="m${i}_nombre" value="${esc(m.nombre)}" aria-label="Nombre del módulo"><button type="button" class="del" data-del="${i}">Quitar</button></div>
   <div class="row"><label>Ancho A (m)<input type="number" id="m${i}_A" step="0.01" min="1" max="6" value="${m.A}"></label><label>Salida P (m)<input type="number" id="m${i}_P" step="0.01" min="1" max="8" value="${m.P}"></label></div>
   <div class="row"><label>Motor / desagüe<select id="m${i}_motor">${opt({izq:"Lado izq.",der:"Lado der."},m.motor)}</select></label><label>Motor en el extremo<select id="m${i}_motY">${opt({auto:"Auto (el de la centralita)",s:"Superior",i:"Inferior"},m.motY||"auto")}</select></label></div>
+  <label>Apertura de las lamas (lado de 135°, donde está la lama 1)<select id="m${i}_ab">${opt({auto:"Auto (el extremo del motor)",s:"Arriba",i:"Abajo"},m.ab||"auto")}</select></label>
   <label>Centralita (esquina)<select id="m${i}_cent">${opt(ESQ,m.cent)}</select></label><input type="hidden" id="m${i}_alsel" value="${esc(JSON.stringify(m.alSel||{}))}">
   <div class="row"><label>Alojada en<select id="m${i}_aloj">${opt({viga:"Viga",pilar:"Pilar"},m.aloj||"viga")}</select></label><label>Nº viga / pilar<input type="text" id="m${i}_ref" value="${esc(m.ref||"")}" placeholder="V2-4 o 3"></label></div>
   <div class="tag">Pilares</div>
@@ -588,7 +594,7 @@ function modCard(m,i){
   <p class="hint">Perímetro 1 = tiras de la esquina de la centralita (o la primera entrada); Perímetro 2 = las otras. Indirecto 1 / 2 = lo mismo para el LED indirecto cuando el módulo lleva directo + indirecto (Auto: OUT2 y OUT4 en la TKL, OUT2 en la STL). Auto: perímetro a OUT1 y OUT3, lamas repartidas en OUT2 y OUT4, focos a la salida con menos carga.</p></div>
   <div class="row"><label>Lamas en total<input type="number" id="m${i}_lamT" min="1" max="80" step="1" value="${m.lamT>0?m.lamT:""}" placeholder="${lamTDef(m)} (auto)"></label><label>Lamas con LED (blanco cálido)<input type="number" id="m${i}_lamasN" min="0" max="80" step="1" value="${lamLED(m).length}"></label></div>
   <label>Nº de las lamas con LED<input type="text" id="m${i}_lamL" value="${esc(lamLED(m).join(", "))}" placeholder="ej. 5, 12, 19, 26"></label>
-  <p class="hint">Lama 1 = la del extremo del motor. También se elige tocando cada lama en la planta.</p>
+  <p class="hint">Lamas enteras (sin las 2 medias lamas de los extremos). Lama 1 = la primera entera del lado de apertura (135°). También se elige tocando cada lama en la planta.</p>
   <details class="lamcab"${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?" open":""}><summary>Cables y conectores de las lamas, desde la centralita (a tu elección)</summary>
     <p class="hint">Pon la cantidad de cada cable. Cables a 0 = la app pone 1 cable 3 m 2P + 2 micro en T por cada 2 lamas de cada salida, encadenados. Conector de eje a 0 = uno por lama.</p>
     ${LAMCAB.map(k=>`<label class="lc"><span>${esc(C[k][1])} <span class="mono mut">${C[k][0]}</span></span><input type="number" id="m${i}_lc_${k}" min="0" max="99" step="1" value="${(m.lamCab||{})[k]||""}" placeholder="0"></label>`).join("")}
@@ -607,7 +613,7 @@ function readMods(){
   const out=[];
   for(let i=0;$(`m${i}_nombre`);i++){
     const g=k=>$(`m${i}_${k}`);
-    out.push({_i:i,nombre:g("nombre").value||("Módulo "+(i+1)),A:num(g("A").value,4),P:num(g("P").value,4),motor:g("motor").value,motY:g("motY").value,alSel:(()=>{try{return JSON.parse(g("alsel").value||"{}")||{};}catch(e){return {};}})(),cent:g("cent").value,aloj:g("aloj").value,ref:g("ref").value.trim(),
+    out.push({_i:i,nombre:g("nombre").value||("Módulo "+(i+1)),A:num(g("A").value,4),P:num(g("P").value,4),motor:g("motor").value,motY:g("motY").value,ab:g("ab").value,alSel:(()=>{try{return JSON.parse(g("alsel").value||"{}")||{};}catch(e){return {};}})(),cent:g("cent").value,aloj:g("aloj").value,ref:g("ref").value.trim(),
       pil:{si:g("p_si").value.trim(),sd:g("p_sd").value.trim(),id:g("p_id").value.trim(),ii:g("p_ii").value.trim()},
       vig:{sup:g("v_sup").value.trim(),inf:g("v_inf").value.trim(),izq:g("v_izq").value.trim(),der:g("v_der").value.trim()},luz:g("luz").value,
       lados:{sup:g("sup").checked,inf:g("inf").checked,izq:g("izq").checked,der:g("der").checked},
@@ -1340,8 +1346,13 @@ function dibujaModulo(pm,cfg){
   for(let k=1;k<=TL;k++){const yy=Y(lamY(m,k)),pit=h/TL;
     fondo+=ed("lama:"+k,`<rect x="${X(0)+hX}" y="${yy-pit/2}" width="${w-2*hX}" height="${pit}" fill="transparent"/><line x1="${X(0)+hX}" y1="${yy}" x2="${X(A)-hX}" y2="${yy}" stroke="var(--line)" stroke-width="${Math.min(3,pit*0.3)}"/>`+
       (ledK.has(k)||focK.has(k)||k===1||k===TL||k%5===0?`<text x="${numX}" y="${yy}" dominant-baseline="middle" text-anchor="${latX?"start":"end"}" font-size="${Math.min(8,pit*0.8)}" font-weight="${ledK.has(k)||focK.has(k)?700:400}" class="mono" paint-order="stroke" stroke="var(--bg)" stroke-width="3" style="fill:${ledK.has(k)||focK.has(k)?"var(--ink)":"var(--muted)"}">${k}</text>`:""));}
+  [MEDIA_L/2,P-MEDIA_L/2].forEach(yy=>{fondo+=`<line x1="${X(0)+hX}" y1="${Y(yy)}" x2="${X(A)-hX}" y2="${Y(yy)}" stroke="var(--line)" stroke-width="2" stroke-dasharray="6 3"/><text x="${numX}" y="${Y(yy)}" dominant-baseline="middle" text-anchor="${latX?"start":"end"}" font-size="7" class="mono" paint-order="stroke" stroke="var(--bg)" stroke-width="3" style="fill:var(--muted)">½</text>`;});
   const lamYs=lamLED(m).map(k=>lamY(m,k));
   lamYs.forEach(yy=>{fondo+=`<line x1="${X(0)+hX}" y1="${Y(yy)}" x2="${X(A)-hX}" y2="${Y(yy)}" stroke="${CC.led}" stroke-width="2"/>`;});
+  /* giro de las lamas como en el plano: 0° = cerrada, 135° = abierta (lado de apertura, donde está la lama 1) */
+  {const ab=abDe(m),gx=X(A*0.46),gy=Y(P*0.68),r=16,dy=ab==="s"?-1:1;
+    fondo+=`<path d="M${gx} ${gy-dy*r} A${r} ${r} 0 0 ${dy>0?1:0} ${gx} ${gy+dy*r}" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#ar)"/>`+
+      T(gx+20,gy-dy*r,"0°",{fs:9,col:"var(--muted)",anchor:"start",peso:500})+T(gx+20,gy+dy*r,"135°",{fs:9,col:"var(--muted)",anchor:"start",peso:700});}
   /* caída del agua, hacia el lado del motor */
   const dir=m.motor==="der"?1:-1,ay=Y(P*0.42);
   fondo+=`<line x1="${X(A/2-dir*A*0.16)}" y1="${ay}" x2="${X(A/2+dir*A*0.16)}" y2="${ay}" stroke="var(--wall)" stroke-width="1.5" marker-end="url(#ar)"/>`+T(X(A/2),ay-12,"CAÍDA AGUA",{fs:9,col:"var(--muted)",peso:500});
