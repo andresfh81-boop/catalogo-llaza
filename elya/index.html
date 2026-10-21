@@ -209,6 +209,10 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <fieldset>
     <legend>Plano de fabricación</legend>
     <label class="drop" id="drop"><input type="file" id="fPlano" accept="application/pdf,.pdf,image/*" multiple hidden><b>Arrastra aquí los planos de la obra</b><span>Mejor la ficha de fabricación (PLANO.pdf) y el plano firmado juntos: de la ficha salen vigas, pilares y centralita, y del nombre del firmado las medidas. También vale uno solo; el firmado escaneado o una foto los lee Claude (desde el enlace de Claude). Toca para elegirlos.</span></label>
+    <div class="adjbox"><b>Hoja de material</b><button type="button" class="mini" id="bMat">Subir hoja (PDF / CSV) o foto</button><button type="button" class="mini" id="bMatCam">📷 Cámara</button>
+      <input type="file" id="fMat" accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain,image/*" hidden><input type="file" id="fMatCam" accept="image/*" capture="environment" hidden>
+      <span class="hint">Lee los códigos (11 cifras) y las cantidades, rellena la obra y la compara con el cálculo. Las fotos las lee Claude (enlace de Claude).</span></div>
+    <div id="matRes" class="impres" hidden></div>
     <div id="adjBox" class="adjbox" hidden><b>Planos adjuntos</b><span id="adjList"></span></div>
     <div id="impRes" class="impres" hidden></div>
   </fieldset>
@@ -468,7 +472,7 @@ const famDe=k=>(FAMILIAS.find(f=>f[1].includes(k))||[null,[k]])[1];
 /* Cambios a mano sobre el material calculado: sw = producto cambiado, q = cantidad, del = quitados, extra = añadidos. */
 const MAT0=()=>({sw:{},q:{},del:[],extra:[]});
 let mat=MAT0();
-const EMISORES={nexta:["hoblo6","hobloMF","eco1","pop"],teleco_eu:["noonEU"],teleco_ul:["noonUL"],somfy:["situo"]};
+const EMISORES={nexta:["pop","hoblo6","hobloMF","eco1"],teleco_eu:["noonEU"],teleco_ul:["noonUL"],somfy:["situo"]};
 const LADOS_ALL={sup:true,inf:true,izq:true,der:true};
 /* Valores por defecto de una obra nueva; el resto sale del plano que se carga. */
 const BASE={obra:"",of:"",alto:2.5,tipol:"testa",sistema:"",emisor:"",sisLuz:"auto",emisorL:"",
@@ -503,7 +507,7 @@ const ESQ={si:"Sup. izq.",sd:"Sup. der.",ii:"Inf. izq.",id:"Inf. der."};
 const TKL_MODOS=[{n:1,col:"rojo",g:[[1,2,3,4]]},{n:2,col:"verde",g:[[1,3],[2,4]]},{n:3,col:"azul",g:[[1,2],[3],[4]]},{n:4,col:"amarillo",g:[[1],[2],[3],[4]]}];
 const ENC={dir:"perímetro",ind:"indirecto",lam:"lamas",foc:"focos",x:"productos a mano"};
 /* Canales de cada emisor (fichas y catálogo). */
-const CANALES={hoblo6:6,hobloMF:20,eco1:1,pop:1,noonEU:9,noonUL:9,situo:5};
+const CANALES={hoblo6:6,hobloMF:20,eco1:1,noonEU:9,noonUL:9,situo:5}; /* Pop Plus: canales por confirmar */
 const ENCAN=[["mot","Motor"],["peri","Perímetro"],["ind","Indirecto"],["lam","LED lamas"],["foc","Focos"]];
 const ENCAN_m={mot:"motor",peri:"perímetro",ind:"indirecto",lam:"LED lamas",foc:"focos"};
 /* Perfil LED perimetral: dos alojamientos, arriba (luz indirecta) y abajo (luz directa) (dato SAT). Con los dos, cada uno
@@ -2369,6 +2373,75 @@ function cfgCrea(){
   toast(av.length?`Obra creada. Ojo: ${av.join("; ")}.`:"Obra creada: afínala en la planta y en cada módulo");
 }
 $("bCfg").addEventListener("click",cfgAbre);$("bCfg2").addEventListener("click",cfgAbre);$("cf_ok").addEventListener("click",cfgCrea);
+/* ---------- Hoja de material (PDF, CSV o foto): códigos y cantidades → rellena la obra y compara con el cálculo ---------- */
+const CODE2K=Object.fromEntries(Object.entries(C).filter(([k,v])=>/^\d{11}$/.test(v[0])).map(([k,v])=>[v[0],k]));
+/* cantidad de una línea: el campo que sea un número entero (no el código), o el último número suelto que no sea una medida */
+function codigosDeLineas(lines){
+  const out={};
+  lines.forEach(l=>{const cs=l.match(/\b\d{11}\b/g);if(!cs)return;
+    cs.forEach(c=>{let q=null;const campos=l.split(/[;\t|]/).map(x=>x.trim());
+      if(campos.length>1){const n=campos.filter(x=>x!==c&&/^\d{1,4}([.,]0+)?$/.test(x)).map(x=>parseInt(x,10));if(n.length)q=n[n.length-1];}
+      if(q==null){const resto=l.replace(c," "),ns=[...resto.matchAll(/(?:^|[\s(x×])(\d{1,3})(?![\d.,]|\s*(?:m\b|mm|cm|w\b|k\b|v\b|a\b|%|°|ºC|uds? de))/gi)].map(m=>+m[1]).filter(n=>n>0);if(ns.length)q=ns[ns.length-1];}
+      out[c]=(out[c]||0)+(q||1);});});
+  return out;
+}
+const PROMPT_MAT=`Es una hoja (o foto) de material de una pérgola ELYA (Llaza / Umara). Devuelve SOLO un JSON {"items":[{"codigo":"11 cifras","cantidad":número,"descripcion":"texto"}]} con cada línea que tenga un código de producto de 11 cifras y su cantidad (unidades; si no se ve, 1). No inventes códigos.`;
+async function leeMaterial(file){
+  const box=$("matRes");box.hidden=false;box.innerHTML=`<div><b>Leyendo la hoja de material…</b></div>`;
+  let q={};
+  try{
+    if(/pdf/.test(file.type)||/\.pdf$/i.test(file.name)){const buf=await file.arrayBuffer(),T=await textoPlano(buf.slice(0)),filas={};
+      T.forEach(t=>{const k=Math.round(t.y/4);(filas[k]=filas[k]||[]).push(t);});
+      q=codigosDeLineas(Object.keys(filas).sort((a,b)=>a-b).map(k=>filas[k].sort((a,b)=>a.x-b.x).map(t=>t.s).join(" | ")));
+      if(!Object.keys(q).length)q=await materialConClaude(file,buf);}
+    else if(/image/.test(file.type)||/\.(jpe?g|png|webp|heic)$/i.test(file.name))q=await materialConClaude(file,null);
+    else q=codigosDeLineas((await file.text()).split(/\r?\n/));
+  }catch(e){box.innerHTML=`<div class="contraste ko">${esc(e.message||"No se pudo leer la hoja.")}</div>`;return;}
+  if(!Object.keys(q).length){box.innerHTML=`<div class="contraste ko">No he encontrado códigos de 11 cifras en la hoja.</div>`;return;}
+  adjuntos.push(file);adjPinta();adjGuarda();
+  aplicaMaterial(q);
+}
+async function materialConClaude(file,buf){
+  const sample=await claudeSample(),lim=sample&&await sample.limits().catch(()=>null);
+  if(!sample||!lim||!lim.images)throw new Error("Esta hoja es una imagen: para leerla, abre la app desde el enlace de Claude (allí la lee Claude) o sube la hoja en PDF / CSV.");
+  const imgs=buf?await paginasComoImagen(buf,Math.min(lim.images.maxCount,4)):[file];
+  let d;try{d=await sample.json(PROMPT_MAT,{images:imgs});}catch(e){throw new Error("Claude no ha podido leer la hoja de material. Prueba con una foto más clara.");}
+  const q={};(d&&d.items||[]).forEach(it=>{const c=String(it.codigo||"").replace(/\D/g,"");if(c.length===11)q[c]=(q[c]||0)+Math.max(1,parseInt(it.cantidad)||1);});
+  return q;
+}
+/* rellena la obra con lo que se deduce de la hoja; lo demás (cables, alargos…) lo calcula la app y se compara */
+function aplicaMaterial(q){
+  const k={},desconocidos=[];Object.entries(q).forEach(([c,n])=>{const kk=CODE2K[c];if(kk)k[kk]=(k[kk]||0)+n;else desconocidos.push([c,n]);});
+  const hechos=[],sisM=k.tkm?"nexta":k.telEU?"teleco_eu":k.telUL?"teleco_ul":k.somCtrl?"somfy":null;
+  if(sisM&&$("sistema").value!==sisM){$("sistema").value=sisM;fillEmisores(sisM,"");hechos.push("motor "+{nexta:"Cherubini Nexta",teleco_eu:"Teleco EU",teleco_ul:"Teleco UL",somfy:"Somfy io"}[sisM]);}
+  const sis=$("sistema").value,em=(EMISORES[sis]||[]).find(e=>k[e]);if(em){$("emisor").value=em;hechos.push(C[em][1]);}
+  const nMot=Math.max(k.motor||0,k.tkm||0,k.telEU||0,k.telUL||0,k.somCtrl||0);
+  let ms=readMods();if(!ms.length&&!nMot)ms=[NUEVO(1)];while(ms.length<nMot)ms.push(NUEVO(ms.length+1));
+  const n=ms.length,rep=(tot,i)=>Math.floor(tot/n)+(i<tot%n?1:0);
+  const luz=k.rgbP6?"rgb":(k.rN5||k.rN7)?"w4000":(k.rW5||k.rW7||k.nP45||k.nP6)?"w3000":null;
+  if(luz){ms.forEach(m=>{m.luz=luz;});hechos.push("LED perimetral "+LUZ[luz]);if(k.nP45||k.nP6){$("periProd").value="neon";hechos.push("neón");}}
+  if(k.stl250||k.stl100||k.tkl){$("sisLuz").value=k.stl250?"nexta_stl250":k.stl100?"nexta_stl100":"nexta";hechos.push(k.stl250?"STILO STL250":k.stl100?"STILO STL100":"TKL250");}
+  else if(k.somLed&&sis!=="somfy"){$("sisLuz").value="somfy";hechos.push("luces Somfy");}
+  if(k.lamaW){ms.forEach((m,i)=>{m.lamasN=rep(k.lamaW,i);m.lamLed=reparteLamas(m.lamasN,lamT(m));});hechos.push(`${k.lamaW} lamas LED`);}
+  const fk=["aries","fMiAL","fMiNG"].find(x=>k[x]);if(fk){ms.forEach((m,i)=>{m.focN=rep(k[fk],i);m.focT=fk;});hechos.push(`${k[fk]} × ${FOCOS[fk]}`);}
+  if(k.mtw){ms[0].viento=true;hechos.push("anemómetro");}if(k.mtr||k.rain){ms[0].lluvia=true;hechos.push("sensor de lluvia");}
+  if(k.schuko){$("schuko").value=k.schuko;hechos.push(`${k.schuko} Schuko`);}if(k.usb){$("usb").value=k.usb;hechos.push(`${k.usb} USB`);}
+  writeMods(ms);fillEmisorL();render();
+  /* comparación hoja ↔ cálculo de la app */
+  const app={};if(last)last.r.bom.forEach((e,kk)=>{app[kk]=e.q;});
+  const keys=[...new Set([...Object.keys(k),...Object.keys(app)])].filter(kk=>C[kk]);
+  const filas=keys.map(kk=>({kk,h:k[kk]||0,a:app[kk]||0})).filter(f=>f.h||f.a).sort((x,y)=>(x.h===x.a)-(y.h===y.a));
+  const dif=filas.filter(f=>f.h!==f.a).length;
+  $("matRes").hidden=false;
+  $("matRes").innerHTML=`<div><span class="ok">Hoja de material leída:</span> ${Object.keys(q).length} códigos. ${hechos.length?"He puesto: "+esc(hechos.join(" · "))+".":""} Las medidas de la pérgola no salen de la hoja: ponlas o carga el plano.</div>
+  <div class="contraste"><b>Hoja ↔ cálculo de la app</b> ${dif?`<span class="ko">${dif} diferencia(s)</span>`:`<span class="ok">todo coincide</span>`}
+  <table><thead><tr><th>Código</th><th>Producto</th><th>Hoja</th><th>App</th><th></th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.h!==f.a?"dif":""}"><td class="mono">${C[f.kk][0]}</td><td>${esc(C[f.kk][1])}</td><td>${f.h}</td><td>${f.a}</td><td>${f.h===f.a?"✓":"⚠"}</td></tr>`).join("")}</tbody></table>
+  ${desconocidos.length?`<div class="hint">Códigos que la app no conoce: ${desconocidos.map(([c,nn])=>`${c} ×${nn}`).join(", ")}.</div>`:""}
+  ${filas.some(f=>f.h>f.a)?`<button type="button" class="mini" id="matAdd">Añadir al material lo que lleva la hoja de más</button>`:""}</div>`;
+  const b=$("matAdd");if(b)b.onclick=()=>{cambiaMaterial(()=>filas.filter(f=>f.h>f.a).forEach(f=>mat.extra.push({k:f.kk,q:f.h-f.a})));toast("Añadido al material");b.remove();};
+}
+$("bMat").addEventListener("click",()=>$("fMat").click());$("bMatCam").addEventListener("click",()=>$("fMatCam").click());
+["fMat","fMatCam"].forEach(id=>$(id).addEventListener("change",e=>{const f=e.target.files[0];e.target.value="";if(f)leeMaterial(f);}));
 $("adjBox").addEventListener("click",e=>{const b=e.target.closest("[data-adj]");if(b)adjVer(+b.dataset.adj);});
 $("planta").addEventListener("click",e=>{if(edClick(e))return;const f=e.target.closest("figure");if(!f||!(e.target.closest("svg")||e.target.closest("[data-amp]")))return;
   const sv=f.querySelector("svg");if(!sv)return;
