@@ -340,6 +340,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <label class="chk"><input type="radio" name="pDisp" value="h" id="pDispH"> Horizontal (de izquierda a derecha)</label>
   <label class="chk"><input type="radio" name="pDisp" value="v" id="pDispV"> Vertical por columnas (hoja apaisada)</label>
   <p class="hint" id="pPrintHint">En la ventana de imprimir, elige «Guardar como PDF» para tener el archivo.</p>
+  <label>Nombre del archivo<input type="text" id="pNombre" autocomplete="off"></label>
   <div class="btns"><button type="button" id="pSave">Guardar para imprimir</button><button type="button" id="pGo" class="pri">Imprimir</button><button value="cancel">Cancelar</button></div>
   <p class="hint" id="pSaveHint">«Guardar para imprimir» deja en el móvil o el ordenador una página con estas hojas: ábrela con el navegador y pulsa «Imprimir / Guardar PDF».</p>
 </form></dialog>
@@ -529,7 +530,9 @@ const LAMCON=["conEje","conRGBW"];
 /* Lamas numeradas: la 1 es la del extremo del motor (dato SAT). Paso ≈ 0,207 m (fichas: 27 lamas en 5,50 m,
    23 en 4,77 m). Se elige en qué lamas va el LED y en cuáles los focos; el cable entra siempre por el lateral (la viga
    donde acaban las lamas, la de la centralita), nunca por delante de la lama. */
-const lamTDef=m=>Math.max(1,Math.round(m.P/0.207)),lamT=m=>m.lamT>0?m.lamT:lamTDef(m);
+/* Nº de lamas enteras según la salida P: ajustado con las fichas reales (P − 0,65 m de vigas y medias lamas, paso 0,18 m;
+   acierta 9 de 10 fichas, testa e inglete). Si la ficha trae «Nº Lamas», manda la ficha; también se pone a mano. */
+const lamTDef=m=>Math.max(1,Math.round((m.P-0.65)/0.18)),lamT=m=>m.lamT>0?m.lamT:lamTDef(m);
 const numLista=(t,max)=>[...new Set(String(t||"").split(/[^\d]+/).map(Number).filter(n=>n>=1&&(!max||n<=max)))].sort((a,b)=>a-b);
 const reparteLamas=(n,T)=>n>0?[...new Set([...Array(n)].map((_,i)=>Math.round((i+1)*(T+1)/(n+1))))]:[];
 const lamLED=m=>m.lamLed&&m.lamLed.length?m.lamLed:reparteLamas(m.lamasN||0,lamT(m));
@@ -581,6 +584,9 @@ function modCard(m,i){
   return `<div class="mod">
   <div class="mhd"><input type="text" id="m${i}_nombre" value="${esc(m.nombre)}" aria-label="Nombre del módulo"><button type="button" class="del" data-del="${i}">Quitar</button></div>
   <div class="row"><label>Ancho A (m)<input type="number" id="m${i}_A" step="0.01" min="1" max="6" value="${m.A}"></label><label>Salida P (m)<input type="number" id="m${i}_P" step="0.01" min="1" max="8" value="${m.P}"></label></div>
+  <div class="row"><label>Lamas en total (vacío = calculadas)<input type="number" id="m${i}_lamT" min="1" max="80" step="1" value="${m.lamT>0?m.lamT:""}" placeholder="${lamTDef(m)} (calculadas)"></label><label>Lamas con LED (blanco cálido)<input type="number" id="m${i}_lamasN" min="0" max="80" step="1" value="${lamLED(m).length}"></label></div>
+  <label>Nº de las lamas con LED<input type="text" id="m${i}_lamL" value="${esc(lamLED(m).join(", "))}" placeholder="ej. 5, 12, 19, 26"></label>
+  <p class="hint">Lamas enteras (sin las 2 medias lamas de los extremos). Lama 1 = la primera entera del lado de apertura (135°). También se elige tocando cada lama en la planta.</p>
   <div class="row"><label>Motor / desagüe<select id="m${i}_motor">${opt({izq:"Lado izq.",der:"Lado der."},m.motor)}</select></label><label>Motor en el extremo<select id="m${i}_motY">${opt({auto:"Auto (el de la centralita)",s:"Superior",i:"Inferior"},m.motY||"auto")}</select></label></div>
   <label>Apertura de las lamas (lado de 135°, donde está la lama 1)<select id="m${i}_ab">${opt({auto:"Auto (el extremo del motor)",s:"Arriba",i:"Abajo"},m.ab||"auto")}</select></label>
   <label>Centralita (esquina)<select id="m${i}_cent">${opt(ESQ,m.cent)}</select></label><input type="hidden" id="m${i}_alsel" value="${esc(JSON.stringify(m.alSel||{}))}">
@@ -622,9 +628,6 @@ function modCard(m,i){
   <div class="row">${[["i1","Indirecto 1"],["i2","Indirecto 2"]].map(([k,t])=>`<label>${t}<select id="m${i}_s_${k}">${opt(SALOPT,String((m.sal||{})[k]||"auto"))}</select></label>`).join("")}</div>
   <div class="row">${[["lam","Lamas"],["foc","Focos"]].map(([k,t])=>`<label>${t}<select id="m${i}_s_${k}">${opt(SALOPT,String((m.sal||{})[k]||"auto"))}</select></label>`).join("")}</div>
   <p class="hint">Perímetro 1 = tiras de la esquina de la centralita (o la primera entrada); Perímetro 2 = las otras. Indirecto 1 / 2 = lo mismo para el LED indirecto cuando el módulo lleva directo + indirecto (Auto: OUT2 y OUT4 en la TKL, OUT2 en la STL). Auto: perímetro a OUT1 y OUT3, lamas repartidas en OUT2 y OUT4, focos a la salida con menos carga.</p></div>
-  <div class="row"><label>Lamas en total<input type="number" id="m${i}_lamT" min="1" max="80" step="1" value="${m.lamT>0?m.lamT:""}" placeholder="${lamTDef(m)} (auto)"></label><label>Lamas con LED (blanco cálido)<input type="number" id="m${i}_lamasN" min="0" max="80" step="1" value="${lamLED(m).length}"></label></div>
-  <label>Nº de las lamas con LED<input type="text" id="m${i}_lamL" value="${esc(lamLED(m).join(", "))}" placeholder="ej. 5, 12, 19, 26"></label>
-  <p class="hint">Lamas enteras (sin las 2 medias lamas de los extremos). Lama 1 = la primera entera del lado de apertura (135°). También se elige tocando cada lama en la planta.</p>
   <details class="lamcab"${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?" open":""}><summary>Cables y conectores de las lamas, desde la centralita (a tu elección)</summary>
     <p class="hint">Pon la cantidad de cada cable. Cables a 0 = la app pone 1 cable 3 m 2P + 2 micro en T por cada 2 lamas de cada salida, encadenados. Conector de eje a 0 = uno por lama.</p>
     ${LAMCAB.map(k=>`<label class="lc"><span>${esc(C[k][1])} <span class="mono mut">${C[k][0]}</span></span><input type="number" id="m${i}_lc_${k}" min="0" max="99" step="1" value="${(m.lamCab||{})[k]||""}" placeholder="0"></label>`).join("")}
@@ -883,7 +886,7 @@ function calcular(cfg){
       /* receptor io LED Somfy: hasta 4 salidas blancas de 90 W (guía de instalación) */
       const n=nTr>1?` ${k+1}/${nTr}`:"",id=`tr${tag}_${k}`,tr=g.W<=120?"tr150":"tr200",o=reparte(g.items,rx==="somLed"?[1,2,3,4]:[1]);splitters(o,rgbx,tag);
       if(rx==="somLed")o.forEach(x=>{if(x.W>90)av.push(["bad",`${tag}: salida ${x.s} del receptor io LED con ${w0(x.W)}; el máximo por salida es 90 W.`]);});
-      dev.push({id,t:`${tag} · Transformador${n} · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",trafo:true,Wfix:g.W,alimenta:`Receptor${n} (24 V DC, cable hacia abajo)`,right:[]});
+      dev.push({id,t:`${tag} · Transformador ${tr==="tr150"?150:200} W${n} · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",trafo:true,Wfix:g.W,alimenta:`Receptor${n} (24 V DC, cable hacia abajo)`,right:[]});
       dev.push(Object.assign(mkRx(o,n,k),{feed:"24",from:id}));
       add(tr,1,tag);add(rx,1,"",rx==="somLed");
     });
@@ -934,7 +937,7 @@ function calcular(cfg){
       add(k,1);
     }else{
       /* La Louver Control no lleva fuente: se alimenta a 24 V CC SELV (0,5–5,5 A, 3 A de fábrica; guía rápida SAT v2). */
-      dev.push({id:"trm"+mi,t:`${tag} · Transformador motor · ${loc}`,code:C.tr150[0],model:C.tr150[1],feed:"230",trafo:true,Wfix:MOTOR_W,alimenta:"Pergola io Louver Control (24 V DC, cable hacia abajo)",abajo:"central",right:[]});
+      dev.push({id:"trm"+mi,t:`${tag} · Transformador 150 W motor · ${loc}`,code:C.tr150[0],model:C.tr150[1],feed:"230",trafo:true,Wfix:MOTOR_W,alimenta:"Pergola io Louver Control (24 V DC, cable hacia abajo)",abajo:"central",right:[]});
       add("tr150",1,`${tag} motor`);
       dev.push({id:"som"+mi,t:`${tag} · Pergola io Louver Control · ${loc}`,code:C.somCtrl[0],model:C.somCtrl[2],feed:"24",from:"trm"+mi,
         right:[{kind:"motor",W:MOTOR_W,t:`Motor ${tag}`,s:`${C.motor[0]} · 24 V DC`,wires:[["p","+"],["m","−"]],pin:"M1"},{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]});
@@ -1103,7 +1106,7 @@ function calcular(cfg){
         av.push(["info",`${m.nombre}: la luz blanca va a la salida LED de la central Teleco (${w0(totW(white))}). Comprueba la potencia máxima en su etiqueta.`]);
       }else if(sisL==="somfy"){
         const nTr=trafoReceptor(white,tag,loc,false,"somLed",(o,n,k)=>({id:`sl${mi}_${k}`,t:`${tag} · Receptor io LED${n} · ${loc}`,code:C.somLed[0],model:C.somLed[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})),{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]}));
-        if(nTr>1)av.push(["warn",`${m.nombre}: ${w0(totW(white))} de luz → ${nTr} transformadores, cada uno con su receptor io LED (se carga cada transformador como mucho al 80 %: 120 W el de 150 W, 160 W el de 200 W). Las tiras se reparten entre ellos; comprueba la carga máxima del receptor en su ficha.`]);
+        if(nTr>1)av.push(["warn",`${m.nombre}: las luces suman ${w0(totW(white))} y un transformador (fuente de 24 V) de 200 W no se carga a más de 160 W (80 %). Por eso van ${nTr} transformadores, cada uno con su receptor io LED, y las tiras se reparten entre ellos.`]);
       }
     }
     if(rgbL.length||(ulL&&white.length)){
@@ -1120,7 +1123,7 @@ function calcular(cfg){
       }else if(ulL){
         const all=[...rgbL,...white];
         const nTr=trafoReceptor(all,tag,loc,rgbL.length>0,"rgbww",(o,n,k)=>({id:`rgbww${mi}_${k}`,t:`${tag} · Receptor RGB+BL${n} · ${loc}`,code:C.rgbww[0],model:C.rgbww[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salidas"})),{kind:"radio",t:C.noonUL[1],s:"916 MHz",wires:[["r",""]],pin:"Radio"}]}));
-        if(nTr>1)av.push(["warn",`${m.nombre}: ${w0(totW(all))} de luz → ${nTr} transformadores, cada uno con su receptor (se carga cada transformador como mucho al 80 %: 120 W el de 150 W, 160 W el de 200 W). Las tiras se reparten entre ellos; comprueba la carga máxima del receptor en su ficha.`]);
+        if(nTr>1)av.push(["warn",`${m.nombre}: las luces suman ${w0(totW(all))} y un transformador (fuente de 24 V) de 200 W no se carga a más de 160 W (80 %). Por eso van ${nTr} transformadores, cada uno con su receptor, y las tiras se reparten entre ellos.`]);
       }else if(sisL==="somfy"){
         /* receptor RGB io de Somfy: previsto, sin código Llaza todavía; va a 24 V con su transformador como el de blanco */
         trafoReceptor(rgbL,tag,loc,true,"somRGB",(o,n,k)=>({id:`srgb${mi}_${k}`,t:`${tag} · Receptor io RGB${n} · ${loc}`,code:C.somRGB[0],model:C.somRGB[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida RGB"})),{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]}));
@@ -1147,7 +1150,7 @@ function calcular(cfg){
   }
   /* Tomas USB: van a 24 V, con su propia fuente de alimentación (dato SAT). 15 W por toma. */
   if(cfg.usb){
-    dev.push({id:"usb",t:"Fuente 24 V · tomas USB",code:C.tr150[0],model:C.tr150[1],feed:"230",
+    dev.push({id:"usb",t:"Fuente 24 V 150 W · tomas USB",code:C.tr150[0],model:C.tr150[1],feed:"230",
       right:[{kind:"note",W:15*cfg.usb,t:`${cfg.usb} × toma USB A+C (15 W)`,s:C.usb[0]+" · 24 V DC",wires:[["p","+"],["m","−"]],pin:"24 V DC"}]});
     add("tr150",1,"tomas USB");add("usb",cfg.usb);
   }
@@ -1168,18 +1171,21 @@ function calcular(cfg){
       if(man>0)c=man;else if(k!=="mot"&&!cfg.indep&&compartido)c=compartido;else{c=libre(em);usa(em,c);}
       if(k!=="mot"&&!cfg.indep&&!compartido)compartido=c;
       canales.push({mi,tag,k,t,c,em});});});
+  /* si un mando no tiene tantos canales (Situo 5: 5; Pop Plus: 7…), lo que pasa va a otro mando igual: nº 2, nº 3… */
+  const nMando={};
+  canales.forEach(x=>{const cap=CANALES[x.em];x.mando=1;if(cap&&x.c>cap){x.mando=Math.ceil(x.c/cap);x.c=(x.c-1)%cap+1;}nMando[x.em]=Math.max(nMando[x.em]||1,x.mando);});
+  Object.entries(nMando).forEach(([em,n])=>{if(n<2)return;add(em,n-1,"más canales");
+    av.push(["info",`${C[em][1]} tiene ${CANALES[em]} canales y hacen falta más: van ${n} mandos (del canal ${CANALES[em]+1} en adelante, al mando nº 2…). Añadido al material.${sisBase(cfg.sistema)==="nexta"?" Con uno solo: Hoblo multifunción (20 canales).":""}`]);});
+  canales.forEach(x=>{x.nM=nMando[x.em];});
   /* en el unifilar: el canal junto al mando de cada central */
   dev.forEach(d=>{const mi=parseInt((d.id.match(/\d+/)||[])[0],10),cs=canales.filter(x=>x.mi===mi);if(!cs.length)return;
     const radio=(d.right||[]).find(i=>i.kind==="radio");if(!radio)return;
     const esMot=/^(tkm|tel|som)/.test(d.id),txt=d.right.map(i=>i.t).join(" ");
     const mias=esMot?cs.filter(x=>x.k==="mot"||(/^tel/.test(d.id)&&x.k!=="mot")):cs.filter(x=>x.k!=="mot"&&(x.k==="peri"?/\+|V\d/.test(txt):x.k==="ind"?/indirecto/.test(txt):x.k==="lam"?/lamas/i.test(txt):/foco/i.test(txt)));
-    if(mias.length)radio.s=mias.map(x=>`canal ${x.c}${esMot&&mias.length===1?"":" "+ENCAN_m[x.k]}`).join(" · ");});
+    if(mias.length)radio.s=mias.map(x=>`canal ${x.c}${x.nM>1?` (mando ${x.mando})`:""}${esMot&&mias.length===1?"":" "+ENCAN_m[x.k]}`).join(" · ");});
   /* STILO: un solo canal del mando por central; si una STILO lleva dos encendidos, se encienden juntos */
   dev.filter(d=>/STL/.test(d.t||"")).forEach(d=>{const radio=(d.right||[]).find(i=>i.kind==="radio");if(radio&&/·/.test(radio.s||""))
     av.push(["warn",`${d.t.split(" · ")[0]}: la STILO graba en un solo canal del mando; ${radio.s.replace(/canal \d+ /g,"")} se encienden juntos. Para encenderlos aparte, una STILO por encendido («Centrales de luces» en Auto con encendido independiente).`]);});
-  /* aviso si el emisor no tiene tantos canales */
-  [...new Set(canales.map(x=>x.em))].forEach(em=>{const max=Math.max(...canales.filter(x=>x.em===em).map(x=>x.c)),cap=CANALES[em];
-    if(cap&&max>cap)av.push(["warn",`${C[em][1]} tiene ${cap} canal${cap>1?"es":""} y hacen falta ${max}. ${cfg.sistema==="nexta"||sisL==="nexta"?"Usa el Hoblo multifunción (HB80-PRG200, 20 canales) o más emisores.":"Usa más emisores."}`]);});
   return {av,bom,dev,plan,outs,W24,W230,I230,canales};
 }
 
@@ -1343,7 +1349,7 @@ function pintaModulo(pm,cfg,X,Y,o){
   for(const k of lamLED(m)){const yy=lamY(m,k);base+=`<line x1="${X(0.12)}" y1="${Y(yy)}" x2="${X(A-0.12)}" y2="${Y(yy)}" stroke="${CC.led}" stroke-width="2" stroke-opacity=".7"/>`;}
   const dir=m.motor==="der"?1:-1,ay=Y(P*0.5),ax0=X(A/2-dir*A*0.18),ax1=X(A/2+dir*A*0.18);
   base+=`<line x1="${ax0}" y1="${ay}" x2="${ax1}" y2="${ay}" stroke="var(--wall)" stroke-width="1.5" marker-end="url(#ar)"/><text x="${X(A/2)}" y="${ay-6}" text-anchor="middle" font-size="9" class="mono" style="fill:var(--wall)">CAÍDA AGUA</text>`;
-  if(o.tag)base+=`<text x="${X(A/2)}" y="${ay+22}" text-anchor="middle" font-size="18" font-weight="700" style="fill:var(--wall)">${esc(o.tag)}</text>`;
+  if(o.tag)base+=`<text x="${X(A/2)}" y="${ay+22}" text-anchor="middle" font-size="18" font-weight="700" style="fill:var(--wall)">${esc(o.tag)}</text><text x="${X(A/2)}" y="${ay+38}" text-anchor="middle" font-size="10" class="mono" style="fill:var(--wall)">${lamT(m)} lamas${m.lamT>0?"":" (calc.)"}</text>`;
   /* tiras LED: pegadas a la cara interior de cada viga */
   const conY=new Set(gruposTira(m,cfg.periProd).filter(G=>!G.una&&tiras.filter(t=>t.g===G.g).length===2&&((pm.grAl||{})[G.corner]||{y:true}).y).map(G=>G.corner)),ed=(k,h)=>o.fuera?`<g data-ed="${k}" class="ed">${h}</g>`:h;
   tiras.forEach(t=>t.sides.forEach((sd,si)=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],L=Math.hypot(x2-x1,y2-y1)||1,ux=(x2-x1)/L,uy=(y2-y1)/L,ins=7;
@@ -1705,6 +1711,7 @@ const loadScript=src=>new Promise((ok,ko)=>{const e=document.createElement("scri
 let pdfReady=null;
 /* El «worker» de pdf.js se carga en la página (pdfjsWorker): así no hace falta un Worker de otro origen. */
 const pdfjs=()=>pdfReady||(pdfReady=(async()=>{if(!window.pdfjsLib)await loadScript(PDFJS+"pdf.min.js");if(!globalThis.pdfjsWorker)await loadScript(PDFJS+"pdf.worker.min.js");return window.pdfjsLib;})().catch(e=>{pdfReady=null;throw e;}));
+async function tituloPDF(buf){try{const L=await pdfjs(),doc=await L.getDocument({data:buf}).promise,md=await doc.getMetadata();return String(md&&md.info&&md.info.Title||"");}catch(e){return "";}}
 async function textoPlano(buf){
   const L=await pdfjs(),doc=await L.getDocument({data:buf}).promise,pg=await doc.getPage(1),vp=pg.getViewport({scale:1}),tc=await pg.getTextContent();
   return tc.items.filter(it=>it.str&&it.str.trim()).map(it=>{
@@ -1917,6 +1924,36 @@ function datosCajetin(T){
   return d;
 }
 let montajeCliente=null;
+/* Lo que se pueda sacar de un plano que no se reconoce entero (otro formato, texto suelto, o escaneado sin Claude):
+   del texto, palabras clave; del nombre del archivo «54007592_4000x5500_TESTA» = nº de obra, largo de lama × la otra medida, tipo. */
+function datosSueltos(T,nombre){
+  const J=T.map(t=>t.s).join("\n"),N=String(nombre||""),num=v=>v==null?null:parseInt(String(v).replace(/\./g,""),10)||null;
+  const elec=/CHERUBINI|NEXTA|TKM/i.test(J)?"cherubini":/SOMFY/i.test(J)?"somfy":/TELECO/i.test(J)?"teleco":null;
+  const montaje=/AUTOPORTANTE/i.test(J)?"autoportante":/PARED\s*PORTER/i.test(J)?"pared_porteria":/\bPARED\b/i.test(J)?"pared":null;
+  const sinLed=/SIN\s*LED|NO\s*LEDS/i.test(J),hayLed=/LED\s*PERIMETRAL|TIRAS?\s*LED|PERIMETRAL\s*LED/i.test(J);
+  const luz=/RGB/i.test(J)?"rgb":hayLed&&!sinLed?(/4000\s*K/i.test(J)?"w4000":"w3000"):sinLed?"none":null;
+  const ldir=/\bDIRECT[OA]S?\b/i.test(J),lind=/\bINDIRECT[OA]S?\b/i.test(J);
+  const fn=N.match(/(\d{3,5})\s*x\s*(\d{3,5})/i),tx=J.match(/(\d{3,5})\s*[x×]\s*(\d{3,5})/i),of=N.match(/^(\d{8}(?:-\d+)?)[_\s-]/);
+  const d={obra:(J.match(/REFERENCIA:?\s*([^\n]+)/i)||[])[1]||null,oferta:of?of[1]:null,cliente:(J.match(/CLIENTE:?\s*([^\n]+)/i)||[])[1]||null,
+    modelo:/ELYA/i.test(J+N)?"ELYA":"",montaje,electronica:elec,alto_total_mm:num((J.match(/H\s*TOTAL:?\s*([\d.]{4,5})/i)||[])[1]),
+    luz,ledPos:luz&&luz!=="none"?(ldir&&lind?"ambos":lind?"ind":"dir"):null,viento:/ANEM[ÓO]METRO|SENSOR\s*(DE\s*)?VIENTO/i.test(J),lluvia:/SENSOR\s*(DE\s*)?LLUVIA/i.test(J),
+    modulos:[],dudas:[],tipo:(N.match(/_(TESTA|INGLETE)\b/i)||[])[1]||null};
+  const nMod=num((J.match(/(\d+)\s*M[ÓO]DULOS?\b/i)||[])[1])||1;
+  /* nombre del archivo: largo de lama × la otra; en el texto «Ancho x Proyección» (la proyección es el largo de lama) */
+  const lama=fn?+fn[1]:tx?+tx[2]:null,otra=fn?+fn[2]:tx?+tx[1]:null;
+  for(let i=1;i<=nMod;i++)d.modulos.push({n:i,ancho_mm:lama,proyeccion_mm:otra&&nMod>1?Math.round(otra/nMod):otra,motor:"der",pilares:{},centralita:null,pared:montaje&&montaje!=="autoportante"?"sup":null,lamas_led:0,lamas_led_num:[]});
+  if(!lama)d.dudas.push("No encuentro las medidas: pon el largo de lama (A) y la otra medida (P) de cada módulo.");
+  else if(nMod>1)d.dudas.push(`${nMod} módulos: he repartido la medida a partes iguales; corrígela con el plano.`);
+  d.dudas.push("Del dibujo no he podido leer el lado del motor, la centralita ni los pilares: márcalos a mano mirando el plano.");
+  return d;
+}
+/* Junta dos lecturas: manda la primera en lo que tenga; la segunda rellena los huecos. */
+function juntaDatos(a,b){
+  const o=Object.assign({},b,Object.fromEntries(Object.entries(a||{}).filter(([k,v])=>v!=null&&v!==""&&!(Array.isArray(v)&&!v.length))));
+  if(a&&b&&Array.isArray(a.modulos)&&Array.isArray(b.modulos))o.modulos=a.modulos.map((m,i)=>Object.assign({},b.modulos[i]||{},Object.fromEntries(Object.entries(m).filter(([k,v])=>v!=null&&v!==""))));
+  o.dudas=[...new Set([...(a&&a.dudas||[]),...(b&&b.dudas||[])])];
+  return o;
+}
 function aplicaPlanoClaude(d,nombreArchivo,quien){
   montajeCliente=d.montaje||null;
   const mm=v=>{const n=parseFloat(v);return n>0?Math.round(n/10)/100:null;};
@@ -1933,6 +1970,7 @@ function aplicaPlanoClaude(d,nombreArchivo,quien){
   $("obra").value=obra;$("of").value=d.oferta?String(d.oferta):"";
   if(d.alto_total_mm>0)$("alto").value=Math.round(d.alto_total_mm/10)/100;
   if(SIS[d.electronica]&&$("sistema").value!==SIS[d.electronica]){$("sistema").value=SIS[d.electronica];fillEmisores(SIS[d.electronica],$("emisor").value);}
+  if(/^(testa|inglete)$/i.test(d.tipo||""))$("tipol").value=d.tipo.toLowerCase();
   writeMods(mods);
   const dudas=(Array.isArray(d.dudas)?d.dudas:[]).map(String);
   const box=$("impRes");box.hidden=false;
@@ -2079,6 +2117,11 @@ async function importaPedidos(peds,llenar){
   for(const p of peds){
     if(!p.elya.length){html+=`<div class="contraste">El pedido ${esc(p.num||"")} no lleva ninguna ELYA (${esc(p.otros.join(" · ")||"sin posiciones")}): no lo uso.</div>`;continue;}
     if(llenar){html+=obraDelPedido(p);llenar=false;}
+    else{const e0=p.elya[0]||{},el=p.elya.map(e=>e.elec).find(Boolean),hecho=[];
+      if(!$("sistema").value&&SIS[el]){$("sistema").value=SIS[el];fillEmisores(SIS[el],"");hecho.push("electrónica "+ELEC_TXT[el]);}
+      if(!(parseFloat($("alto").value)>0)&&e0.hLibre){$("alto").value=e0.hLibre/1000;hecho.push("alto "+m2(e0.hLibre/1000)+" m");}
+      if(p.ref&&!/[a-z]{3}/i.test($("obra").value.replace(/plano/ig,""))){$("obra").value=[$("of").value,p.ref].filter(Boolean).join(" · ");hecho.push("nombre de la obra");}
+      if(hecho.length){render();html+=`<div><span class="ok">Del pedido ${esc(p.num||"")}:</span> ${esc(hecho.join(" · "))} (el plano no lo decía).</div>`;}}
     html+=contrastePedido(p);
   }
   box.insertAdjacentHTML("beforeend",html);
@@ -2094,6 +2137,9 @@ async function importaVarios(files){
   if(resto.length)await importaPlanos(resto);
   else if(peds.length){const b=$("impRes");b.innerHTML="";}
   if(peds.length)await importaPedidos(peds,!resto.length&&!$("obra").value.trim());
+  if(!$("sistema").value&&readMods().length){$("sistema").value="nexta";fillEmisores("nexta","");
+    difsCliente=difsCliente.concat([{txt:"Ni el plano ni el pedido dicen la electrónica: he puesto Cherubini Nexta para sacar el esquema. Cámbiala arriba si no es esa."}]);render();
+    const b=$("impRes");if(b){b.hidden=false;b.insertAdjacentHTML("afterbegin",`<div class="ko">El plano no dice la electrónica: pongo Cherubini Nexta. Cámbiala si no es esa (o suelta también el pedido).</div>`);}}
 }
 async function importaPlanos(files){
   if(files.length<2)return importaPlano(files[0]);
@@ -2157,26 +2203,28 @@ async function importaPlano(file){
     const T=buf?await textoPlano(buf.slice(0)):[];
     const r=interpretaPlano(T);
     if(!r.mods.length){
-      /* Plano Umara digital: cajetín con texto. Con Claude se leen además las medidas de cada módulo del dibujo. */
-      if(T.some(t=>/^MODELO:?$/i.test(t.s))){
-        const caj=datosCajetin(T),sample=await claudeSample(),lim=sample&&await sample.limits().catch(()=>null);
-        plano=null;
-        if(caj.modulos.length>1&&lim&&lim.images){
-          const d=await leePlanoConClaude(file,buf.slice(0),T.map(t=>t.s).join("\n"));
-          ["obra","oferta","cliente","modelo","montaje","electronica","alto_total_mm","luz"].forEach(k=>{if(caj[k]!=null&&caj[k]!=="")d[k]=caj[k];});
-          (d.modulos||[]).forEach((m,i)=>{if(caj.modulos[i]&&caj.modulos[i].lamas_led&&!m.lamas_led)m.lamas_led=caj.modulos[i].lamas_led;});
-          aplicaPlanoClaude(d,file.name.replace(/\.[^.]+$/,""),"(cajetín) y por Claude (dibujo)");
-        }else aplicaPlanoClaude(caj,file.name.replace(/\.[^.]+$/,""),"del cajetín");
-        toast("Plano leído: revisa los datos");return;
+      /* Plano del cliente: se rellena con lo que tenga, aunque no se reconozca entero.
+         Cajetín Umara con texto → sus datos; con Claude (enlace de Claude) se lee además el dibujo; sin Claude, el texto y el nombre del archivo. */
+      const nom=file.name.replace(/\.[^.]+$/,""),suelto=datosSueltos(T,file.name),hayCaj=T.some(t=>/^MODELO\b/i.test(t.s));
+      const caj=hayCaj?juntaDatos(datosCajetin(T),suelto):suelto;
+      const sample=await claudeSample(),lim=sample&&await sample.limits().catch(()=>null),conClaude=!!(lim&&lim.images);
+      plano=null;
+      if(conClaude&&!(hayCaj&&caj.modulos.length<=1&&caj.modulos[0]&&caj.modulos[0].ancho_mm)){
+        let d=null;try{d=await leePlanoConClaude(file,buf?buf.slice(0):null,T.map(t=>t.s).join("\n"));}catch(e){if(/parada/i.test(e.message||""))throw e;}
+        if(d&&Array.isArray(d.modulos)&&d.modulos.length){
+          if(hayCaj){["obra","oferta","cliente","modelo","montaje","electronica","alto_total_mm","luz"].forEach(k=>{if(caj[k]!=null&&caj[k]!=="")d[k]=caj[k];});
+            (d.modulos||[]).forEach((m,i)=>{if(caj.modulos[i]&&caj.modulos[i].lamas_led&&!m.lamas_led)m.lamas_led=caj.modulos[i].lamas_led;});}
+          aplicaPlanoClaude(juntaDatos(d,Object.assign({},caj,{dudas:[]})),nom,hayCaj?"(cajetín) y por Claude (dibujo)":"por Claude");
+          toast("Plano leído: revisa los datos");return;}
       }
-      /* Sin texto que leer (escaneo, foto o plano firmado): que lo lea Claude. */
-      /* texto ilegible (PDF escaneado con texto basura) = como una imagen: que lo lea Claude */
-      if(T.length>40&&T.some(t=>/PILAR|ELYA|M[ÓO]DULO|CENTRALITA|REFERENCIA/i.test(t.s))){toast("No encuentro módulos en el PDF. ¿Es un plano de la ELYA?");return;}
-      plano=null;aplicaPlanoClaude(await leePlanoConClaude(file,buf),file.name.replace(/\.[^.]+$/,""));
-      toast("Plano leído: revisa los datos");return;
+      aplicaPlanoClaude(caj,nom,hayCaj?"del cajetín":T.length?"(lo que trae el texto y el nombre del archivo)":"(solo el nombre del archivo)");
+      if(!hayCaj)$("impRes").insertAdjacentHTML("beforeend",`<div class="hint">${conClaude?"Claude no ha podido leer el dibujo.":"Este plano no lo puedo leer entero aquí; en el enlace de Claude lo lee Claude."} He rellenado lo que he encontrado; lo demás, a mano.</div>`);
+      toast("Plano leído en parte: revisa los datos");return;
     }
     plano=Object.assign(r,{refN:r.mods[0].n});plano.refA=Math.round(r.mods[0].w/80*100)/100;
-    if(!$("obra").value)$("obra").value=file.name.replace(/\.pdf$/i,"");
+    const tit=buf?await tituloPDF(buf.slice(0)):"",nob=(tit.match(/^(\d{8}(?:-\d+)?)\b/)||file.name.match(/^(\d{8}(?:-\d+)?)[_\s.-]/)||[])[1];
+    if(nob&&!$("of").value)$("of").value=nob;
+    if(!$("obra").value)$("obra").value=nob?`${nob} · ${tit.replace(/^\d{8}(?:-\d+)?\s*/,"")||"plano"}`:file.name.replace(/\.pdf$/i,"");
     plano.ficha=datosFicha(T);
     writeMods(aplicaFicha(modulosDelPlano()));pintaImport();render();toast("Plano importado: revisa la cota y el lado del motor");
   }catch(e){console.warn(e);toast(e.message||"No se pudo leer el plano");const b=$("impRes");if(b&&/Leyendo/.test(b.textContent)){b.innerHTML=`<div class="ko">${esc(e.message||"No se pudo leer el plano")}</div>`;}}
@@ -2326,7 +2374,7 @@ function etiquetasMod(m,i,pp){
   const se=$(`m${i}_ent`),sr=$(`m${i}_rut`);if(!se||!sr)return;
   SIDES.forEach(sd=>{const t=$(`m${i}_t_${sd}`),v=$(`m${i}_v_${sd}`);if(t)t.textContent=vigaDe(m,sd);if(v)v.placeholder=vigaAuto(m,sd);});
   for(let j=0;$(`m${i}_x${j}_loc`);j++){const se=$(`m${i}_x${j}_loc`),L=LOCS(m);[...se.options].forEach((o,n)=>{if(L[n])o.text=L[n][1];});}
-  const lt=$(`m${i}_lamT`);if(lt)lt.placeholder=`${lamTDef(m)} (auto)`;
+  const lt=$(`m${i}_lamT`);if(lt)lt.placeholder=`${lamTDef(m)} (calculadas)`;
   const fl=$(`m${i}_focL`);if(fl)[...fl.options].forEach(o=>{if(SIDES.includes(o.value))o.text=`Viga ${vigaDe(m,o.value)}`;});
   CORN.forEach(k=>{const p=$(`m${i}_p_${k}`);if(p)p.placeholder=`P${pilDe(m,k)} · ${ESQ[k].toLowerCase()}`;});
   const una=gruposTira(Object.assign({},m,{ent:"auto"}),pp).some(G=>G.una);
@@ -2381,7 +2429,7 @@ function render(){
 /* Hoja para el cliente final: en qué canal del mando está cada cosa y el plano de la pérgola. */
 function pintaCliente(cfg,r,cj){
   const QUE={mot:"Abrir y cerrar las lamas",peri:"Luz del perímetro",ind:"Luz indirecta del perímetro",lam:"Luz de las lamas",foc:"Focos"},nm=r.plan.length>1;
-  const filas=(r.canales||[]).slice().sort((a,b)=>a.em===b.em?a.c-b.c:0).map(x=>`<tr><td>${x.c}</td><td>${esc(QUE[x.k])}${nm?` · módulo ${x.mi+1}`:""}</td><td>${esc(C[x.em][1])}</td></tr>`).join("");
+  const filas=(r.canales||[]).slice().sort((a,b)=>a.em===b.em?(a.mando||1)-(b.mando||1)||a.c-b.c:0).map(x=>`<tr><td>${x.c}</td><td>${esc(QUE[x.k])}${nm?` · módulo ${x.mi+1}`:""}</td><td>${esc(C[x.em][1])}${x.nM>1?` · mando nº ${x.mando}`:""}</td></tr>`).join("");
   const planos=(cj?`<figure>${cj.svg}</figure>`:"")+r.plan.map(pm=>`<figure><figcaption>${esc(pm.m.nombre)}</figcaption>${dibujaModulo(pm,cfg)}</figure>`).join("");
   $("cliente").innerHTML=`<p>${esc(cfg.obra||"")}</p>${filas?`<table class="cli-can"><thead><tr><th>Canal</th><th>Qué hace</th><th>Mando</th></tr></thead><tbody>${filas}</tbody></table>`:""}${(r.canales||[]).some(x=>x.em==="pop")?`<p class="hint">En el mando Pop Plus, el canal 0 es el común: mueve y enciende todo a la vez.</p>`:""}<div class="cli-pl">${planos}</div>`;
 }
@@ -2739,19 +2787,24 @@ function abrirImprimir(){
   $("pHojas").innerHTML=HOJAS.map(([k,t])=>`<label class="chk"><input type="checkbox" data-h="${k}"${impPref.hojas[k]!==false?" checked":""}> ${t}</label>`).join("");
   const cu=verCuadro;$("pCuadro").checked=!!cu;$("pDesdeCent").checked=!cu;$("pDispV").checked=uniVert;$("pDispH").checked=!uniVert;
   const soloCli=HOJAS.every(([k])=>k==="cliente"?impPref.hojas[k]!==false:impPref.hojas[k]===false);$("pCliente").classList.toggle("pri",soloCli);$("pTaller").classList.toggle("pri",!soloCli);
+  $("pNombre").dataset.mano="";$("pNombre").value=nombreDef(soloCli);
   $("dPrint").showModal();
 }
+/* nombre propuesto: la obra y para quién; se puede cambiar en el diálogo (también es el nombre del PDF al imprimir) */
+const limpiaNom=t=>String(t||"").replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim();
+function nombreDef(cli){const cfg=last?last.cfg:readForm();return limpiaNom(`Esquema ELYA ${nombreObra(cfg)} ${cli?"cliente":"taller"}`);}
+const nombreImp=()=>limpiaNom($("pNombre").value)||nombreDef(false);
 function leePrefImp(){
   impPref={hojas:Object.fromEntries([...$("pHojas").querySelectorAll("[data-h]")].map(c=>[c.dataset.h,c.checked])),cuadro:$("pCuadro").checked,vert:$("pDispV").checked};
   try{localStorage.setItem("elya-imp",JSON.stringify(impPref));}catch(e){}
 }
 /* Página suelta para imprimir o guardar como PDF: las hojas elegidas, con el unifilar desde el cuadro si se pidió. */
-function documentoImprimir(){
+function documentoImprimir(tit){
   impCuadro=!!impPref.cuadro;impVert=!!impPref.vert;render();
   const cfg=last?last.cfg:readForm();let html=snapshotHTML(cfg);
   if(impVert)html=html.replace("</head>","<style>@page{size:A4 landscape}</style></head>");
   impCuadro=null;impVert=null;render();
-  const d=new DOMParser().parseFromString(html,"text/html");
+  const d=new DOMParser().parseFromString(html,"text/html");if(tit)d.title=tit;
   d.querySelectorAll("[data-hoja]").forEach(sec=>{if(impPref.hojas[sec.dataset.hoja]===false)sec.remove();});
   d.querySelectorAll("#vacio,[data-amp],.zoom").forEach(e=>e.remove());
   const bar=d.createElement("div");bar.className="barimp";
@@ -2764,8 +2817,7 @@ function documentoImprimir(){
 let dlPr=null;
 const descargas=()=>dlPr||(dlPr=(window.claude&&window.claude.use?window.claude.use("downloads").catch(()=>null):Promise.resolve(null)));
 async function guardarParaImprimir(){
-  leePrefImp();const html=documentoImprimir(),cfg=last?last.cfg:readForm();
-  const nombre=`Esquema ELYA ${nombreObra(cfg).replace(/[\\/:*?"<>|]+/g," ").trim()} ${sello()}.html`;
+  leePrefImp();const tit=nombreImp(),html=documentoImprimir(tit),nombre=tit+".html";
   $("dPrint").close();
   const dl=await descargas();
   if(dl){try{await dl.save({filename:nombre,data:html});toast("Guardado: ábrelo con el navegador para imprimir");}
@@ -2778,14 +2830,18 @@ $("pSave").addEventListener("click",guardarParaImprimir);
 $("pGo").addEventListener("click",()=>{
   leePrefImp();
   HOJAS.forEach(([k])=>document.body.classList.toggle("noimp-"+k,!impPref.hojas[k]));
+  tituloApp=document.title;document.title=nombreImp();
   impCuadro=!!impPref.cuadro;impVert=!!impPref.vert;render();$("dPrint").close();setTimeout(()=>window.print(),80);
 });
-window.addEventListener("afterprint",()=>{if(impCuadro===null&&impVert===null&&!document.body.className.includes("noimp-"))return;impCuadro=null;impVert=null;HOJAS.forEach(([k])=>document.body.classList.remove("noimp-"+k));render();});
+let tituloApp=null;
+window.addEventListener("afterprint",()=>{if(tituloApp){document.title=tituloApp;tituloApp=null;}if(impCuadro===null&&impVert===null&&!document.body.className.includes("noimp-"))return;impCuadro=null;impVert=null;HOJAS.forEach(([k])=>document.body.classList.remove("noimp-"+k));render();});
 /* Dentro del enlace de Claude no se puede abrir la ventana de imprimir: ahí se guarda la página para imprimir. */
 $("bPrint").hidden=false;$("bPrint").addEventListener("click",abrirImprimir);
 /* dos juegos de hojas: para el cliente (plano y canales) o para el taller (todo) */
 function modoImp(cli){$("pHojas").querySelectorAll("[data-h]").forEach(c=>{c.checked=cli?c.dataset.h==="cliente":true;});
+  if(!$("pNombre").dataset.mano)$("pNombre").value=nombreDef(cli);
   $("pCliente").classList.toggle("pri",cli);$("pTaller").classList.toggle("pri",!cli);$("pModo").textContent=cli?"Cliente: solo el plano y los canales del mando.":"Taller: todas las hojas (avisos, unifilar, consumo, planta, cliente, conexiones y material).";}
+$("pNombre").addEventListener("input",()=>{$("pNombre").dataset.mano="1";});
 $("pCliente").addEventListener("click",()=>modoImp(true));$("pTaller").addEventListener("click",()=>modoImp(false));
 if(!top){$("pGo").hidden=true;$("pPrintHint").hidden=true;$("pSave").classList.add("pri");}
 render();
