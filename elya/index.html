@@ -237,12 +237,12 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <legend>2 · Sistema luces</legend>
     <label>Sistema de luces<select id="sisLuz">
       <option value="auto">Igual que el motor</option>
-      <option value="nexta">Cherubini Nexta · TKL250 ONE (4 salidas, hasta 4 canales del mando)</option>
+      <option value="nexta">Cherubini Nexta · TKL250 ONE (4 salidas, hasta 4 canales del mando; RGB: TKL RGBW)</option>
       <option value="nexta_stl250">Cherubini Nexta · STILO STL250 (2 salidas, 1 canal del mando)</option>
       <option value="nexta_stl100">Cherubini Nexta · STILO STL100 (2 salidas, 1 canal del mando)</option>
-      <option value="teleco_eu">Teleco EU · salida LED de la central 2 Mot + LED</option>
+      <option value="teleco_eu">Teleco EU · salida LED de la central 2 Mot + LED (RGB: stick TVSTICK)</option>
       <option value="teleco_ul">Teleco UL · receptor RGB + BL con transformador</option>
-      <option value="somfy">Somfy io · receptor io LED con transformador</option>
+      <option value="somfy">Somfy io · receptor io LED blanco o receptor io RGB, con transformador</option>
     </select></label>
     <label id="lEmisorL" hidden>Emisor de las luces<select id="emisorL"></select></label>
     <label id="lProd">Producto de la tira blanca<select id="periProd">
@@ -353,7 +353,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <div class="lados"><label class="chk"><input type="checkbox" id="cf_viento"> Anemómetro (solo Nexta)</label><label class="chk"><input type="checkbox" id="cf_lluvia"> Sensor de lluvia</label></div>
   </fieldset>
   <fieldset class="cfgs"><legend>3 · Sistema luces</legend>
-    <label>Sistema de luces<select id="cf_sisL"><option value="auto">Igual que el motor</option><option value="nexta">Cherubini Nexta · TKL250 ONE</option><option value="nexta_stl250">Cherubini Nexta · STILO STL250</option><option value="nexta_stl100">Cherubini Nexta · STILO STL100</option><option value="teleco_eu">Teleco EU · salida LED de la central</option><option value="teleco_ul">Teleco UL · receptor RGB + BL</option><option value="somfy">Somfy io · receptor io LED</option></select></label>
+    <label>Sistema de luces<select id="cf_sisL"><option value="auto">Igual que el motor</option><option value="nexta">Cherubini Nexta · TKL250 ONE</option><option value="nexta_stl250">Cherubini Nexta · STILO STL250</option><option value="nexta_stl100">Cherubini Nexta · STILO STL100</option><option value="teleco_eu">Teleco EU · salida LED de la central</option><option value="teleco_ul">Teleco UL · receptor RGB + BL</option><option value="somfy">Somfy io · receptor io LED blanco / io RGB</option></select></label>
     <div class="row"><label>LED perimetral<select id="cf_led"><option value="none">No</option><option value="dir">Directo</option><option value="ind">Indirecto</option><option value="ambos">Directo + indirecto</option></select></label>
     <label>Luz<select id="cf_luz"><option value="w3000">Blanco cálido 3000 K</option><option value="w4000">Blanco neutro 4000 K</option><option value="rgb">RGB</option></select></label></div>
     <label>Producto<select id="cf_prod"><option value="rollo">LED ELYA (5 / 7 m)</option><option value="neon">Neón perimetral (4,50 / 6 m)</option></select></label>
