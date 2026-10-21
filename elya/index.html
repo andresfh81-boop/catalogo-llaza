@@ -123,6 +123,8 @@ button.del{padding:7px 10px;font-size:13px;color:var(--bad)}
 .zbox svg{display:block;margin:0 auto;height:auto}
 .zbox .pags{margin:0 auto;display:grid;gap:12px}.zbox .pags img{width:100%;display:block;border:1px solid var(--line);background:#fff}
 .unides{display:flex;gap:6px;align-items:center;font-size:13px;margin-left:auto}.unides select{width:auto;padding:3px 6px}
+.cli-can{border-collapse:collapse;margin:0 0 14px;font-size:15px}.cli-can td,.cli-can th{border:1px solid var(--line);padding:8px 12px;text-align:left}.cli-can td:first-child{font-weight:700;font-size:18px;text-align:center}
+.cli-pl{display:grid;gap:12px}.cli-pl svg{width:100%;height:auto;max-width:720px}
 .adjbox{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:8px;font-size:13px}.adjbox span{display:flex;flex-wrap:wrap;gap:6px}
 @media print{.zoom{display:none!important}.plantas figcaption button{display:none}}
 main{display:grid;gap:20px;min-width:0}
@@ -178,7 +180,7 @@ svg .ed{cursor:pointer}svg .ed:hover{filter:drop-shadow(0 0 3px var(--c-x))}
 .apr ul{margin:6px 0;padding-left:18px;font-size:13px}.apr li button{margin-left:6px}
 @media print{.dprint{display:none!important}
   body.noimp-avisos [data-hoja=avisos],body.noimp-unifilar [data-hoja=unifilar],body.noimp-consumo [data-hoja=consumo],
-  body.noimp-planta [data-hoja=planta],body.noimp-conexiones [data-hoja=conexiones],body.noimp-material [data-hoja=material]{display:none!important}}
+  body.noimp-planta [data-hoja=planta],body.noimp-conexiones [data-hoja=conexiones],body.noimp-cliente [data-hoja=cliente],body.noimp-material [data-hoja=material]{display:none!important}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
 [hidden]{display:none!important}
@@ -303,6 +305,10 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <div class="bd scroll" style="padding-top:0"><div id="tiras"></div></div>
   </section>
 
+  <section class="sheet" data-hoja="cliente">
+    <div class="hd"><h2>Para el cliente: el mando y el plano</h2><span class="tag">Hoja del cliente</span></div>
+    <div class="bd" id="cliente"></div>
+  </section>
   <section class="sheet" data-hoja="conexiones">
     <div class="hd"><h2>Conexiones por central</h2><span class="tag">Hoja 3</span></div>
     <div class="bd"><div class="conx" id="conx"></div></div>
@@ -1658,7 +1664,7 @@ function conexiones(cfg,r){
     if(stl.length)out.push({t:"STILO LED (LED blanco)",code:C[stl[0].k][0],li:["Alimentación 230 V. 2 salidas LED 24 V.",...stl.map(lo=>`${lo.tag}: ${lo.modo}.`),...stl.flatMap(outLines),"Bornas y límites por salida: ver manual STILO LED."],src:"Manual STILO LED (Drive)"});
     if(r.dev.some(d=>/^rgbw/.test(d.id)))out.push({t:"TKL RGBW 250 W",code:C.tklrgbw[0],li:["Alimentación 230 V.","Salida RGBW por conector "+C.conRGBW[0]+" (CON-EP55/RGBS+W, 4 × RGB + 1 × blanco).","Máx. 250 W en total."],src:"Guía rápida TKL RGBW (Drive)"});
   }
-  if(r.canales&&r.canales.length)out.push({t:"Canales del mando",code:"",li:r.canales.map(x=>`Canal ${x.c} (${C[x.em][1]}): ${ENCAN_m[x.k]} ${x.tag}`).concat(["TKM: P1 corto y subida en el canal del motor. TKL: P1 hasta el color del canal de la central y subida en el canal del mando (manuales Cherubini)."]),src:"Reparto de la app (Auto) o elegido en cada módulo"});
+  if(r.canales&&r.canales.length)out.push({t:"Grabar el mando",code:"",li:["Canales: en la hoja «Para el cliente».","TKM: P1 corto y subida en el canal del motor. TKL: P1 hasta el color del canal de la central y subida en el canal del mando. STILO: un solo canal por central (manuales Cherubini)."],src:"Manuales TKM / TKL / STILO (Drive)"});
   out.push({t:"Recorrido de cables (manual ELYA)",code:"",li:[
     "Centralita: dentro de la viga o del pilar que indica la ficha de fabricación (número de viga o de pilar).",
     "Motor: cable por la parte superior del larguero hasta la centralita de su módulo.",
@@ -2233,6 +2239,14 @@ function render(){
   }</tbody><tfoot><tr><th colspan="2">Total de las cargas</th><th style="text-align:right" class="mono">${w0(TW)}</th></tr><tr><th colspan="2">Estimado en 230 V (fuentes de 24 V al 90 %)</th><th style="text-align:right" class="mono">${w0(W230)} · ${(W230/230).toLocaleString("es-ES",{maximumFractionDigits:1})} A</th></tr></tfoot>`;
   pintaMaterial(r);
   pintaAprendido();
+  pintaCliente(cfg,r,cj);
+}
+/* Hoja para el cliente final: en qué canal del mando está cada cosa y el plano de la pérgola. */
+function pintaCliente(cfg,r,cj){
+  const QUE={mot:"Abrir y cerrar las lamas",peri:"Luz del perímetro",ind:"Luz indirecta del perímetro",lam:"Luz de las lamas",foc:"Focos"},nm=r.plan.length>1;
+  const filas=(r.canales||[]).slice().sort((a,b)=>a.em===b.em?a.c-b.c:0).map(x=>`<tr><td>${x.c}</td><td>${esc(QUE[x.k])}${nm?` · módulo ${x.mi+1}`:""}</td><td>${esc(C[x.em][1])}</td></tr>`).join("");
+  const planos=(cj?`<figure>${cj.svg}</figure>`:"")+r.plan.map(pm=>`<figure><figcaption>${esc(pm.m.nombre)}</figcaption>${dibujaModulo(pm,cfg)}</figure>`).join("");
+  $("cliente").innerHTML=`<p>${esc(cfg.obra||"")}</p>${filas?`<table class="cli-can"><thead><tr><th>Canal</th><th>Qué hace</th><th>Mando</th></tr></thead><tbody>${filas}</tbody></table>`:""}<div class="cli-pl">${planos}</div>`;
 }
 /* Material = lo calculado con los cambios a mano encima. */
 function bomFinal(r){
@@ -2508,7 +2522,7 @@ $("bCopy").addEventListener("click",()=>{
 /* Imprimir solo funciona abierta como página suelta (no dentro de un visor). */
 let top=false;try{top=window.self===window.top;}catch(e){}
 /* Imprimir: se eligen las hojas y si el unifilar sale desde el cuadro del cliente; se recuerda la elección. */
-const HOJAS=[["avisos","Avisos"],["unifilar","Esquema unifilar"],["consumo","Consumo"],["planta","Planta y tiras LED"],["conexiones","Conexiones por central"],["material","Material"]];
+const HOJAS=[["avisos","Avisos"],["unifilar","Esquema unifilar"],["consumo","Consumo"],["planta","Planta y tiras LED"],["cliente","Para el cliente (mando y plano)"],["conexiones","Conexiones por central"],["material","Material"]];
 let impPref={hojas:Object.fromEntries(HOJAS.map(([k])=>[k,true])),cuadro:false};
 try{impPref=Object.assign(impPref,JSON.parse(localStorage.getItem("elya-imp")||"{}"));}catch(e){}
 function abrirImprimir(){
