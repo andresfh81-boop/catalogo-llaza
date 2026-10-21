@@ -48,7 +48,8 @@ h3{font-size:16px}
 @media (max-width:900px){.wrap{grid-template-columns:minmax(0,1fr)}}
 header.top{max-width:1320px;margin:0 auto 18px;display:flex;flex-wrap:wrap;gap:8px 20px;align-items:end;justify-content:space-between}
 .eyebrow{font:600 12px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
-.sub{color:var(--muted);margin:4px 0 0;max-width:62ch}
+.sub{color:var(--muted);margin:4px 0 0}
+header.top>div:first-child{flex:1 1 520px;min-width:0}
 form{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:16px;display:grid;gap:16px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
 @media (max-width:900px){form{position:static;max-height:none}}
 fieldset{border:0;margin:0;padding:0;display:grid;gap:10px}
@@ -191,7 +192,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <div>
     <div class="eyebrow">Llaza SAT · Pérgola bioclimática</div>
     <h1>Esquema eléctrico ELYA</h1>
-    <p class="sub">Mete los módulos como en el plano de fabricación (medidas, lado motor, esquina de la centralita y lados con tira). Sale el esquema unifilar, la planta de cada módulo con sus tiras, las conexiones de cada central y el material con los códigos del catálogo.</p>
+    <p class="sub">Mete los módulos como en el plano de fabricación y sale el unifilar, la planta con sus tiras, las conexiones de cada central y el material con los códigos del catálogo.</p>
   </div>
   <div class="btns">
     <button type="button" class="pri" id="bSave" hidden>Guardar en Drive</button>
