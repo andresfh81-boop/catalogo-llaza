@@ -251,7 +251,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
       <option value="somfy">Somfy io · receptor io LED blanco o receptor io RGB, con transformador</option>
     </select></label>
     <label id="lEmisorL" hidden>Emisor de las luces<select id="emisorL"></select></label>
-    <label id="lProd">Producto de la tira blanca<select id="periProd">
+    <label id="lProd">Tira blanca del perímetro (las lamas llevan siempre su neón de lama)<select id="periProd">
       <option value="rollo">Rollo LED ELYA (5 / 7 m)</option>
       <option value="neon">Neón perimetral (4,50 / 6 m)</option>
     </select></label>
@@ -587,7 +587,7 @@ function modCard(m,i){
   return `<div class="mod">
   <div class="mhd"><input type="text" id="m${i}_nombre" value="${esc(m.nombre)}" aria-label="Nombre del módulo"><button type="button" class="del" data-del="${i}">Quitar</button></div>
   <div class="row"><label>Ancho A (m)<input type="number" id="m${i}_A" step="0.01" min="1" max="6" value="${m.A}"></label><label>Salida P (m)<input type="number" id="m${i}_P" step="0.01" min="1" max="8" value="${m.P}"></label></div>
-  <div class="row"><label>Lamas en total (vacío = calculadas)<input type="number" id="m${i}_lamT" min="1" max="80" step="1" value="${m.lamT>0?m.lamT:""}" placeholder="${lamTDef(m)} (calculadas)"></label><label>Lamas con LED (blanco cálido)<input type="number" id="m${i}_lamasN" min="0" max="80" step="1" value="${lamLED(m).length}"></label></div>
+  <div class="row"><label>Lamas en total (vacío = calculadas)<input type="number" id="m${i}_lamT" min="1" max="80" step="1" value="${m.lamT>0?m.lamT:""}" placeholder="${lamTDef(m)} (calculadas)"></label><label>Lamas con LED (neón de lama 3000 K)<input type="number" id="m${i}_lamasN" min="0" max="80" step="1" value="${lamLED(m).length}"></label></div>
   <label>Nº de las lamas con LED<input type="text" id="m${i}_lamL" value="${esc(lamLED(m).join(", "))}" placeholder="ej. 5, 12, 19, 26"></label>
   <p class="hint">Lamas enteras (sin las 2 medias lamas de los extremos). Lama 1 = la primera entera del lado de apertura (135°). También se elige tocando cada lama en la planta.</p>
   <div class="row"><label>Motor / desagüe<select id="m${i}_motor">${opt({izq:"Lado izq.",der:"Lado der."},m.motor)}</select></label><label>Motor en el extremo<select id="m${i}_motY">${opt({auto:"Auto (el de la centralita)",s:"Superior",i:"Inferior"},m.motY||"auto")}</select></label></div>
@@ -1003,7 +1003,7 @@ function calcular(cfg){
     if(m.focN>0)loads.push({n:`Focos ×${m.focN}`,W:FOCO_W*m.focN,grp:"focos",rgb:false,len:0});
     if(m.focN)add(focK,m.focN,`${tag} · ${FOCO_W} W c/u`);
     if(m.lamasN){
-      add("lamaW",m.lamasN,`${tag} lamas ${lamLED(m).join(", ")} · cortar a ≈${m2(lamaLen)} m`);add("conLama",m.lamasN);if(!(lc.conEje>0))add("conEje",m.lamasN);
+      add("lamaW",m.lamasN,`${tag} lamas ${lamLED(m).join(", ")}`);add("conLama",m.lamasN);if(!(lc.conEje>0))add("conEje",m.lamasN);
       if(lamaLen>4.5)av.push(["bad",`${m.nombre}: lama de ≈${m2(lamaLen)} m, la tira de lama es de 4,50 m.`]);
     }
     const focR=focosRuta(m);
