@@ -223,7 +223,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <label>Obra / cliente<input type="text" id="obra"></label>
     <div class="row">
       <label>OF<input type="text" id="of"></label>
-      <label>Alto H (m)<input type="number" id="alto" step="0.01" min="1.8" max="4"></label>
+      <label>Alto H<span class="unid" data-u="m"><input type="number" id="alto" step="0.01" min="1.8" max="4"></span></label>
       <label>Tipología<select id="tipol"><option value="testa">Testa (viga grande en los lados de las lamas)</option><option value="inglete">Inglete (todas viga)</option></select></label>
     </div>
   </fieldset>
@@ -353,8 +353,8 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <label>Tipología<select id="cf_tip"><option value="testa">Testa</option><option value="inglete">Inglete</option></select></label></div>
     <div class="row"><label>Módulos<input type="number" id="cf_n" min="1" max="6" step="1" value="1"></label>
     <label>Unidos<select id="cf_disp"><option value="a">Uno al lado del otro (a lo largo de las lamas)</option><option value="p">Uno detrás de otro (en la salida)</option></select></label></div>
-    <div class="row"><label>Lama A (m, máx. 4,50)<input type="number" id="cf_A" min="1" max="4.5" step="0.01" value="4"></label><label>Salida P (m, máx. 6)<input type="number" id="cf_P" min="1" max="6" step="0.01" value="5"></label></div>
-    <div class="row"><label>Alto H (m, máx. 3)<input type="number" id="cf_H" min="1.8" max="3.5" step="0.01" value="2.5"></label><label>Lado del motor / desagüe<select id="cf_mot"><option value="der">Derecho</option><option value="izq">Izquierdo</option></select></label></div>
+    <div class="row"><label>Lama A (máx. 4,50 m)<span class="unid" data-u="m"><input type="number" id="cf_A" min="1" max="4.5" step="0.01" value="4"></span></label><label>Salida P (máx. 6 m)<span class="unid" data-u="m"><input type="number" id="cf_P" min="1" max="6" step="0.01" value="5"></span></label></div>
+    <div class="row"><label>Alto H (máx. 3 m)<span class="unid" data-u="m"><input type="number" id="cf_H" min="1.8" max="3.5" step="0.01" value="2.5"></span></label><label>Lado del motor / desagüe<select id="cf_mot"><option value="der">Derecho</option><option value="izq">Izquierdo</option></select></label></div>
     <label class="chk"><input type="checkbox" id="cf_aisl"> Aislante en lamas (porexpán): no deja poner focos en lamas</label>
   </fieldset>
   <fieldset class="cfgs"><legend>2 · Sistema motor</legend>
@@ -571,7 +571,7 @@ function filaExtra(m,i,j,x){
    <label>Producto<select id="m${i}_x${j}_k">${prods}</select></label>
    <div class="row3"><label>Cant.<input type="number" id="m${i}_x${j}_q" min="1" step="1" value="${x.q||1}"></label>
    <label>Dónde<select id="m${i}_x${j}_loc">${op(LOCS(m),x.loc||"cent")}</select></label>
-   <label>A (m)<input type="number" id="m${i}_x${j}_d" min="0" step="0.05" value="${x.d!=null?x.d:""}" placeholder="mitad"></label></div>
+   <label>A<span class="unid" data-u="m"><input type="number" id="m${i}_x${j}_d" min="0" step="0.05" value="${x.d!=null?x.d:""}" placeholder="mitad"></span></label></div>
    <div class="row3"><label>W c/u<input type="number" id="m${i}_x${j}_w" min="0" step="0.5" value="${x.W||""}" placeholder="0"></label>
    <label>Salida<select id="m${i}_x${j}_s">${op(Object.entries(SALOPT),x.s||"auto")}</select></label>
    <button type="button" class="mini del" data-xdel="${i}:${j}">Quitar</button></div></div>`;
@@ -586,7 +586,7 @@ function modCard(m,i){
   const lado=(k,t)=>`<div class="lado"><label class="chk"><input type="checkbox" id="m${i}_${k}"${m.lados[k]?" checked":""}> <b id="m${i}_t_${k}" class="mono">${esc(vigaDe(m,k))}</b></label><select id="m${i}_md_${k}" aria-label="Medida de la tira, ${t}">${medOpts(m.luz,pp,md[k])}</select></div>`;
   return `<div class="mod">
   <div class="mhd"><input type="text" id="m${i}_nombre" value="${esc(m.nombre)}" aria-label="Nombre del módulo"><button type="button" class="del" data-del="${i}">Quitar</button></div>
-  <div class="row"><label>Ancho A (m)<input type="number" id="m${i}_A" step="0.01" min="1" max="6" value="${m.A}"></label><label>Salida P (m)<input type="number" id="m${i}_P" step="0.01" min="1" max="8" value="${m.P}"></label></div>
+  <div class="row"><label>Ancho A<span class="unid" data-u="m"><input type="number" id="m${i}_A" step="0.01" min="1" max="6" value="${m.A}"></span></label><label>Salida P<span class="unid" data-u="m"><input type="number" id="m${i}_P" step="0.01" min="1" max="8" value="${m.P}"></span></label></div>
   <div class="row"><label>Lamas en total (vacío = calculadas)<input type="number" id="m${i}_lamT" min="1" max="80" step="1" value="${m.lamT>0?m.lamT:""}" placeholder="${lamTDef(m)} (calculadas)"></label><label>Lamas con LED (neón de lama 3000 K)<input type="number" id="m${i}_lamasN" min="0" max="80" step="1" value="${lamLED(m).length}"></label></div>
   <label>Nº de las lamas con LED<input type="text" id="m${i}_lamL" value="${esc(lamLED(m).join(", "))}" placeholder="ej. 5, 12, 19, 26"></label>
   <p class="hint">Lamas enteras (sin las 2 medias lamas de los extremos). Lama 1 = la primera entera del lado de apertura (135°). También se elige tocando cada lama en la planta.</p>
@@ -641,7 +641,7 @@ function modCard(m,i){
     <button type="button" class="mini" data-xadd="${i}">+ Añadir producto</button>
   </details>
   <div class="tag">Posición en la planta de conjunto (m)</div>
-  <div class="row"><input type="number" id="m${i}_px" step="0.01" value="${m.pos&&isFinite(m.pos.x)?m.pos.x:""}" placeholder="X auto" aria-label="Posición X"><input type="number" id="m${i}_py" step="0.01" value="${m.pos&&isFinite(m.pos.y)?m.pos.y:""}" placeholder="Y auto" aria-label="Posición Y"></div>
+  <div class="row"><span class="unid" data-u="m"><input type="number" id="m${i}_px" step="0.01" value="${m.pos&&isFinite(m.pos.x)?m.pos.x:""}" placeholder="X auto" aria-label="Posición X"></span><span class="unid" data-u="m"><input type="number" id="m${i}_py" step="0.01" value="${m.pos&&isFinite(m.pos.y)?m.pos.y:""}" placeholder="Y auto" aria-label="Posición Y"></span></div>
   <p class="hint">Esquina inf. izq. del módulo. Vacío = se coloca solo, por los pilares que comparte con otro módulo.</p>
 </div>`;
 }
@@ -1830,7 +1830,7 @@ function pintaImport(){
   ${r.mods.some(m=>m.c)?`<div><b>Centralitas</b> (viga que marca el plano): ${r.mods.filter(m=>m.c).map(m=>`módulo ${m.n} → ${esc(m.c.viga)}`).join(" · ")}.</div>`:""}
   <div><b>Pilares y vigas:</b> salen con los nombres de la ficha. Si el plano firmado los nombra distinto, cámbialos en cada módulo.</div>
   <div>Las cotas van dibujadas y no se pueden leer del PDF. Escribe una y saco las demás a escala (salen con ±5 cm: corrígelas con las cotas del plano si hace falta):</div>
-  <div class="row"><label>Ancho A de<select id="impRef">${opts}</select></label><label>según el plano (m)<input type="number" id="impA" step="0.01" min="0.5" max="10" value="${r.refA}"></label></div>
+  <div class="row"><label>Ancho A de<select id="impRef">${opts}</select></label><label>según el plano<span class="unid" data-u="m"><input type="number" id="impA" step="0.01" min="0.5" max="10" value="${r.refA}"></span></label></div>
   <div class="hint">Marca también el lado del motor de cada módulo: en el plano va dibujado, no escrito.</div>`;
 }
 /* Plano firmado escaneado o foto: no tiene texto. Se manda la imagen de cada página a Claude (capacidad «sample»,
