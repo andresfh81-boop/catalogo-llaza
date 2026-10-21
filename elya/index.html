@@ -507,7 +507,8 @@ const ESQ={si:"Sup. izq.",sd:"Sup. der.",ii:"Inf. izq.",id:"Inf. der."};
 const TKL_MODOS=[{n:1,col:"rojo",g:[[1,2,3,4]]},{n:2,col:"verde",g:[[1,3],[2,4]]},{n:3,col:"azul",g:[[1,2],[3],[4]]},{n:4,col:"amarillo",g:[[1],[2],[3],[4]]}];
 const ENC={dir:"perímetro",ind:"indirecto",lam:"lamas",foc:"focos",x:"productos a mano"};
 /* Canales de cada emisor (fichas y catálogo). */
-const CANALES={hoblo6:6,hobloMF:20,eco1:1,noonEU:9,noonUL:9,situo:5}; /* Pop Plus: canales por confirmar */
+/* Pop Plus: canales 1 a 7; el 0 es el común (todos a la vez), dato SAT */
+const CANALES={hoblo6:6,hobloMF:20,eco1:1,pop:7,noonEU:9,noonUL:9,situo:5};
 const ENCAN=[["mot","Motor"],["peri","Perímetro"],["ind","Indirecto"],["lam","LED lamas"],["foc","Focos"]];
 const ENCAN_m={mot:"motor",peri:"perímetro",ind:"indirecto",lam:"LED lamas",foc:"focos"};
 /* Perfil LED perimetral: dos alojamientos, arriba (luz indirecta) y abajo (luz directa) (dato SAT). Con los dos, cada uno
@@ -1668,7 +1669,7 @@ function conexiones(cfg,r){
     if(stl.length)out.push({t:"STILO LED (LED blanco)",code:C[stl[0].k][0],li:["Alimentación 230 V. 2 salidas LED 24 V.",...stl.map(lo=>`${lo.tag}: ${lo.modo}.`),...stl.flatMap(outLines),"Bornas y límites por salida: ver manual STILO LED."],src:"Manual STILO LED (Drive)"});
     if(r.dev.some(d=>/^rgbw/.test(d.id)))out.push({t:"TKL RGBW 250 W",code:C.tklrgbw[0],li:["Alimentación 230 V.","Salida RGBW por conector "+C.conRGBW[0]+" (CON-EP55/RGBS+W, 4 × RGB + 1 × blanco).","Máx. 250 W en total."],src:"Guía rápida TKL RGBW (Drive)"});
   }
-  if(r.canales&&r.canales.length)out.push({t:"Grabar el mando",code:"",li:["Canales: en la hoja «Para el cliente».","TKM: P1 corto y subida en el canal del motor. TKL: P1 hasta el color del canal de la central y subida en el canal del mando. STILO: un solo canal por central (manuales Cherubini)."],src:"Manuales TKM / TKL / STILO (Drive)"});
+  if(r.canales&&r.canales.length)out.push({t:"Grabar el mando",code:"",li:["Canales: en la hoja «Para el cliente». Pop Plus: canales 1 a 7 y el 0 es el común (todos).","TKM: P1 corto y subida en el canal del motor. TKL: P1 hasta el color del canal de la central y subida en el canal del mando. STILO: un solo canal por central (manuales Cherubini)."],src:"Manuales TKM / TKL / STILO (Drive)"});
   out.push({t:"Recorrido de cables (manual ELYA)",code:"",li:[
     "Centralita: dentro de la viga o del pilar que indica la ficha de fabricación (número de viga o de pilar).",
     "Motor: cable por la parte superior del larguero hasta la centralita de su módulo.",
@@ -2250,7 +2251,7 @@ function pintaCliente(cfg,r,cj){
   const QUE={mot:"Abrir y cerrar las lamas",peri:"Luz del perímetro",ind:"Luz indirecta del perímetro",lam:"Luz de las lamas",foc:"Focos"},nm=r.plan.length>1;
   const filas=(r.canales||[]).slice().sort((a,b)=>a.em===b.em?a.c-b.c:0).map(x=>`<tr><td>${x.c}</td><td>${esc(QUE[x.k])}${nm?` · módulo ${x.mi+1}`:""}</td><td>${esc(C[x.em][1])}</td></tr>`).join("");
   const planos=(cj?`<figure>${cj.svg}</figure>`:"")+r.plan.map(pm=>`<figure><figcaption>${esc(pm.m.nombre)}</figcaption>${dibujaModulo(pm,cfg)}</figure>`).join("");
-  $("cliente").innerHTML=`<p>${esc(cfg.obra||"")}</p>${filas?`<table class="cli-can"><thead><tr><th>Canal</th><th>Qué hace</th><th>Mando</th></tr></thead><tbody>${filas}</tbody></table>`:""}<div class="cli-pl">${planos}</div>`;
+  $("cliente").innerHTML=`<p>${esc(cfg.obra||"")}</p>${filas?`<table class="cli-can"><thead><tr><th>Canal</th><th>Qué hace</th><th>Mando</th></tr></thead><tbody>${filas}</tbody></table>`:""}${(r.canales||[]).some(x=>x.em==="pop")?`<p class="hint">En el mando Pop Plus, el canal 0 es el común: mueve y enciende todo a la vez.</p>`:""}<div class="cli-pl">${planos}</div>`;
 }
 /* Material = lo calculado con los cambios a mano encima. */
 function bomFinal(r){
