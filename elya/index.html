@@ -208,7 +208,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
 <form id="f" autocomplete="off">
   <fieldset>
     <legend>Plano de fabricación</legend>
-    <label class="drop" id="drop"><input type="file" id="fPlano" accept="application/pdf,.pdf,image/*" multiple hidden><b>Arrastra aquí los planos de la obra</b><span>Mejor la ficha de fabricación (PLANO.pdf) y el plano firmado juntos: de la ficha salen vigas, pilares y centralita, y del nombre del firmado las medidas. También vale uno solo; el firmado escaneado o una foto los lee Claude (desde el enlace de Claude). Toca para elegirlos.</span></label>
+    <label class="drop" id="drop"><input type="file" id="fPlano" accept="application/pdf,.pdf,image/*" multiple hidden><b>Arrastra aquí los planos de la obra</b><span>Mejor la ficha de fabricación (PLANO.pdf) y el plano firmado juntos: de la ficha salen vigas, pilares y centralita, y del nombre del firmado las medidas. También vale uno solo; el firmado escaneado o una foto los lee Claude (desde el enlace de Claude). Puedes añadir la confirmación de pedido: te digo en qué no coincide con el plano (manda el plano del cliente). Toca para elegirlos.</span></label>
     <div class="adjbox"><b>Hoja de material</b><button type="button" class="mini" id="bMat">Subir hoja (PDF / CSV) o foto</button><button type="button" class="mini" id="bMatCam">📷 Cámara</button>
       <input type="file" id="fMat" accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain,image/*" hidden><input type="file" id="fMatCam" accept="image/*" capture="environment" hidden>
       <span class="hint">Lee los códigos (11 cifras) y las cantidades, rellena la obra y la compara con el cálculo. Las fotos las lee Claude (enlace de Claude).</span></div>
@@ -1964,8 +1964,130 @@ function contraste(fi,pc,nombre){
   <table><thead><tr><th></th><th>Ficha</th><th>Plano cliente</th><th></th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.ok===false?"dif":""}"><td>${esc(f.que)}</td><td>${esc(f.a)}</td><td>${esc(f.b)}</td><td>${f.ok==null?"–":f.ok?"✓":"⚠"}</td></tr>`).join("")}</tbody></table>
   ${mot.length?`<div class="hint">Plano cliente: motor a la ${mot[0]==="izq"?"izquierda":"derecha"} (en su vista). Márcalo en el módulo.</div>`:""}</div>`;
 }
+/* ---------- Confirmación de pedido de Llaza («CONFIRMACION PEDIDO» / «ORDER CONFIRMATION») ----------
+   Cada posición «BIOCLIMATICA ELYA» trae modelo, medidas totales, alturas, aislante, LED y electrónica.
+   «PARALELAS» / «PERPENDICULAR»: lamas paralelas o perpendiculares a la línea de la instalación, así que el largo de lama
+   es la línea (paralelas) o la salida (perpendicular). Manda el plano del cliente: lo que no coincide queda en los avisos. */
+async function textoLineas(buf){
+  const L=await pdfjs(),doc=await L.getDocument({data:buf}).promise,out=[];
+  for(let i=1;i<=doc.numPages;i++){
+    const tc=await (await doc.getPage(i)).getTextContent(),fil=[];
+    tc.items.filter(it=>it.str&&it.str.trim()).forEach(it=>{const y=it.transform[5];let f=fil.find(f=>Math.abs(f.y-y)<2.5);if(!f)fil.push(f={y,its:[]});f.its.push({x:it.transform[4],s:it.str});});
+    fil.sort((a,b)=>b.y-a.y).forEach(f=>out.push(f.its.sort((a,b)=>a.x-b.x).map(t=>t.s).join(" ").replace(/\s+/g," ").trim()));
+  }
+  return out;
+}
+const sinTilde=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().trim();
+const PED_CAMPOS=[["modelo",/^(modelo de bioclimatica|model)$/],["linea",/^(linea total instalacion|total width)$/],["salida",/^(salida total instalacion|total projection)$/],
+  ["hLibre",/^(altura libre|free height)$/],["hTotal",/^(altura total|total height)$/],["hAb",/^(altura con lamas abiertas|height with open panels)$/],
+  ["aisl",/^(aislante lamas|isolated louvers)$/],["ral",/^(ral|ral of frame)$/],["ralL",/^(ral lamas|ral of louvers)$/],["lamTipo",/^(tipo led en lama|type of louvers)$/],
+  ["lamLuz",/^(tipo de luz led|type of led light|led light type)$/],["lamN",/^(num\.? lamas con iluminacion|number of (illuminated|lit|led) louvers)$/],
+  ["peri",/^(led perimetral|perimeter led)$/],["periLuz",/^(tipo de luz led perimetral|perimeter led (light )?type|type of perimeter led( light)?)$/],["elec",/^(electronica|electronics)$/]];
+function datosPedido(lin){
+  const J=lin.join("\n");
+  if(!/CONFIRMACI[ÓO]N\s*(DE\s*)?PEDIDO|ORDER\s*CONFIRMATION/i.test(J))return null;
+  const g=re=>{const m=J.match(re);return m?m[1].trim():null;};
+  const p={num:g(/(?:PROF\.*|NUMBER:)\s*(\d{6,})/i),ref:g(/(?:PED\.CLI\.:|YOUR REF\.)\s*(.*?)\s+(?:PROF\.|NUMBER:)/i),fin:g(/(?:FIN PROD\.|END PROD\.)\s*(\d\d\.\d\d\.\d{4})/i),pos:[]};
+  let cur=null;
+  lin.forEach(l=>{
+    const m=l.match(/^(\d{6})\s+\d{8,}\s+(.+?)\s+\d+,\d\d\s+(?:UN|SET|ST|PC|M)\b/i);
+    if(m){cur={pos:m[1],desc:m[2].replace(/\s*-$/,""),c:{}};p.pos.push(cur);return;}
+    const kv=cur&&l.replace(/\s+[\d.]+,\d{2,3}\s+[\d.]+,\d\d$/,"").match(/^([^:]{2,60}):\s*(.+)$/);
+    if(kv){const k=PED_CAMPOS.find(([,re])=>re.test(sinTilde(kv[1])));if(k&&cur.c[k[0]]==null)cur.c[k[0]]=kv[2].trim();}
+  });
+  const mm=v=>{const n=parseInt(String(v||"").replace(/[.\s]/g,""),10);return n>0?n:null;},sn=v=>v==null?null:/^(s[ií]|yes)/i.test(v.trim())?true:/^no/i.test(v.trim())?false:null;
+  const luz=v=>!v?null:/rgb/i.test(v)?"rgb":/4000/.test(v)?"w4000":/3000/.test(v)?"w3000":null;
+  p.elya=p.pos.filter(x=>/ELYA/i.test(x.desc)||x.c.modelo&&/ELYA/i.test(x.c.modelo)).map(x=>{const c=x.c,par=/PARALEL/i.test(c.modelo||"")?true:/PERPENDIC/i.test(c.modelo||"")?false:null;
+    const linea=mm(c.linea),salida=mm(c.salida),lt=sinTilde(c.lamTipo),pe=sinTilde(c.peri);
+    return {pos:x.pos,desc:x.desc,modelo:c.modelo||"",par,linea,salida,lama:par===false?salida:linea,otra:par===false?linea:salida,
+      hLibre:mm(c.hLibre),hTotal:mm(c.hTotal),hAb:mm(c.hAb),aisl:sn(c.aisl),ral:c.ral||"",ralL:c.ralL||"",
+      lamTipo:!lt?null:/sin|without|^no/.test(lt)?"none":/tira|strip/.test(lt)?"tiras":/foco|spot/.test(lt)?"focos":lt,lamLuz:luz(c.lamLuz),lamN:parseInt(c.lamN)||0,
+      peri:!pe?null:/sin|without|^no/.test(pe)?"none":/\bdirect/.test(pe)&&/indirect/.test(pe)?"ambos":/indirect/.test(pe)?"ind":/direct/.test(pe)?"dir":"dir",periLuz:luz(c.periLuz),
+      elec:(sinTilde(c.elec).match(/cherubini|somfy|teleco/)||[])[0]||null};});
+  p.otros=p.pos.filter(x=>!p.elya.some(e=>e.pos===x.pos)).map(x=>x.desc);
+  return p;
+}
+/* Pérgolas del esquema: módulos que se tocan forman una; de cada una, su largo en el sentido de las lamas (X) y el otro (Y). */
+function pergolasEsquema(mods){
+  const pos=posiciones(mods),bx=mods.map((m,i)=>({i,x0:pos[i].x,x1:pos[i].x+m.A,y0:pos[i].y,y1:pos[i].y+m.P})),gr=mods.map((_,i)=>i);
+  const raiz=i=>gr[i]===i?i:(gr[i]=raiz(gr[i]));
+  bx.forEach(a=>bx.forEach(b=>{if(a.i<b.i&&a.x0<=b.x1+0.05&&b.x0<=a.x1+0.05&&a.y0<=b.y1+0.05&&b.y0<=a.y1+0.05)gr[raiz(b.i)]=raiz(a.i);}));
+  const G={};bx.forEach(b=>{const r=raiz(b.i);(G[r]=G[r]||[]).push(b);});
+  return Object.values(G).map(l=>({mods:l.map(b=>mods[b.i]),X:Math.max(...l.map(b=>b.x1))-Math.min(...l.map(b=>b.x0)),Y:Math.max(...l.map(b=>b.y1))-Math.min(...l.map(b=>b.y0))}));
+}
+const PERI_TXT={none:"sin LED",dir:"directo",ind:"indirecto",ambos:"directo + indirecto"},ELEC_TXT={cherubini:"Cherubini",somfy:"Somfy",teleco:"Teleco"};
+function contrastePedido(p){
+  const cfg=readForm(),mods=cfg.modulos,filas=[],cm=v=>v==null?"?":m2(v/1000)+" m";
+  const fila=(que,a,b,ok)=>filas.push({que,a:a==null||a===""?"?":String(a),b:b==null||b===""?"?":String(b),ok:(a==null||a===""||b==null||b==="")?null:ok});
+  const pgs=mods.length?pergolasEsquema(mods):[],usadas=new Set(),cerca=(a,b)=>a!=null&&Math.abs(a/1000-b)<=0.05;
+  p.elya.forEach((e,k)=>{
+    const nom=p.elya.length>1?`ELYA ${k+1} · `:"";
+    let gi=pgs.findIndex((g,i)=>!usadas.has(i)&&(e.par==null?(cerca(e.lama,g.X)&&cerca(e.otra,g.Y))||(cerca(e.lama,g.Y)&&cerca(e.otra,g.X)):cerca(e.lama,g.X)&&cerca(e.otra,g.Y)));
+    const ok=gi>=0;if(!ok)gi=pgs.findIndex((g,i)=>!usadas.has(i));
+    const G=gi>=0?pgs[gi]:null;if(G)usadas.add(gi);
+    fila(nom+"Medidas (largo de lama × la otra)",e.lama&&e.otra?`${cm(e.lama)} × ${cm(e.otra)}${e.par==null?"":e.par?" (paralelas)":" (perpendicular)"}`:null,G?`${m2(G.X)} × ${m2(G.Y)} m · ${G.mods.length} módulo(s)`:"no está",G?ok:false);
+    if(!G)return;
+    const conLed=G.mods.filter(m=>m.luz!=="none"),posApp=conLed.length?[...new Set(conLed.map(m=>m.ledPos||"dir"))]:["none"];
+    if(e.peri)fila(nom+"LED perimetral",PERI_TXT[e.peri],posApp.map(x=>PERI_TXT[x]).join(" / "),posApp.length===1&&posApp[0]===e.peri);
+    if(e.peri&&e.peri!=="none"&&e.periLuz&&conLed.length)fila(nom+"Luz del LED perimetral",LUZ[e.periLuz],[...new Set(conLed.map(m=>LUZ[m.luz]))].join(" / "),conLed.every(m=>m.luz===e.periLuz));
+    const nLam=G.mods.reduce((a,m)=>a+(m.lamasN||0),0),focLam=G.mods.some(m=>m.focL==="lam"&&m.focLam.length);
+    if(e.lamTipo){const ped=e.lamTipo==="none"?"sin LED":e.lamTipo==="tiras"?`tiras LED${e.lamN?` en ${e.lamN} lamas`:""}`:e.lamTipo==="focos"?"focos":e.lamTipo,
+      app=nLam?`tiras LED en ${nLam} lamas`:focLam?"focos":"sin LED";
+      fila(nom+"Lamas con luz",ped,app,e.lamTipo==="none"?!nLam&&!focLam:e.lamTipo==="tiras"?(e.lamN?nLam===e.lamN:nLam>0):e.lamTipo==="focos"?focLam:true);}
+    if(e.aisl!=null)fila(nom+"Aislante en lamas",e.aisl?"sí":"no",G.mods.some(m=>m.aisl)?"sí":"no",e.aisl===G.mods.some(m=>m.aisl));
+  });
+  if(pgs.length>usadas.size)fila("Pérgolas",`${p.elya.length} ELYA`,`${pgs.length} en el esquema`,false);
+  const el=[...new Set(p.elya.map(e=>e.elec).filter(Boolean))],sis=sisBase(cfg.sistema);
+  if(el.length)fila("Electrónica",el.map(x=>ELEC_TXT[x]).join(" / "),{nexta:"Cherubini",somfy:"Somfy",teleco_eu:"Teleco",teleco_ul:"Teleco"}[sis]||"",el.length===1&&SIS[el[0]]===sis);
+  const e0=p.elya.find(e=>e.hLibre||e.hTotal);
+  if(e0)fila("Altura (libre / total)",`${cm(e0.hLibre)} / ${cm(e0.hTotal)}`,cfg.altoFalta?null:m2(cfg.alto)+" m",cerca(e0.hLibre,cfg.alto)||cerca(e0.hTotal,cfg.alto));
+  const mal=filas.filter(f=>f.ok===false);
+  difsCliente=difsCliente.filter(d=>!(d.txt&&d.txt.startsWith(`Pedido ${p.num}`))).concat(mal.map(f=>({txt:`Pedido ${p.num} distinto del plano · ${f.que}: pedido «${f.a}», plano «${f.b}». Manda el plano del cliente; confírmalo con la oficina.`})));
+  render();
+  const info=p.elya.map((e,k)=>`${p.elya.length>1?`ELYA ${k+1}: `:""}${esc(e.modelo)}${e.ral?` · RAL ${esc(e.ral)}`:""}${e.ralL?` · lamas ${esc(e.ralL)}`:""}`).join("<br>");
+  return `<div class="contraste"><b>Contraste pedido ${esc(p.num||"")}${p.ref?` (${esc(p.ref)})`:""} ↔ plano</b> ${mal.length?`<span class="ko">${mal.length} diferencia(s)</span>`:`<span class="ok">todo coincide</span>`}
+  <table><thead><tr><th></th><th>Pedido</th><th>Esquema (plano)</th><th></th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.ok===false?"dif":""}"><td>${esc(f.que)}</td><td>${esc(f.a)}</td><td>${esc(f.b)}</td><td>${f.ok==null?"–":f.ok?"✓":"⚠"}</td></tr>`).join("")}</tbody></table>
+  <div class="hint">${info}${p.fin?`<br>Fin de producción: ${esc(p.fin)}`:""}${p.otros.length?`<br>Otras líneas del pedido: ${esc(p.otros.join(" · "))}`:""}</div>
+  ${mal.length?`<div class="hint">Manda el plano del cliente: las diferencias quedan en los avisos.</div>`:""}</div>`;
+}
+/* Pedido sin plano: se arma la obra con lo que trae (las medidas se reparten en módulos de hasta 4,50 m de lama). */
+function obraDelPedido(p){
+  const ms=[];let y=0;
+  p.elya.forEach((e,k)=>{
+    const L=(e.lama||4000)/1000,O=(e.otra||4000)/1000,n=Math.max(1,Math.ceil(L/4.5-1e-9)),A=Math.round(L/n*100)/100;
+    for(let j=0;j<n;j++){const lamN=e.lamTipo==="tiras"?Math.floor(e.lamN/n)+(j<e.lamN%n?1:0):0;
+      ms.push(Object.assign(NUEVO(ms.length+1),{nombre:p.elya.length>1?`ELYA ${k+1}${n>1?` · módulo ${j+1}`:""}`:"Módulo "+(j+1),A,P:O,pos:{x:Math.round(j*A*100)/100,y},
+        luz:e.peri&&e.peri!=="none"?(e.periLuz||"w3000"):"none",ledPos:e.peri&&e.peri!=="none"?e.peri:"dir",lamasN:lamN,aisl:!!e.aisl}));}
+    y=Math.round((y+O+1)*100)/100;
+  });
+  $("obra").value=[p.ref,p.num?"pedido "+p.num:""].filter(Boolean).join(" · ");
+  const e0=p.elya[0];if(e0&&e0.hLibre)$("alto").value=e0.hLibre/1000;
+  const el=p.elya.map(e=>e.elec).find(Boolean);if(SIS[el]&&$("sistema").value!==SIS[el]){$("sistema").value=SIS[el];fillEmisores(SIS[el],$("emisor").value);}
+  difsCliente=[];writeMods(ms.slice(0,6));render();
+  return `<div><span class="ok">Obra hecha con el pedido ${esc(p.num||"")}:</span> ${ms.length} módulo(s). El pedido no trae pilares, centralita, motor ni el reparto real de módulos: lo he repartido a partes iguales. Carga el plano del cliente (es el que manda) y te digo qué no coincide.</div>`;
+}
+async function importaPedidos(peds,llenar){
+  const box=$("impRes");box.hidden=false;let html="";
+  for(const p of peds){
+    if(!p.elya.length){html+=`<div class="contraste">El pedido ${esc(p.num||"")} no lleva ninguna ELYA (${esc(p.otros.join(" · ")||"sin posiciones")}): no lo uso.</div>`;continue;}
+    if(llenar){html+=obraDelPedido(p);llenar=false;}
+    html+=contrastePedido(p);
+  }
+  box.insertAdjacentHTML("beforeend",html);
+  toast("Pedido leído: revisa el contraste con el plano");
+}
 async function importaVarios(files){
   adjPon(files);
+  const peds=[],resto=[];
+  for(const f of files){
+    if(/\.pdf$/i.test(f.name)||f.type==="application/pdf"){try{const p=datosPedido(await textoLineas(await f.arrayBuffer()));if(p){peds.push(p);continue;}}catch(e){console.warn(e);}}
+    resto.push(f);
+  }
+  if(resto.length)await importaPlanos(resto);
+  else if(peds.length){const b=$("impRes");b.innerHTML="";}
+  if(peds.length)await importaPedidos(peds,!resto.length&&!$("obra").value.trim());
+}
+async function importaPlanos(files){
   if(files.length<2)return importaPlano(files[0]);
   const pdfs=files.filter(f=>/\.pdf$/i.test(f.name)),fichas=[];
   for(const f of pdfs){try{const T=await textoPlano(await f.arrayBuffer());if(interpretaPlano(T).mods.length)fichas.push(f);}catch(e){}}
