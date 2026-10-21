@@ -737,10 +737,10 @@ const EXT={izq:["ii","si"],sup:["si","sd"],der:["sd","id"],inf:["id","ii"]};
    leídos siempre en el sentido de las agujas del reloj (por eso la de P4 a P1 es V4-1). EXT ya va en ese sentido. */
 const pilId=v=>String(v||"").trim().replace(/^P\s*/i,"");
 const pilNom=v=>pilId(v)?"P"+pilId(v):"";
-/* Pilar de una esquina: el escrito; si está vacío, se numera solo en sentido horario desde la esquina sup. izq.
-   (M1: 1, 2, 3, 4 · M2: 5, 6, 7, 8…), para que las vigas siempre tengan nombre (V1-2 … V4-1). */
-const PILORD=["si","sd","id","ii"];
-const pilDe=(m,k)=>pilId((m.pil||{})[k])||(Number.isInteger(m._i)?String(4*m._i+PILORD.indexOf(k)+1):"");
+/* Pilar de una esquina: el escrito; si está vacío, se numera solo en sentido horario empezando por la viga del motor,
+   que es siempre la V1-2 (dato SAT) (M1: 1, 2, 3, 4 · M2: 5, 6, 7, 8…), para que las vigas siempre tengan nombre. */
+const pilDe=(m,k)=>{if(pilId((m.pil||{})[k]))return pilId(m.pil[k]);if(!Number.isInteger(m._i))return "";
+  const k0=CORN.indexOf(EXT[m.motor==="izq"?"izq":"der"][0]);return String(4*m._i+(CORN.indexOf(k)-k0+4)%4+1);};
 function vigaAuto(m,sd){const [a,b]=EXT[sd],pa=pilDe(m,a),pb=pilDe(m,b);return pa&&pb?`V${pa}-${pb}`:"V?";}
 const vigaDe=(m,sd)=>(m.vig&&m.vig[sd])||vigaAuto(m,sd);
 /* Entrada de las tiras (cables de 3 vías): por defecto en la esquina de la centralita y en la contraria;
@@ -2478,6 +2478,13 @@ function cfgCrea(){
   const A=Math.max(1,nv("cf_A",4)),P=Math.max(1,nv("cf_P",5)),H=nv("cf_H",2.5),av=[];
   if(A>4.5)av.push("la lama pasa de 4,50 m");if(P>6)av.push("la salida pasa de 6,00 m");if(H>3)av.push("el alto pasa de 3,00 m (consultar con fábrica)");
   const sis=v("cf_sis"),mot=v("cf_mot"),led=v("cf_led"),focL=v("cf_focL"),pared=v("cf_mont")==="pared",disp=v("cf_disp");
+  /* nodos de la estructura (en unidades de módulo, y hacia arriba) y su número por el contorno en sentido horario */
+  const cxy=(i,k)=>{const [dx,dy]={ii:[0,0],si:[0,1],sd:[1,1],id:[1,0]}[k];return disp==="a"?`${i+dx},${dy}`:`${dx},${i+dy}`;};
+  const W=disp==="a"?n:1,Hh=disp==="a"?1:n,per=[];
+  for(let y=0;y<=Hh;y++)per.push(`0,${y}`);for(let x=1;x<=W;x++)per.push(`${x},${Hh}`);
+  for(let y=Hh-1;y>=0;y--)per.push(`${W},${y}`);for(let x=W-1;x>=1;x--)per.push(`${x},0`);
+  const im=disp==="a"&&mot==="der"?n-1:0,ini=per.indexOf(cxy(im,EXT[mot==="izq"?"izq":"der"][0])),nodo={};
+  per.forEach((c,j)=>{nodo[c]=(j-ini+per.length)%per.length+1;});
   const mods=[...Array(n)].map((_,i)=>{const m=NUEVO(i+1);
     Object.assign(m,{A,P,motor:mot,cent:mot==="der"?"si":"sd",aloj:"pilar",pos:disp==="a"?{x:i*A,y:0}:{x:0,y:i*P},
       luz:led==="none"?"none":v("cf_luz"),ledPos:led==="none"?"dir":led,viento:i===0&&$("cf_viento").checked&&sis==="nexta",lluvia:i===0&&$("cf_lluvia").checked&&sis!=="somfy",
@@ -2486,9 +2493,9 @@ function cfgCrea(){
     const T=lamTDef(m),nl=Math.max(0,Math.round(nv("cf_lam",0)));m.lamLed=reparteLamas(nl,T);m.lamasN=m.lamLed.length;
     if(focL==="lam"){m.focL="lam";m.focLam=reparteLamas(Math.max(0,Math.round(nv("cf_focN",2))),T).filter(k=>!m.lamLed.includes(k));m.focN=m.focLam.length*m.focPL;}
     else if(focL!=="none"){m.focL=focL;m.focN=Math.max(0,Math.round(nv("cf_focN",2)));}
-    /* pilares compartidos entre módulos con el mismo nombre, numerados en el sentido de las agujas del reloj desde arriba a la izq. */
-    if(disp==="a"){const top=k=>"P"+(k+1),bot=k=>"P"+(2*n+2-k);m.pil={si:top(i),sd:top(i+1),id:bot(i+1),ii:bot(i)};}
-    else{const L=j=>"P"+(n+1-j),Rr=j=>"P"+(n+2+(n-j));m.pil={ii:L(i),si:L(i+1),sd:Rr(i+1),id:Rr(i)};}
+    /* pilares compartidos entre módulos con el mismo nombre, numerados en el sentido de las agujas del reloj por el contorno,
+       empezando por la viga del motor (V1-2, dato SAT): la del primer módulo cuyo motor da al exterior */
+    m.pil=Object.fromEntries(CORN.map(k=>[k,"P"+nodo[cxy(i,k)]]));
     m.ref=m.pil[m.cent];
     /* con pared (arriba): la tira también va en la viga de pared (manual Pared / Portería); la centralita, en un pilar
        frontal (abajo) del lado contrario al motor */
