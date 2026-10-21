@@ -423,6 +423,7 @@ const C={
   situo:["48044101000","Situo 5 io Pure","Somfy 1870330"],
   tr150:["43000003000","Transformador IP67 150W 24V","iPixel"],
   tr200:["43000004000","Transformador IP67 200W 24V","iPixel"],
+  tr250:["43000005000","Transformador IP67 250W 24V","iPixel"],
   rW5:["43020002000","Rollo LED luz cálida ELYA 5 m","3000 K · COB 24 V · IP64"],
   rW7:["43020003000","Rollo LED luz cálida ELYA 7 m","3000 K · COB 24 V · IP64"],
   rN5:["43010002000","Rollo LED luz neutra ELYA 5 m","4000 K · SMD2835 24 V · IP65"],
@@ -470,7 +471,7 @@ const FAMILIAS=[
   ["Alargadores",["alW15","alW5","alW7","alRGB5","alRGB7","ext05"]],
   ["Cables y divisores",["y3","y3RGB","sp4W","sp4RGB","sp4Mi","cabT","c1m","cabEje","conRGBW","mang"]],
   ["Conectores y accesorios",["conLama","conEje","conMM","tapon","tkMiH","tkMiM","tkWPM","tkWPH"]],
-  ["Fuentes de alimentación",["tr150","tr200"]],
+  ["Fuentes de alimentación",["tr150","tr200","tr250"]],
   ["Tomas y focos",["schuko","usb","aries","fMiAL","fMiNG"]]
 ];
 const famDe=k=>(FAMILIAS.find(f=>f[1].includes(k))||[null,[k]])[1];
@@ -495,8 +496,10 @@ const num=(v,d)=>{const n=parseFloat(v);return isFinite(n)&&n>0?n:d;};
 
 /* ---------- formulario ---------- */
 const FIELDS=["obra","of","alto","tipol","sistema","emisor","sisLuz","emisorL","periProd","ledCentral","indep","wm","wmRGB","schuko","usb"];
-/* Transformadores de 24 V con un 20 % de margen: uno de 150 W hasta 120 W; si no, los de 200 W que hagan falta (160 W útiles cada uno). */
-const nTrafos=T=>T<=120?1:Math.ceil(T/160);
+/* Transformadores de 24 V con un 20 % de margen (al 80 %): 150 W hasta 120 W, 200 W hasta 160 W, 250 W hasta 200 W;
+   si pasa de 200 W, los de 250 W que hagan falta (200 W útiles cada uno). */
+const TR_W={tr150:150,tr200:200,tr250:250},trPara=W=>W<=120?"tr150":W<=160?"tr200":"tr250";
+const nTrafos=T=>T<=200?1:Math.ceil(T/200);
 /* Motor lineal C-100 TM: 3,6 A a 24 V DC (dato SAT). */
 const MOTOR_W=3.6*24;
 /* Cable del motor: manguera H05VV-F 2×0,75 mm² (catálogo 48008100000): 300/500 V, cobre flexible clase 5,
@@ -878,15 +881,16 @@ function calcular(cfg){
         add("tapon",1+L.length%2,`${tag} OUT${x.s} · final del cable en T${L.length%2?" + micro libre":""}`);}
       if(k===2)add(rgbx?"y3RGB":"y3",1,`${tag} OUT${x.s}`);else if(k>2)add(rgbx?"sp4RGB":"sp4W",Math.ceil((k-1)/3),`${tag} OUT${x.s}`,true);});
   }
-  /* Transformador 24 V + receptor (Somfy, Teleco UL). Un transformador por cada 160 W (80 % de uno de 200 W);
+  /* Transformador 24 V + receptor (Somfy, Teleco UL). Un transformador por cada 200 W (80 % de uno de 250 W);
      si hacen falta varios, cada uno alimenta su propio receptor y las tiras se reparten entre ellos. */
   function trafoReceptor(lst,tag,loc,rgbx,rx,mkRx){
     const nTr=nTrafos(totW(lst)),gr=nTr>1?reparte(lst,[...Array(nTr).keys()]):[{items:lst,W:totW(lst)}];
     gr.forEach((g,k)=>{
       /* receptor io LED Somfy: hasta 4 salidas blancas de 90 W (guía de instalación) */
-      const n=nTr>1?` ${k+1}/${nTr}`:"",id=`tr${tag}_${k}`,tr=g.W<=120?"tr150":"tr200",o=reparte(g.items,rx==="somLed"?[1,2,3,4]:[1]);splitters(o,rgbx,tag);
+      const n=nTr>1?` ${k+1}/${nTr}`:"",id=`tr${tag}_${k}`,tr=trPara(g.W),o=reparte(g.items,rx==="somLed"?[1,2,3,4]:[1]);splitters(o,rgbx,tag);
       if(rx==="somLed")o.forEach(x=>{if(x.W>90)av.push(["bad",`${tag}: salida ${x.s} del receptor io LED con ${w0(x.W)}; el máximo por salida es 90 W.`]);});
-      dev.push({id,t:`${tag} · Transformador ${tr==="tr150"?150:200} W${n} · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",trafo:true,Wfix:g.W,alimenta:`Receptor${n} (24 V DC, cable hacia abajo)`,right:[]});
+      if(g.W>200)av.push(["bad",`${tag}: un transformador${n} se queda con ${w0(g.W)}; el de 250 W no se carga a más de 200 W. Reparte las tiras (o pon otro receptor).`]);
+      dev.push({id,t:`${tag} · Transformador ${TR_W[tr]} W${n} · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",trafo:true,Wfix:g.W,alimenta:`Receptor${n} (24 V DC, cable hacia abajo)`,right:[]});
       dev.push(Object.assign(mkRx(o,n,k),{feed:"24",from:id}));
       add(tr,1,tag);add(rx,1,"",rx==="somLed");
     });
@@ -1106,7 +1110,7 @@ function calcular(cfg){
         av.push(["info",`${m.nombre}: la luz blanca va a la salida LED de la central Teleco (${w0(totW(white))}). Comprueba la potencia máxima en su etiqueta.`]);
       }else if(sisL==="somfy"){
         const nTr=trafoReceptor(white,tag,loc,false,"somLed",(o,n,k)=>({id:`sl${mi}_${k}`,t:`${tag} · Receptor io LED${n} · ${loc}`,code:C.somLed[0],model:C.somLed[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})),{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]}));
-        if(nTr>1)av.push(["warn",`${m.nombre}: las luces suman ${w0(totW(white))} y un transformador (fuente de 24 V) de 200 W no se carga a más de 160 W (80 %). Por eso van ${nTr} transformadores, cada uno con su receptor io LED, y las tiras se reparten entre ellos.`]);
+        if(nTr>1)av.push(["warn",`${m.nombre}: las luces suman ${w0(totW(white))} y el transformador (fuente de 24 V) más grande, el de 250 W, no se carga a más de 200 W (80 %). Por eso van ${nTr} transformadores, cada uno con su receptor io LED, y las tiras se reparten entre ellos.`]);
       }
     }
     if(rgbL.length||(ulL&&white.length)){
@@ -1123,7 +1127,7 @@ function calcular(cfg){
       }else if(ulL){
         const all=[...rgbL,...white];
         const nTr=trafoReceptor(all,tag,loc,rgbL.length>0,"rgbww",(o,n,k)=>({id:`rgbww${mi}_${k}`,t:`${tag} · Receptor RGB+BL${n} · ${loc}`,code:C.rgbww[0],model:C.rgbww[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salidas"})),{kind:"radio",t:C.noonUL[1],s:"916 MHz",wires:[["r",""]],pin:"Radio"}]}));
-        if(nTr>1)av.push(["warn",`${m.nombre}: las luces suman ${w0(totW(all))} y un transformador (fuente de 24 V) de 200 W no se carga a más de 160 W (80 %). Por eso van ${nTr} transformadores, cada uno con su receptor, y las tiras se reparten entre ellos.`]);
+        if(nTr>1)av.push(["warn",`${m.nombre}: las luces suman ${w0(totW(all))} y el transformador (fuente de 24 V) más grande, el de 250 W, no se carga a más de 200 W (80 %). Por eso van ${nTr} transformadores, cada uno con su receptor, y las tiras se reparten entre ellos.`]);
       }else if(sisL==="somfy"){
         /* receptor RGB io de Somfy: previsto, sin código Llaza todavía; va a 24 V con su transformador como el de blanco */
         trafoReceptor(rgbL,tag,loc,true,"somRGB",(o,n,k)=>({id:`srgb${mi}_${k}`,t:`${tag} · Receptor io RGB${n} · ${loc}`,code:C.somRGB[0],model:C.somRGB[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida RGB"})),{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]}));
