@@ -280,7 +280,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
 <main>
   <section class="sheet" id="vacio">
     <div class="hd"><h2>Obra en blanco</h2></div>
-    <div class="bd"><button type="button" id="bRecuperar" class="pri" hidden></button> <button type="button" id="bCfg2">Configurar una pérgola desde cero</button><p id="vacioTxt">Arrastra aquí el plano firmado (o la ficha de fabricación) en PDF, o pulsa «+ Añadir módulo» para meter los datos a mano. El esquema, la planta, las conexiones y el material salen en cuanto haya un módulo.</p></div>
+    <div class="bd"><button type="button" id="bCfg2">Configurar una pérgola desde cero</button><p id="vacioTxt">Arrastra aquí el plano firmado (o la ficha de fabricación) en PDF, o pulsa «+ Añadir módulo» para meter los datos a mano. El esquema, la planta, las conexiones y el material salen en cuanto haya un módulo.</p></div>
   </section>
   <section class="sheet" data-hoja="avisos">
     <div class="hd"><h2>Avisos</h2><span class="tag" id="sumAv"></span></div>
@@ -2335,8 +2335,6 @@ function render(){
   const sis=$("sistema").value;if(EMISORES[sis]&&!EMISORES[sis].includes($("emisor").value))fillEmisores(sis,$("emisor").value);
   syncForm();
   const cfg=readForm();
-  /* copia de seguridad de la obra en curso (solo si hay algo): se ofrece recuperarla al volver a abrir */
-  if(cfg.modulos.length)try{localStorage.setItem(KEY,JSON.stringify(Object.assign({},cfg,{_guardado:Date.now()})));}catch(e){}
   cfg.modulos.forEach((m,i)=>etiquetasMod(m,i,cfg.periProd));
   const vacia=!cfg.modulos.length||!cfg.sistema;document.querySelector("main").classList.toggle("vacia",vacia);
   $("vacioTxt").textContent=!cfg.modulos.length?"Arrastra aquí el plano firmado (o la ficha de fabricación) en PDF, o pulsa «+ Añadir módulo» para meter los datos a mano. El esquema, la planta, las conexiones y el material salen en cuanto haya un módulo y un sistema de control."
@@ -2434,13 +2432,9 @@ function toast(t){const d=document.createElement("div");d.className="toast";d.te
 
 /* ---------- arranque ---------- */
 const clone=o=>JSON.parse(JSON.stringify(o));
-/* La app abre siempre en blanco; si quedó una obra a medias en este navegador, se ofrece recuperarla. */
-let previa=null;
-try{const s=JSON.parse(localStorage.getItem(KEY)||"null");if(s&&typeof s==="object"&&Array.isArray(s.modulos)&&s.modulos.length)previa=s;}catch(e){}
+/* La app abre siempre en blanco (sin ofrecer la última obra: las obras se guardan en Drive o en archivo). */
+try{localStorage.removeItem(KEY);}catch(e){}
 writeForm(VACIA());
-if(previa){const b=$("bRecuperar"),f=previa._guardado?new Date(previa._guardado).toLocaleString("es-ES",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
-  b.textContent=`Recuperar la última obra: ${nombreObra(previa)}${f?" ("+f+")":""}`;b.hidden=false;
-  b.addEventListener("click",async()=>{writeForm(Object.assign(clone(BASE),previa));b.hidden=true;render();toast("Obra recuperada");adjuntos=await adjCarga();adjPinta();});}
 $("f").addEventListener("input",render);
 $("f").addEventListener("change",e=>{if(e.target.id==="sistema")fillEmisores(e.target.value,$("emisor").value);if(e.target.id==="sistema"||e.target.id==="sisLuz")fillEmisorL();render();});
 $("f").addEventListener("submit",e=>e.preventDefault());
@@ -2455,15 +2449,12 @@ $("f").addEventListener("input",e=>{const mm=e.target.id&&e.target.id.match(/^m(
 /* Ampliar un dibujo de la planta: se copia a una capa a pantalla completa, con + / − y «Ajustar» (cabe entero). */
 let zW=0,zK=1;
 function zoomA(k){zK=Math.min(8,Math.max(0.5,k));const sv=$("zBox").querySelector("svg,.pags");if(sv)sv.style.width=Math.round(zW*zK)+"px";}
-/* ---------- Planos adjuntos: los PDF o fotos que se sueltan en la app se pueden ver aquí (y se guardan en este
-   navegador con la obra, para verlos al recuperarla) ---------- */
+/* ---------- Planos adjuntos: los PDF o fotos que se sueltan en la app se pueden ver aquí (no se guardan en el navegador) ---------- */
 let adjuntos=[];
-const adjDB=()=>new Promise((ok,ko)=>{try{const r=indexedDB.open("elya-adjuntos",1);r.onupgradeneeded=()=>r.result.createObjectStore("f");r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error);}catch(e){ko(e);}});
-async function adjGuarda(){try{const db=await adjDB(),tx=db.transaction("f","readwrite");tx.objectStore("f").put(adjuntos.map(f=>({name:f.name,type:f.type,blob:f})),"ultima");}catch(e){}}
-async function adjCarga(){try{const db=await adjDB();return await new Promise(ok=>{const q=db.transaction("f").objectStore("f").get("ultima");q.onsuccess=()=>ok((q.result||[]).map(x=>new File([x.blob],x.name,{type:x.type})));q.onerror=()=>ok([]);});}catch(e){return [];}}
+try{indexedDB.deleteDatabase("elya-adjuntos");}catch(e){}
 function adjPinta(){$("adjBox").hidden=!adjuntos.length;$("adjList").innerHTML=adjuntos.map((f,i)=>`<button type="button" class="mini" data-adj="${i}">Ver ${esc(f.name)}</button>`).join("");}
 function adjPon(files){const fs=[...files].filter(f=>/pdf|image/.test(f.type)||/\.(pdf|jpe?g|png|webp)$/i.test(f.name));if(!fs.length)return;
-  adjuntos=fs;adjPinta();adjGuarda();}
+  adjuntos=fs;adjPinta();}
 async function adjVer(i){const f=adjuntos[i];if(!f)return;
   $("zTit").textContent=f.name;$("zBox").innerHTML=`<div class="pags"><p class="hint">Cargando…</p></div>`;$("zoom").hidden=false;document.body.style.overflow="hidden";
   zW=Math.max(300,$("zBox").clientWidth-24);zoomA(1);
@@ -2527,7 +2518,7 @@ async function leeMaterial(file){
     else q=codigosDeLineas((await file.text()).split(/\r?\n/));
   }catch(e){box.innerHTML=`<div class="contraste ko">${esc(e.message||"No se pudo leer la hoja.")}</div>`;return;}
   if(!Object.keys(q).length){box.innerHTML=`<div class="contraste ko">No he encontrado códigos de 11 cifras en la hoja.</div>`;return;}
-  adjuntos.push(file);adjPinta();adjGuarda();
+  adjuntos.push(file);adjPinta();
   aplicaMaterial(q);
 }
 async function materialConClaude(file,buf){
@@ -2713,7 +2704,7 @@ $("bNueva").addEventListener("click",()=>{
   if(!nuevaT){b.textContent="¿Borrar todo? Pulsa otra vez";b.classList.add("pri");nuevaT=setTimeout(()=>{nuevaT=null;b.textContent="Nueva obra";b.classList.remove("pri");},4000);return;}
   clearTimeout(nuevaT);nuevaT=null;b.textContent="Nueva obra";b.classList.remove("pri");
   plano=null;planoFile=null;$("impRes").hidden=true;$("drive").hidden=true;
-  try{localStorage.removeItem(KEY);}catch(e){}$("bRecuperar").hidden=true;adjuntos=[];adjPinta();adjGuarda();
+  try{localStorage.removeItem(KEY);}catch(e){}adjuntos=[];adjPinta();
   writeForm(VACIA());render();window.scrollTo(0,0);toast("Obra nueva en blanco");
 });
 $("bCopy").addEventListener("click",()=>{
