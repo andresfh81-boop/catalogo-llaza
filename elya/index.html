@@ -327,6 +327,8 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
 </main>
 <dialog id="dPrint" class="dprint"><form method="dialog">
   <h3>Imprimir los planos eléctricos</h3>
+  <div class="btns" style="justify-content:flex-start"><button type="button" class="pri" id="pCliente">Cliente</button><button type="button" id="pTaller">Taller</button></div>
+  <p class="hint" id="pModo">Cliente: solo el plano y los canales del mando. Taller: todas las hojas.</p>
   <p class="hint">Hojas que salen en el papel o en el PDF:</p>
   <div id="pHojas" class="phojas"></div>
   <p class="hint" style="margin:0">Esquema unifilar desde:</p>
@@ -2601,7 +2603,9 @@ let impPref={hojas:Object.fromEntries(HOJAS.map(([k])=>[k,true])),cuadro:false};
 try{impPref=Object.assign(impPref,JSON.parse(localStorage.getItem("elya-imp")||"{}"));}catch(e){}
 function abrirImprimir(){
   $("pHojas").innerHTML=HOJAS.map(([k,t])=>`<label class="chk"><input type="checkbox" data-h="${k}"${impPref.hojas[k]!==false?" checked":""}> ${t}</label>`).join("");
-  const cu=verCuadro;$("pCuadro").checked=!!cu;$("pDesdeCent").checked=!cu;$("pDispV").checked=uniVert;$("pDispH").checked=!uniVert;$("dPrint").showModal();
+  const cu=verCuadro;$("pCuadro").checked=!!cu;$("pDesdeCent").checked=!cu;$("pDispV").checked=uniVert;$("pDispH").checked=!uniVert;
+  const soloCli=HOJAS.every(([k])=>k==="cliente"?impPref.hojas[k]!==false:impPref.hojas[k]===false);$("pCliente").classList.toggle("pri",soloCli);$("pTaller").classList.toggle("pri",!soloCli);
+  $("dPrint").showModal();
 }
 function leePrefImp(){
   impPref={hojas:Object.fromEntries([...$("pHojas").querySelectorAll("[data-h]")].map(c=>[c.dataset.h,c.checked])),cuadro:$("pCuadro").checked,vert:$("pDispV").checked};
@@ -2645,6 +2649,10 @@ $("pGo").addEventListener("click",()=>{
 window.addEventListener("afterprint",()=>{if(impCuadro===null&&impVert===null&&!document.body.className.includes("noimp-"))return;impCuadro=null;impVert=null;HOJAS.forEach(([k])=>document.body.classList.remove("noimp-"+k));render();});
 /* Dentro del enlace de Claude no se puede abrir la ventana de imprimir: ahí se guarda la página para imprimir. */
 $("bPrint").hidden=false;$("bPrint").addEventListener("click",abrirImprimir);
+/* dos juegos de hojas: para el cliente (plano y canales) o para el taller (todo) */
+function modoImp(cli){$("pHojas").querySelectorAll("[data-h]").forEach(c=>{c.checked=cli?c.dataset.h==="cliente":true;});
+  $("pCliente").classList.toggle("pri",cli);$("pTaller").classList.toggle("pri",!cli);$("pModo").textContent=cli?"Cliente: solo el plano y los canales del mando.":"Taller: todas las hojas (avisos, unifilar, consumo, planta, cliente, conexiones y material).";}
+$("pCliente").addEventListener("click",()=>modoImp(true));$("pTaller").addEventListener("click",()=>modoImp(false));
 if(!top){$("pGo").hidden=true;$("pPrintHint").hidden=true;$("pSave").classList.add("pri");}
 render();
 eventosMaterial();
