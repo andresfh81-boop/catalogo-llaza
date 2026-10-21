@@ -2483,8 +2483,12 @@ function cfgCrea(){
   const W=disp==="a"?n:1,Hh=disp==="a"?1:n,per=[];
   for(let y=0;y<=Hh;y++)per.push(`0,${y}`);for(let x=1;x<=W;x++)per.push(`${x},${Hh}`);
   for(let y=Hh-1;y>=0;y--)per.push(`${W},${y}`);for(let x=W-1;x>=1;x--)per.push(`${x},0`);
-  const im=disp==="a"&&mot==="der"?n-1:0,ini=per.indexOf(cxy(im,EXT[mot==="izq"?"izq":"der"][0])),nodo={};
-  per.forEach((c,j)=>{nodo[c]=(j-ini+per.length)%per.length+1;});
+  /* módulo 1: P1-P2 en la viga de su motor (V1-2, aunque quede entre dos módulos) y P3, P4 en sentido horario;
+     el resto de nodos sigue por el contorno en sentido horario (con plano, manda el plano) */
+  const nodo={},k0=CORN.indexOf(EXT[mot==="izq"?"izq":"der"][0]);
+  for(let j=0;j<4;j++)nodo[cxy(0,CORN[(k0+j)%4])]=j+1;
+  let sig=5;const ini=per.indexOf(cxy(0,CORN[(k0+3)%4]));
+  for(let j=1;j<=per.length;j++){const c=per[(ini+j)%per.length];if(!nodo[c])nodo[c]=sig++;}
   const mods=[...Array(n)].map((_,i)=>{const m=NUEVO(i+1);
     Object.assign(m,{A,P,motor:mot,cent:mot==="der"?"si":"sd",aloj:"pilar",pos:disp==="a"?{x:i*A,y:0}:{x:0,y:i*P},
       luz:led==="none"?"none":v("cf_luz"),ledPos:led==="none"?"dir":led,viento:i===0&&$("cf_viento").checked&&sis==="nexta",lluvia:i===0&&$("cf_lluvia").checked&&sis!=="somfy",
@@ -2493,8 +2497,7 @@ function cfgCrea(){
     const T=lamTDef(m),nl=Math.max(0,Math.round(nv("cf_lam",0)));m.lamLed=reparteLamas(nl,T);m.lamasN=m.lamLed.length;
     if(focL==="lam"){m.focL="lam";m.focLam=reparteLamas(Math.max(0,Math.round(nv("cf_focN",2))),T).filter(k=>!m.lamLed.includes(k));m.focN=m.focLam.length*m.focPL;}
     else if(focL!=="none"){m.focL=focL;m.focN=Math.max(0,Math.round(nv("cf_focN",2)));}
-    /* pilares compartidos entre módulos con el mismo nombre, numerados en el sentido de las agujas del reloj por el contorno,
-       empezando por la viga del motor (V1-2, dato SAT): la del primer módulo cuyo motor da al exterior */
+    /* pilares compartidos entre módulos con el mismo nombre (numeración de arriba) */
     m.pil=Object.fromEntries(CORN.map(k=>[k,"P"+nodo[cxy(i,k)]]));
     m.ref=m.pil[m.cent];
     /* con pared (arriba): la tira también va en la viga de pared (manual Pared / Portería); la centralita, en un pilar
