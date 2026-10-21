@@ -1911,7 +1911,9 @@ function datosCajetin(T){
   }
   return d;
 }
+let montajeCliente=null;
 function aplicaPlanoClaude(d,nombreArchivo,quien){
+  montajeCliente=d.montaje||null;
   const mm=v=>{const n=parseFloat(v);return n>0?Math.round(n/10)/100:null;};
   const mods=(Array.isArray(d.modulos)?d.modulos:[]).map((m,i)=>{
     const c=m.centralita||{},pil=m.pilares||{},lados={...LADOS_ALL};
@@ -1999,7 +2001,7 @@ function datosPedido(lin){
   const luz=v=>!v?null:/rgb/i.test(v)?"rgb":/4000/.test(v)?"w4000":/3000/.test(v)?"w3000":null;
   p.elya=p.pos.filter(x=>/ELYA/i.test(x.desc)||x.c.modelo&&/ELYA/i.test(x.c.modelo)).map(x=>{const c=x.c,par=/PARALEL/i.test(c.modelo||"")?true:/PERPENDIC/i.test(c.modelo||"")?false:null;
     const linea=mm(c.linea),salida=mm(c.salida),lt=sinTilde(c.lamTipo),pe=sinTilde(c.peri);
-    return {pos:x.pos,desc:x.desc,modelo:c.modelo||"",par,linea,salida,lama:par===false?salida:linea,otra:par===false?linea:salida,
+    return {pos:x.pos,desc:x.desc,modelo:c.modelo||"",par,mont:/\bAP\b/i.test(c.modelo||"")?"autoportante":/\bPP\b/i.test(c.modelo||"")?"pared_porteria":null,linea,salida,lama:par===false?salida:linea,otra:par===false?linea:salida,
       hLibre:mm(c.hLibre),hTotal:mm(c.hTotal),hAb:mm(c.hAb),aisl:sn(c.aisl),ral:c.ral||"",ralL:c.ralL||"",
       lamTipo:!lt?null:/sin|without|^no/.test(lt)?"none":/tira|strip/.test(lt)?"tiras":/foco|spot/.test(lt)?"focos":lt,lamLuz:luz(c.lamLuz),lamN:parseInt(c.lamN)||0,
       peri:!pe?null:/sin|without|^no/.test(pe)?"none":/\bdirect/.test(pe)&&/indirect/.test(pe)?"ambos":/indirect/.test(pe)?"ind":/direct/.test(pe)?"dir":"dir",periLuz:luz(c.periLuz),
@@ -2015,7 +2017,7 @@ function pergolasEsquema(mods){
   const G={};bx.forEach(b=>{const r=raiz(b.i);(G[r]=G[r]||[]).push(b);});
   return Object.values(G).map(l=>({mods:l.map(b=>mods[b.i]),X:Math.max(...l.map(b=>b.x1))-Math.min(...l.map(b=>b.x0)),Y:Math.max(...l.map(b=>b.y1))-Math.min(...l.map(b=>b.y0))}));
 }
-const PERI_TXT={none:"sin LED",dir:"directo",ind:"indirecto",ambos:"directo + indirecto"},ELEC_TXT={cherubini:"Cherubini",somfy:"Somfy",teleco:"Teleco"};
+const MONT_TXT={autoportante:"autoportante",pared:"pared / portería",pared_porteria:"pared / portería"},PERI_TXT={none:"sin LED",dir:"directo",ind:"indirecto",ambos:"directo + indirecto"},ELEC_TXT={cherubini:"Cherubini",somfy:"Somfy",teleco:"Teleco"};
 function contrastePedido(p){
   const cfg=readForm(),mods=cfg.modulos,filas=[],cm=v=>v==null?"?":m2(v/1000)+" m";
   const fila=(que,a,b,ok)=>filas.push({que,a:a==null||a===""?"?":String(a),b:b==null||b===""?"?":String(b),ok:(a==null||a===""||b==null||b==="")?null:ok});
@@ -2026,6 +2028,7 @@ function contrastePedido(p){
     const ok=gi>=0;if(!ok)gi=pgs.findIndex((g,i)=>!usadas.has(i));
     const G=gi>=0?pgs[gi]:null;if(G)usadas.add(gi);
     fila(nom+"Medidas (largo de lama × la otra)",e.lama&&e.otra?`${cm(e.lama)} × ${cm(e.otra)}${e.par==null?"":e.par?" (paralelas)":" (perpendicular)"}`:null,G?`${m2(G.X)} × ${m2(G.Y)} m · ${G.mods.length} módulo(s)`:"no está",G?ok:false);
+    if(e.mont)fila(nom+"Montaje",MONT_TXT[e.mont],montajeCliente?MONT_TXT[montajeCliente]+" (plano del cliente)":null,(montajeCliente==="autoportante")===(e.mont==="autoportante"));
     if(!G)return;
     const conLed=G.mods.filter(m=>m.luz!=="none"),posApp=conLed.length?[...new Set(conLed.map(m=>m.ledPos||"dir"))]:["none"];
     if(e.peri)fila(nom+"LED perimetral",PERI_TXT[e.peri],posApp.map(x=>PERI_TXT[x]).join(" / "),posApp.length===1&&posApp[0]===e.peri);
@@ -2044,7 +2047,7 @@ function contrastePedido(p){
   const mal=filas.filter(f=>f.ok===false);
   difsCliente=difsCliente.filter(d=>!(d.txt&&d.txt.startsWith(`Pedido ${p.num}`))).concat(mal.map(f=>({txt:`Pedido ${p.num} distinto del plano · ${f.que}: pedido «${f.a}», plano «${f.b}». Manda el plano del cliente; confírmalo con la oficina.`})));
   render();
-  const info=p.elya.map((e,k)=>`${p.elya.length>1?`ELYA ${k+1}: `:""}${esc(e.modelo)}${e.ral?` · RAL ${esc(e.ral)}`:""}${e.ralL?` · lamas ${esc(e.ralL)}`:""}`).join("<br>");
+  const info=p.elya.map((e,k)=>`${p.elya.length>1?`ELYA ${k+1}: `:""}${esc(e.modelo)}${e.mont?` (${MONT_TXT[e.mont]})`:""}${e.ral?` · RAL ${esc(e.ral)}`:""}${e.ralL?` · lamas ${esc(e.ralL)}`:""}`).join("<br>");
   return `<div class="contraste"><b>Contraste pedido ${esc(p.num||"")}${p.ref?` (${esc(p.ref)})`:""} ↔ plano</b> ${mal.length?`<span class="ko">${mal.length} diferencia(s)</span>`:`<span class="ok">todo coincide</span>`}
   <table><thead><tr><th></th><th>Pedido</th><th>Esquema (plano)</th><th></th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.ok===false?"dif":""}"><td>${esc(f.que)}</td><td>${esc(f.a)}</td><td>${esc(f.b)}</td><td>${f.ok==null?"–":f.ok?"✓":"⚠"}</td></tr>`).join("")}</tbody></table>
   <div class="hint">${info}${p.fin?`<br>Fin de producción: ${esc(p.fin)}`:""}${p.otros.length?`<br>Otras líneas del pedido: ${esc(p.otros.join(" · "))}`:""}</div>
@@ -2064,7 +2067,7 @@ function obraDelPedido(p){
   const e0=p.elya[0];if(e0&&e0.hLibre)$("alto").value=e0.hLibre/1000;
   const el=p.elya.map(e=>e.elec).find(Boolean);if(SIS[el]&&$("sistema").value!==SIS[el]){$("sistema").value=SIS[el];fillEmisores(SIS[el],$("emisor").value);}
   difsCliente=[];writeMods(ms.slice(0,6));render();
-  return `<div><span class="ok">Obra hecha con el pedido ${esc(p.num||"")}:</span> ${ms.length} módulo(s). El pedido no trae pilares, centralita, motor ni el reparto real de módulos: lo he repartido a partes iguales. Carga el plano del cliente (es el que manda) y te digo qué no coincide.</div>`;
+  return `<div><span class="ok">Obra hecha con el pedido ${esc(p.num||"")}:</span> ${ms.length} módulo(s). El pedido no trae pilares, centralita, motor ni el reparto real de módulos: lo he repartido a partes iguales.${p.elya.some(e=>e.mont==="pared_porteria")?" Es de pared / portería: revisa en cada módulo el lado de la pared, los semipilares y la centralita.":""} Carga el plano del cliente (es el que manda) y te digo qué no coincide.</div>`;
 }
 async function importaPedidos(peds,llenar){
   const box=$("impRes");box.hidden=false;let html="";
@@ -2107,10 +2110,11 @@ async function importaPlanos(files){
   if(firmado){
     const box=$("impRes");let html="";
     try{const buf=await firmado.arrayBuffer(),T2=await textoPlano(buf.slice(0));
-      if(T2.some(t=>/^MODELO:?$/i.test(t.s))){const pc=datosCajetin(T2);html=contraste(plano&&plano.ficha,pc,firmado.name)+aplicaLedCliente(pc);}
+      if(T2.some(t=>/^MODELO:?$/i.test(t.s))){const pc=datosCajetin(T2);montajeCliente=pc.montaje;html=contraste(plano&&plano.ficha,pc,firmado.name)+aplicaLedCliente(pc);}
       else{const sm=await claudeSample(),lim=sm&&await sm.limits().catch(()=>null);
         if(lim&&lim.images){const prev=box.innerHTML;let d;
           try{d=await leePlanoConClaude(firmado,buf,"");}finally{box.innerHTML=prev;}
+          montajeCliente=d.montaje||null;
           html=contraste(plano&&plano.ficha,Object.assign({},d,{medidas:null}),firmado.name)+aplicaLedCliente({luz:d.luz,ledPos:d.led_pos||d.ledPos})+`<div class="hint">Plano del cliente escaneado, leído por Claude: revisa lo marcado.</div>`;}
         else{difsCliente=[{txt:`El plano del cliente (${firmado.name}) está escaneado y aquí no lo puedo leer: no he comprobado si coincide con la ficha (LED perimetral, sensores, motor, centralita). Manda el plano del cliente: compáralo a mano o ábrelo en el enlace de Claude, que sí lo lee.`}];render();
           html=`<div class="contraste"><b>Contraste ficha ↔ plano del cliente:</b> el plano del cliente está escaneado; para contrastarlo ábrelo desde el enlace de Claude (lo lee Claude) o compáralo a mano.</div>`;}}
@@ -2138,7 +2142,7 @@ function aplicaLedCliente(pc){
 async function importaPlano(file){
   const drop=$("drop");
   if(!file)return;
-  difsCliente=[];
+  difsCliente=[];montajeCliente=null;
   planoFile=file;
   const esImg=/^image\//.test(file.type),esPdf=/\.pdf$/i.test(file.name)||file.type==="application/pdf";
   if(!esImg&&!esPdf){toast("Suelta el PDF del plano o una foto.");return;}
