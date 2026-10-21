@@ -123,6 +123,8 @@ button.del{padding:7px 10px;font-size:13px;color:var(--bad)}
 .zbox svg{display:block;margin:0 auto;height:auto}
 .zbox .pags{margin:0 auto;display:grid;gap:12px}.zbox .pags img{width:100%;display:block;border:1px solid var(--line);background:#fff}
 .unides{display:flex;gap:6px;align-items:center;font-size:13px;margin-left:auto}.unides select{width:auto;padding:3px 6px}
+.cli-can{border-collapse:collapse;margin:0 0 14px;font-size:15px}.cli-can td,.cli-can th{border:1px solid var(--line);padding:8px 12px;text-align:left}.cli-can td:first-child{font-weight:700;font-size:18px;text-align:center}
+.cli-pl{display:grid;gap:12px}.cli-pl svg{width:100%;height:auto;max-width:720px}
 .adjbox{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:8px;font-size:13px}.adjbox span{display:flex;flex-wrap:wrap;gap:6px}
 @media print{.zoom{display:none!important}.plantas figcaption button{display:none}}
 main{display:grid;gap:20px;min-width:0}
@@ -178,7 +180,7 @@ svg .ed{cursor:pointer}svg .ed:hover{filter:drop-shadow(0 0 3px var(--c-x))}
 .apr ul{margin:6px 0;padding-left:18px;font-size:13px}.apr li button{margin-left:6px}
 @media print{.dprint{display:none!important}
   body.noimp-avisos [data-hoja=avisos],body.noimp-unifilar [data-hoja=unifilar],body.noimp-consumo [data-hoja=consumo],
-  body.noimp-planta [data-hoja=planta],body.noimp-conexiones [data-hoja=conexiones],body.noimp-material [data-hoja=material]{display:none!important}}
+  body.noimp-planta [data-hoja=planta],body.noimp-conexiones [data-hoja=conexiones],body.noimp-cliente [data-hoja=cliente],body.noimp-material [data-hoja=material]{display:none!important}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
 [hidden]{display:none!important}
@@ -235,12 +237,12 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <legend>2 · Sistema luces</legend>
     <label>Sistema de luces<select id="sisLuz">
       <option value="auto">Igual que el motor</option>
-      <option value="nexta">Cherubini Nexta · TKL250 ONE (4 salidas, hasta 4 canales del mando)</option>
+      <option value="nexta">Cherubini Nexta · TKL250 ONE (4 salidas, hasta 4 canales del mando; RGB: TKL RGBW)</option>
       <option value="nexta_stl250">Cherubini Nexta · STILO STL250 (2 salidas, 1 canal del mando)</option>
       <option value="nexta_stl100">Cherubini Nexta · STILO STL100 (2 salidas, 1 canal del mando)</option>
-      <option value="teleco_eu">Teleco EU · salida LED de la central 2 Mot + LED</option>
+      <option value="teleco_eu">Teleco EU · salida LED de la central 2 Mot + LED (RGB: stick TVSTICK)</option>
       <option value="teleco_ul">Teleco UL · receptor RGB + BL con transformador</option>
-      <option value="somfy">Somfy io · receptor io LED con transformador</option>
+      <option value="somfy">Somfy io · receptor io LED blanco o receptor io RGB, con transformador</option>
     </select></label>
     <label id="lEmisorL" hidden>Emisor de las luces<select id="emisorL"></select></label>
     <label id="lProd">Producto de la tira blanca<select id="periProd">
@@ -282,7 +284,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   </section>
 
   <section class="sheet" data-hoja="unifilar">
-    <div class="hd"><h2>Esquema unifilar</h2><label class="noprint unides">Desde<select id="uniDesde"><option value="cent">la centralita</option><option value="cuadro">el cuadro eléctrico</option></select></label><span class="tag">Hoja 1</span></div>
+    <div class="hd"><h2>Esquema unifilar</h2><label class="noprint unides">Desde<select id="uniDesde"><option value="cent">la centralita</option><option value="cuadro">el cuadro eléctrico</option></select></label><label class="noprint unides" style="margin-left:8px">Dibujo<select id="uniDisp"><option value="h">horizontal</option><option value="v">vertical (columnas)</option></select></label><span class="tag">Hoja 1</span></div>
     <div class="bd scroll" id="unifilar"></div>
     <div class="bd noprint" style="padding-top:0">
       <p class="hint">Unifilar según UNE-EN 60617: cada circuito es una sola línea. Los trazos oblicuos dan el número de conductores (// = 2, /// = 3; con más, un trazo y el número); detrás, la sección si se conoce (2 × 0,75 = dos conductores de 0,75 mm²). Línea discontinua = radio, sin cable. Símbolos: M = motor · zigzag = tira LED · triángulo = sensor · antena = emisor. El lado de 24 V DC es muy baja tensión (ITC-BT-36).</p>
@@ -303,6 +305,10 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <div class="bd scroll" style="padding-top:0"><div id="tiras"></div></div>
   </section>
 
+  <section class="sheet" data-hoja="cliente">
+    <div class="hd"><h2>Para el cliente: el mando y el plano</h2><span class="tag">Hoja del cliente</span></div>
+    <div class="bd" id="cliente"></div>
+  </section>
   <section class="sheet" data-hoja="conexiones">
     <div class="hd"><h2>Conexiones por central</h2><span class="tag">Hoja 3</span></div>
     <div class="bd"><div class="conx" id="conx"></div></div>
@@ -322,6 +328,9 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <p class="hint" style="margin:0">Esquema unifilar desde:</p>
   <label class="chk"><input type="radio" name="pDesde" value="cent" id="pDesdeCent"> La centralita (sin la acometida)</label>
   <label class="chk"><input type="radio" name="pDesde" value="cuadro" id="pCuadro"> El cuadro eléctrico del cliente (PIA, diferencial y línea)</label>
+  <p class="hint" style="margin:0">Dibujo del unifilar:</p>
+  <label class="chk"><input type="radio" name="pDisp" value="h" id="pDispH"> Horizontal (de izquierda a derecha)</label>
+  <label class="chk"><input type="radio" name="pDisp" value="v" id="pDispV"> Vertical por columnas (hoja apaisada)</label>
   <p class="hint" id="pPrintHint">En la ventana de imprimir, elige «Guardar como PDF» para tener el archivo.</p>
   <div class="btns"><button type="button" id="pSave">Guardar para imprimir</button><button type="button" id="pGo" class="pri">Imprimir</button><button value="cancel">Cancelar</button></div>
   <p class="hint" id="pSaveHint">«Guardar para imprimir» deja en el móvil o el ordenador una página con estas hojas: ábrela con el navegador y pulsa «Imprimir / Guardar PDF».</p>
@@ -344,7 +353,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <div class="lados"><label class="chk"><input type="checkbox" id="cf_viento"> Anemómetro (solo Nexta)</label><label class="chk"><input type="checkbox" id="cf_lluvia"> Sensor de lluvia</label></div>
   </fieldset>
   <fieldset class="cfgs"><legend>3 · Sistema luces</legend>
-    <label>Sistema de luces<select id="cf_sisL"><option value="auto">Igual que el motor</option><option value="nexta">Cherubini Nexta · TKL250 ONE</option><option value="nexta_stl250">Cherubini Nexta · STILO STL250</option><option value="nexta_stl100">Cherubini Nexta · STILO STL100</option><option value="teleco_eu">Teleco EU · salida LED de la central</option><option value="teleco_ul">Teleco UL · receptor RGB + BL</option><option value="somfy">Somfy io · receptor io LED</option></select></label>
+    <label>Sistema de luces<select id="cf_sisL"><option value="auto">Igual que el motor</option><option value="nexta">Cherubini Nexta · TKL250 ONE</option><option value="nexta_stl250">Cherubini Nexta · STILO STL250</option><option value="nexta_stl100">Cherubini Nexta · STILO STL100</option><option value="teleco_eu">Teleco EU · salida LED de la central</option><option value="teleco_ul">Teleco UL · receptor RGB + BL</option><option value="somfy">Somfy io · receptor io LED blanco / io RGB</option></select></label>
     <div class="row"><label>LED perimetral<select id="cf_led"><option value="none">No</option><option value="dir">Directo</option><option value="ind">Indirecto</option><option value="ambos">Directo + indirecto</option></select></label>
     <label>Luz<select id="cf_luz"><option value="w3000">Blanco cálido 3000 K</option><option value="w4000">Blanco neutro 4000 K</option><option value="rgb">RGB</option></select></label></div>
     <label>Producto<select id="cf_prod"><option value="rollo">LED ELYA (5 / 7 m)</option><option value="neon">Neón perimetral (4,50 / 6 m)</option></select></label>
@@ -485,9 +494,8 @@ const MOTOR_W=3.6*24;
    aislamiento y cubierta de PVC, 70 °C. Caída de tensión a 3,6 A: ΔU = 2·L·I·ρ/S, ρ = 0,021 Ω·mm²/m (cobre a 70 °C). */
 const CAB_MOT="H05VV-F 2×0,75 mm²",caidaMot=L=>2*L*3.6*0.021/0.75;
 /* Nombre corto de cada tira, para rotularla en la planta. */
-/* largo de cada rollo / tira del catálogo (m); el instalador la corta a la medida del lado */
-const ROLLO_L={rW5:5,rW7:7,rN5:5,rN7:7,nP45:4.5,nP6:6,rgbP6:6};
-const corte=t=>ROLLO_L[t.prod]&&t.len<ROLLO_L[t.prod]-0.005?` · cortar a ${m2(t.len)} m`:"";
+/* Las tiras se cortan a la medida del lado (dato SAT): un rollo por lado (el sobrante se tira) y el consumo se calcula
+   con el largo cortado. No hace falta anotarlo en el material. */
 const TIRA_C={rW5:"LED 3000 K · 5 m",rW7:"LED 3000 K · 7 m",rN5:"LED 4000 K · 5 m",rN7:"LED 4000 K · 7 m",nP45:"Neón · 4,50 m",nP6:"Neón · 6 m",rgbP6:"RGB neón · 6 m"};
 const ESQ={si:"Sup. izq.",sd:"Sup. der.",ii:"Inf. izq.",id:"Inf. der."};
 /* TKL (manual «TKL CHERUBINI», Drive): canales que se habilitan con P2 y salidas que encienden juntas en cada modo.
@@ -934,7 +942,7 @@ function calcular(cfg){
       t.prod=prodTira(m,cfg,t.len,med);
       if(med&&t.len>med+1e-6)av.push(["bad",`${m.nombre}, tira de ${t.viga}: has elegido ${m2(med)} m y el lado mide ${m2(t.len)} m, no llega.`]);
       t.W=t.len*(rgb?cfg.wmRGB:cfg.wm);
-      add(t.prod,1,`${tag} ${t.viga}${nivTxt(m,t.niv)?" ("+nivTxt(m,t.niv)+")":""}: ${ROLLO_L[t.prod]?"tira de "+m2c(ROLLO_L[t.prod])+" m":""}${corte(t)||" · "+m2(t.len)+" m"}`);
+      add(t.prod,1,`${tag} ${t.viga} ${m2(t.len)} m${nivTxt(m,t.niv)?" · "+nivTxt(m,t.niv):""}`);
       if(t.len>maxLen+1e-6)av.push(["bad",`${m.nombre}, tira de ${t.viga} (${m2(t.len)} m): el producto más largo es de ${maxLen} m.`]);
     });
     /* cables del perímetro puestos a mano: van tal cual al material y la app no pone alargos ni cables de 3 vías */
@@ -1247,6 +1255,52 @@ function dibujaUnifilar(cfg,r,cuadro){
   ${trazos(40,66,pes.length?3:2,true,pes.length?"3 · L N PE":"2 · L N")}`;
   return `<svg viewBox="0 0 ${W} ${y+10}" width="${W}" role="img" aria-label="Esquema unifilar de la pérgola">${head}${body}</svg>`;
 }
+/* Unifilar vertical por columnas (UNE-EN 61082-1, hoja apaisada): la línea general (L N PE) va arriba en horizontal y de
+   ella baja una columna por central; debajo de cada central, sus circuitos uno bajo otro. Mismo contenido que el horizontal. */
+function dibujaUnifilarV(cfg,r,cuadro){
+  const CW=280,BW=230,itemH=44,top=cuadro?190:96,busY=top-26,cols=[];
+  r.dev.forEach(d=>{if(d.feed==="24"&&d.from){const c=cols.find(c=>c.some(x=>x.id===d.from));if(c){c.push(d);return;}}cols.push([d]);});
+  let body="",maxY=top;const x0=60;
+  cols.forEach((col,ci)=>{const cx=x0+ci*CW;let y=top;
+    col.forEach((d,di)=>{
+      const n=d.right.length,bh=d.trafo||d.psu?78:64;
+      if(di===0){/* bajada desde la línea general */
+        body+=`<circle cx="${cx+BW/2}" cy="${busY}" r="3" fill="var(--ink)"/><line x1="${cx+BW/2}" y1="${busY}" x2="${cx+BW/2}" y2="${y}" stroke="var(--ink)" stroke-width="2"/>`;
+        if(d.feed==="230")body+=trazos(cx+BW/2,busY+13,d.pe?3:2,true,d.pe?"L N PE":"L N");}
+      else{body+=`<line x1="${cx+BW/2}" y1="${y-22}" x2="${cx+BW/2}" y2="${y}" stroke="var(--ink)" stroke-width="2"/>`+trazos(cx+BW/2,y-11,2,true,"24 V ⎓ + −");}
+      body+=`<rect x="${cx}" y="${y}" width="${BW}" height="${bh}" rx="3" fill="var(--soft)" stroke="var(--ink)" stroke-width="1.5"/>`;
+      body+=`<text x="${cx+10}" y="${y+18}" font-size="12" font-weight="600">${esc(trunc(d.t,30))}</text>`;
+      if(d.code)body+=`<text x="${cx+10}" y="${y+34}" font-size="11" class="mono mut">${esc(d.code)}</text>`;
+      body+=`<text x="${cx+10}" y="${y+(d.code?49:34)}" font-size="11" class="mut">${esc(trunc(d.model+(d.W?" · "+w0(d.W):""),32))}</text>`;
+      if(d.trafo||d.psu)body+=`<text x="${cx+10}" y="${y+(d.code?64:49)}" font-size="10" class="mono" style="fill:var(--w-p)">${d.trafo?"230 V ~ → 24 V ⎓ ↓":"fuente 230 V ~ → 24 V ⎓"}</text>`;
+      y+=bh;
+      if(n){/* circuitos: bajan por la columna, cada uno con su número de conductores y su sección */
+        const sx=cx+18,yEnd=y+14+(n-1)*itemH+itemH/2;
+        body+=`<line x1="${sx}" y1="${y}" x2="${sx}" y2="${yEnd}" stroke="var(--line)" stroke-width="1.5"/>`;
+        d.right.forEach((it,i)=>{const cy=y+14+i*itemH+itemH/2,ws=it.wires,radio=ws.every(w=>w[0]==="r"),ix=cx+92;
+          body+=`<line x1="${sx}" y1="${cy}" x2="${ix}" y2="${cy}" stroke="${radio?"var(--w-r)":"var(--ink)"}" stroke-width="2"${radio?' stroke-dasharray="5 4"':""}/>`;
+          if(!radio)body+=trazos(sx+38,cy,ws.length,false,it.kind==="motor"||(it.kind==="led"&&/alargo/.test(it.s||""))?`${ws.length}×0,75 mm²`:String(ws.length));
+          body+=`<text x="${sx+4}" y="${cy+14}" font-size="9" class="mono mut">${esc(trunc(it.pin||"",10))}</text>`;
+          body+=`<rect x="${ix}" y="${cy-17}" width="${CW-104}" height="34" rx="3" fill="var(--paper)" stroke="var(--line)"/>`+icon(it.kind,ix,cy);
+          body+=`<text x="${ix+38}" y="${cy-3}" font-size="11.5" font-weight="600">${esc(trunc(it.t,22))}</text><text x="${ix+38}" y="${cy+11}" font-size="10" class="mut">${esc(trunc(it.s||"",28))}</text>`;});
+        y=yEnd+itemH/2;}
+      y+=30;});
+    maxY=Math.max(maxY,y);});
+  const W=x0+cols.length*CW+20,xb0=x0+BW/2,xb1=x0+(cols.length-1)*CW+BW/2;
+  let head=`<line x1="20" y1="${busY}" x2="${Math.max(xb1,xb0)+20}" y2="${busY}" stroke="var(--ink)" stroke-width="2.5"/>`;
+  if(cuadro){const I=r.I230,L=I<=8?{In:10,s:"1,5"}:I<=13?{In:16,s:"2,5"}:null,nf=n=>n.toLocaleString("es-ES",{maximumFractionDigits:1});
+    const sym=(xx,yy,t1,t2)=>`<rect x="${xx-7}" y="${yy}" width="14" height="22" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/><line x1="${xx-7}" y1="${yy+22}" x2="${xx+7}" y2="${yy}" stroke="var(--ink)" stroke-width="1.5"/><text x="${xx+16}" y="${yy+10}" font-size="12" font-weight="600">${esc(t1)}</text><text x="${xx+16}" y="${yy+23}" font-size="10" class="mut">${esc(t2)}</text>`;
+    head=`<rect x="10" y="8" width="360" height="30" rx="3" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="6 4"/>
+    <text x="22" y="28" font-size="13" font-weight="600">Cuadro del cliente · ${cfg.sistema==="teleco_ul"?"red del país (UL)":"230 V ~ 50 Hz"}</text>
+    <line x1="30" y1="38" x2="30" y2="${busY}" stroke="var(--ink)" stroke-width="2.5"/>
+    ${sym(30,50,L?`PIA 2P ${L.In} A · curva C`:"PIA: más de 16 A, repartir en 2 líneas","Magnetotérmico")}
+    ${sym(30,88,"ID 2P 40 A · 30 mA","Diferencial (ITC-BT-24 / 25)")}
+    <text x="46" y="132" font-size="11" class="mono">${L?`Línea 3G${L.s} mm² (L + N + PE)`:"Repartir en 2 líneas"} · ≈${Math.round(r.W230)} W · ${nf(I)} A</text>
+    <text x="46" y="146" font-size="10" class="mut">Propuesta orientativa; la valida el técnico (ITC-BT-19 / 25) · caja estanca IPX4 en la pérgola (ITC-BT-30)</text>
+    `+trazos(30,busY-14,3,true,"L N PE")+head;}
+  else head=`<text x="20" y="22" font-size="13" font-weight="600">230 V ~ a cada central</text><text x="20" y="38" font-size="11" class="mut">La acometida y sus protecciones las pone el cliente; aquí se parte de las centrales.</text>`+head;
+  return `<svg viewBox="0 0 ${W} ${maxY+10}" width="${W}" role="img" aria-label="Esquema unifilar de la pérgola, vertical por columnas">${head}${body}</svg>`;
+}
 const trunc=(s,n)=>{s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;};
 
 /* ---------- dibujo: planta ----------
@@ -1499,7 +1553,7 @@ function dibujaModulo(pm,cfg){
     txt+=T(vx-nx*dv,vy-ny*dv,vigaDe(m,sd),{fs:Math.max(6.5,Math.min(11,BW(sd)*0.78)),peso:700,rot:vert(sd),halo:0});
     const mx2=(x1+x2)/2,my2=(y1+y2)/2;
     const t=tiras.find(t=>t.sides[0]===sd);
-    const tt=t&&`${amb?"2 × ":""}${TIRA_C[t.prod]||C[t.prod][1]}${corte(t)?" → "+m2(t.len)+" m":""}${m.ledPos==="ind"?" · indirecta":""}`;
+    const tt=t&&`${amb?"2 × ":""}${TIRA_C[t.prod]||C[t.prod][1]}${m.ledPos==="ind"?" · indirecta":""}`;
     if(t)txt+=ed("tira:"+sd,T(mx2-nx*(d+(vert(sd)?14:0)),my2-ny*d,tt,{fs:cabe(tt,Math.hypot(x2-x1,y2-y1)-2*B,9.5),col:"var(--muted)",rot:vert(sd)}));});
   /* cotas, por fuera de los rótulos de cables */
   SIDES.forEach(sd=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=laneOut+18+Math.max(1,filas[sd])*14,t=5;
@@ -1610,7 +1664,7 @@ function conexiones(cfg,r){
     if(stl.length)out.push({t:"STILO LED (LED blanco)",code:C[stl[0].k][0],li:["Alimentación 230 V. 2 salidas LED 24 V.",...stl.map(lo=>`${lo.tag}: ${lo.modo}.`),...stl.flatMap(outLines),"Bornas y límites por salida: ver manual STILO LED."],src:"Manual STILO LED (Drive)"});
     if(r.dev.some(d=>/^rgbw/.test(d.id)))out.push({t:"TKL RGBW 250 W",code:C.tklrgbw[0],li:["Alimentación 230 V.","Salida RGBW por conector "+C.conRGBW[0]+" (CON-EP55/RGBS+W, 4 × RGB + 1 × blanco).","Máx. 250 W en total."],src:"Guía rápida TKL RGBW (Drive)"});
   }
-  if(r.canales&&r.canales.length)out.push({t:"Canales del mando",code:"",li:r.canales.map(x=>`Canal ${x.c} (${C[x.em][1]}): ${ENCAN_m[x.k]} ${x.tag}`).concat(["TKM: P1 corto y subida en el canal del motor. TKL: P1 hasta el color del canal de la central y subida en el canal del mando (manuales Cherubini)."]),src:"Reparto de la app (Auto) o elegido en cada módulo"});
+  if(r.canales&&r.canales.length)out.push({t:"Grabar el mando",code:"",li:["Canales: en la hoja «Para el cliente».","TKM: P1 corto y subida en el canal del motor. TKL: P1 hasta el color del canal de la central y subida en el canal del mando. STILO: un solo canal por central (manuales Cherubini)."],src:"Manuales TKM / TKL / STILO (Drive)"});
   out.push({t:"Recorrido de cables (manual ELYA)",code:"",li:[
     "Centralita: dentro de la viga o del pilar que indica la ficha de fabricación (número de viga o de pilar).",
     "Motor: cable por la parte superior del larguero hasta la centralita de su módulo.",
@@ -2125,6 +2179,9 @@ async function abrirDeDrive(){
 let last=null,plantaH="",impCuadro=null; /* null = como en pantalla; true / false = lo elegido al imprimir */
 /* unifilar en pantalla: desde la centralita o desde el cuadro eléctrico (se recuerda en este navegador) */
 let verCuadro=false;try{verCuadro=localStorage.getItem("elya-uni")==="cuadro";}catch(e){}
+/* unifilar horizontal o vertical por columnas (se recuerda); al imprimir se puede elegir otro */
+let uniVert=false,impVert=null;try{uniVert=localStorage.getItem("elya-univ")==="v";}catch(e){}
+function pagApaisada(on){let st=$("pagV");if(on&&!st){st=document.createElement("style");st.id="pagV";st.textContent="@page{size:A4 landscape}";document.head.appendChild(st);}if(!on&&st)st.remove();}
 /* Los desplegables de entrada y recorrido dicen por qué pilares y vigas va cada opción. */
 function etiquetasMod(m,i,pp){
   const esq=k=>pilNom(pilDe(m,k))||CN[k].replace("esquina ",""),k0=CORN.indexOf(m.cent),c=n=>CORN[(k0+n)%4];
@@ -2159,7 +2216,8 @@ function render(){
   $("avisos").innerHTML=r.av.map(([k,t])=>`<li><span class="pill ${k}">${lbl[k]}</span><span>${esc(t)}</span></li>`).join("");
   const nb=r.av.filter(a=>a[0]==="bad").length,nw=r.av.filter(a=>a[0]==="warn").length;
   $("sumAv").textContent=nb?`${nb} error(es) · ${nw} ojo`:nw?`${nw} para revisar`:"Todo dentro de manual";
-  $("unifilar").innerHTML=dibujaUnifilar(cfg,r,impCuadro===null?verCuadro:impCuadro);
+  const vUni=impVert===null?uniVert:impVert;pagApaisada(vUni);
+  $("unifilar").innerHTML=(vUni?dibujaUnifilarV:dibujaUnifilar)(cfg,r,impCuadro===null?verCuadro:impCuadro);
   const amp=`<button type="button" class="mini" data-amp>Ampliar</button>`;
   const cj=r.plan.length>1?dibujaConjunto(r.plan,cfg):null;
   /* Solo se redibuja si cambia: así no desaparece el botón que se está tocando. */
@@ -2169,7 +2227,7 @@ function render(){
   const sisN={nexta:"Cherubini Nexta",teleco_eu:"Teleco EU",teleco_ul:"Teleco UL",somfy:"Somfy io"}[cfg.sistema];
   $("cajetin").innerHTML=[["Obra",cfg.obra||"—"],["OF",cfg.of||"—"],["Módulos",String(cfg.modulos.length)],["Alto",`${m2(cfg.alto)} m`],["Control",sisN],["Fecha",new Date().toLocaleDateString("es-ES")]].map(([b,s])=>`<div><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join("");
   const filas=r.plan.flatMap(pm=>[
-    ...pm.tiras.map((t,i)=>`<tr><td>${esc(pm.tag)}</td><td><span class="pill" style="background:var(--c-led);color:#1d2329">${esc(t.viga)}</span></td><td>${esc(t.from)}</td><td class="qty">${m2(t.len)} m</td><td class="qty">${w0(t.W)}</td><td class="code">${C[t.prod][0]}<div class="hint">${esc(C[t.prod][1])}${esc(corte(t))}</div></td></tr>`),
+    ...pm.tiras.map((t,i)=>`<tr><td>${esc(pm.tag)}</td><td><span class="pill" style="background:var(--c-led);color:#1d2329">${esc(t.viga)}</span></td><td>${esc(t.from)}</td><td class="qty">${m2(t.len)} m</td><td class="qty">${w0(t.W)}</td><td class="code">${C[t.prod][0]}<div class="hint">${esc(C[t.prod][1])}</div></td></tr>`),
     ...(pm.m.lamasN?[`<tr><td>${esc(pm.tag)}</td><td><span class="pill" style="background:var(--lama)">Lamas</span></td><td>Centralita (${esc(pm.m.loc)}) · ${pm.m.lamasN} lamas</td><td class="qty">${m2(pm.lamaLen)} m c/u</td><td class="qty">${w0(pm.m.lamasN*pm.lamaLen*cfg.wm)}</td><td class="code">${C.lamaW[0]}</td></tr>`]:[])]);
   $("tiras").innerHTML=filas.length?`<table><thead><tr><th>Mód.</th><th>Viga</th><th>Sale de</th><th>Largo</th><th>Consumo</th><th>Producto</th></tr></thead><tbody>${filas.join("")}</tbody></table>`:`<p class="hint">Sin iluminación.</p>`;
   $("conx").innerHTML=conexiones(cfg,r);
@@ -2181,6 +2239,14 @@ function render(){
   }</tbody><tfoot><tr><th colspan="2">Total de las cargas</th><th style="text-align:right" class="mono">${w0(TW)}</th></tr><tr><th colspan="2">Estimado en 230 V (fuentes de 24 V al 90 %)</th><th style="text-align:right" class="mono">${w0(W230)} · ${(W230/230).toLocaleString("es-ES",{maximumFractionDigits:1})} A</th></tr></tfoot>`;
   pintaMaterial(r);
   pintaAprendido();
+  pintaCliente(cfg,r,cj);
+}
+/* Hoja para el cliente final: en qué canal del mando está cada cosa y el plano de la pérgola. */
+function pintaCliente(cfg,r,cj){
+  const QUE={mot:"Abrir y cerrar las lamas",peri:"Luz del perímetro",ind:"Luz indirecta del perímetro",lam:"Luz de las lamas",foc:"Focos"},nm=r.plan.length>1;
+  const filas=(r.canales||[]).slice().sort((a,b)=>a.em===b.em?a.c-b.c:0).map(x=>`<tr><td>${x.c}</td><td>${esc(QUE[x.k])}${nm?` · módulo ${x.mi+1}`:""}</td><td>${esc(C[x.em][1])}</td></tr>`).join("");
+  const planos=(cj?`<figure>${cj.svg}</figure>`:"")+r.plan.map(pm=>`<figure><figcaption>${esc(pm.m.nombre)}</figcaption>${dibujaModulo(pm,cfg)}</figure>`).join("");
+  $("cliente").innerHTML=`<p>${esc(cfg.obra||"")}</p>${filas?`<table class="cli-can"><thead><tr><th>Canal</th><th>Qué hace</th><th>Mando</th></tr></thead><tbody>${filas}</tbody></table>`:""}<div class="cli-pl">${planos}</div>`;
 }
 /* Material = lo calculado con los cambios a mano encima. */
 function bomFinal(r){
@@ -2245,7 +2311,8 @@ if(previa){const b=$("bRecuperar"),f=previa._guardado?new Date(previa._guardado)
 $("f").addEventListener("input",render);
 $("f").addEventListener("change",e=>{if(e.target.id==="sistema")fillEmisores(e.target.value,$("emisor").value);if(e.target.id==="sistema"||e.target.id==="sisLuz")fillEmisorL();render();});
 $("f").addEventListener("submit",e=>e.preventDefault());
-$("uniDesde").value=verCuadro?"cuadro":"cent";
+$("uniDesde").value=verCuadro?"cuadro":"cent";$("uniDisp").value=uniVert?"v":"h";
+$("uniDisp").addEventListener("change",e=>{uniVert=e.target.value==="v";try{localStorage.setItem("elya-univ",uniVert?"v":"h");}catch(x){}render();});
 $("uniDesde").addEventListener("change",e=>{verCuadro=e.target.value==="cuadro";impPref.cuadro=verCuadro;try{localStorage.setItem("elya-uni",verCuadro?"cuadro":"cent");}catch(x){}render();});
 /* nº de lamas con LED ↔ lista de lamas: cambiar el número las reparte; escribir la lista pone el número */
 $("f").addEventListener("input",e=>{const mm=e.target.id&&e.target.id.match(/^m(\d+)_(lamasN|lamL|focLam|focPL|lamT)$/);if(!mm)return;const i=mm[1],g=k=>$(`m${i}_${k}`);
@@ -2455,22 +2522,23 @@ $("bCopy").addEventListener("click",()=>{
 /* Imprimir solo funciona abierta como página suelta (no dentro de un visor). */
 let top=false;try{top=window.self===window.top;}catch(e){}
 /* Imprimir: se eligen las hojas y si el unifilar sale desde el cuadro del cliente; se recuerda la elección. */
-const HOJAS=[["avisos","Avisos"],["unifilar","Esquema unifilar"],["consumo","Consumo"],["planta","Planta y tiras LED"],["conexiones","Conexiones por central"],["material","Material"]];
+const HOJAS=[["avisos","Avisos"],["unifilar","Esquema unifilar"],["consumo","Consumo"],["planta","Planta y tiras LED"],["cliente","Para el cliente (mando y plano)"],["conexiones","Conexiones por central"],["material","Material"]];
 let impPref={hojas:Object.fromEntries(HOJAS.map(([k])=>[k,true])),cuadro:false};
 try{impPref=Object.assign(impPref,JSON.parse(localStorage.getItem("elya-imp")||"{}"));}catch(e){}
 function abrirImprimir(){
   $("pHojas").innerHTML=HOJAS.map(([k,t])=>`<label class="chk"><input type="checkbox" data-h="${k}"${impPref.hojas[k]!==false?" checked":""}> ${t}</label>`).join("");
-  const cu=verCuadro;$("pCuadro").checked=!!cu;$("pDesdeCent").checked=!cu;$("dPrint").showModal();
+  const cu=verCuadro;$("pCuadro").checked=!!cu;$("pDesdeCent").checked=!cu;$("pDispV").checked=uniVert;$("pDispH").checked=!uniVert;$("dPrint").showModal();
 }
 function leePrefImp(){
-  impPref={hojas:Object.fromEntries([...$("pHojas").querySelectorAll("[data-h]")].map(c=>[c.dataset.h,c.checked])),cuadro:$("pCuadro").checked};
+  impPref={hojas:Object.fromEntries([...$("pHojas").querySelectorAll("[data-h]")].map(c=>[c.dataset.h,c.checked])),cuadro:$("pCuadro").checked,vert:$("pDispV").checked};
   try{localStorage.setItem("elya-imp",JSON.stringify(impPref));}catch(e){}
 }
 /* Página suelta para imprimir o guardar como PDF: las hojas elegidas, con el unifilar desde el cuadro si se pidió. */
 function documentoImprimir(){
-  impCuadro=!!impPref.cuadro;render();
+  impCuadro=!!impPref.cuadro;impVert=!!impPref.vert;render();
   const cfg=last?last.cfg:readForm();let html=snapshotHTML(cfg);
-  impCuadro=null;render();
+  if(impVert)html=html.replace("</head>","<style>@page{size:A4 landscape}</style></head>");
+  impCuadro=null;impVert=null;render();
   const d=new DOMParser().parseFromString(html,"text/html");
   d.querySelectorAll("[data-hoja]").forEach(sec=>{if(impPref.hojas[sec.dataset.hoja]===false)sec.remove();});
   d.querySelectorAll("#vacio,[data-amp],.zoom").forEach(e=>e.remove());
@@ -2498,9 +2566,9 @@ $("pSave").addEventListener("click",guardarParaImprimir);
 $("pGo").addEventListener("click",()=>{
   leePrefImp();
   HOJAS.forEach(([k])=>document.body.classList.toggle("noimp-"+k,!impPref.hojas[k]));
-  impCuadro=!!impPref.cuadro;render();$("dPrint").close();setTimeout(()=>window.print(),80);
+  impCuadro=!!impPref.cuadro;impVert=!!impPref.vert;render();$("dPrint").close();setTimeout(()=>window.print(),80);
 });
-window.addEventListener("afterprint",()=>{if(impCuadro===null&&!document.body.className.includes("noimp-"))return;impCuadro=null;HOJAS.forEach(([k])=>document.body.classList.remove("noimp-"+k));render();});
+window.addEventListener("afterprint",()=>{if(impCuadro===null&&impVert===null&&!document.body.className.includes("noimp-"))return;impCuadro=null;impVert=null;HOJAS.forEach(([k])=>document.body.classList.remove("noimp-"+k));render();});
 /* Dentro del enlace de Claude no se puede abrir la ventana de imprimir: ahí se guarda la página para imprimir. */
 $("bPrint").hidden=false;$("bPrint").addEventListener("click",abrirImprimir);
 if(!top){$("pGo").hidden=true;$("pPrintHint").hidden=true;$("pSave").classList.add("pri");}
