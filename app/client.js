@@ -1008,6 +1008,40 @@ async function expPng(list,name,allPh,msg){
 
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(fichaCode&&$("#lb").hidden&&$("#addSheet").hidden&&$("#expSheet").hidden){if(history.state&&history.state.ficha)history.back();else closeFicha();}$("#lb").hidden=true;$("#addSheet").hidden=true;$("#expSheet").hidden=true;}
   if($("#lb").hidden)return;if(e.key==="ArrowRight")$("#lbNext").click();else if(e.key==="ArrowLeft")$("#lbPrev").click();});
+/* ---------- Arrastrar fotos desde el ordenador (Explorador, escritorio, Fotos) ----------
+   Encima de «Etiqueta» o «Producto» de una ficha o tarjeta: va ahí. Encima de una tarjeta o con la ficha abierta:
+   pregunta si es de etiqueta o de producto. En la app instalable no (allí no se añaden fotos). */
+(function(){
+  const puede=()=>{const b=$("#addBtn");return !b||getComputedStyle(b).display!=="none";};
+  const conFich=e=>e.dataTransfer&&[...(e.dataTransfer.types||[])].includes("Files");
+  let marca=null;
+  const quita=()=>{if(marca){marca.classList.remove("dropon");marca=null;}};
+  function destino(t){
+    const z=t.closest&&t.closest(".cell,label.ph,button.ph");
+    const k=z&&(z.matches("[data-code][data-k]")?z:z.querySelector("[data-code][data-k]"));
+    if(k&&itemOf(k.dataset.code))return {el:z,code:k.dataset.code,k:k.dataset.k};
+    const c=t.closest&&t.closest("[data-open],article.card");
+    const code=c&&(c.dataset.open||((c.querySelector("[data-code]")||{}).dataset||{}).code);
+    if(code&&itemOf(code))return {el:c,code,k:null};
+    if(fichaCode&&!fichaBox.hidden&&itemOf(fichaCode))return {el:fichaBox,code:fichaCode,k:null};
+    return null;}
+  function pregunta(code){return new Promise(ok=>{const it=itemOf(code),d=document.createElement("div");d.className="dropask";
+    d.innerHTML=`<div class="dropbox" role="dialog" aria-modal="true"><p>¿De qué es la foto de <b>${esc(it.desc)}</b> (${esc(code)})?</p>
+      <div class="dropbtns"><button class="btn-s" data-dk="e">🏷️ Etiqueta</button><button class="btn-s" data-dk="p">📦 Producto</button><button class="btn-s" data-dk="">Cancelar</button></div></div>`;
+    document.body.appendChild(d);d.addEventListener("click",e=>{const b=e.target.closest("[data-dk]");if(!b&&e.target!==d)return;d.remove();ok(b?b.dataset.dk:"");});});}
+  document.addEventListener("dragover",e=>{if(!conFich(e)||!puede())return;e.preventDefault();
+    const d=destino(e.target);e.dataTransfer.dropEffect=d?"copy":"none";const el=d&&d.el;
+    if(el!==marca){quita();if(el){el.classList.add("dropon");marca=el;}}});
+  document.addEventListener("dragleave",e=>{if(!e.relatedTarget)quita();});
+  document.addEventListener("drop",async e=>{if(!conFich(e)||!puede())return;e.preventDefault();quita();
+    const fs=[...e.dataTransfer.files].filter(f=>/^image\//.test(f.type)||/\.(jpe?g|png|webp|heic|gif)$/i.test(f.name));
+    if(!fs.length){toast("Suelta una foto (JPG, PNG…)");return;}
+    const d=destino(e.target);if(!d){toast("Suelta la foto encima de una referencia");return;}
+    const it=itemOf(d.code);if(it.obsoleta){toast("Es una referencia obsoleta: recupérala antes de añadir fotos");return;}
+    const k=d.k||await pregunta(d.code);if(!k)return;
+    for(const f of fs)await addPhoto(d.code,k,f);});
+})();
+
 start();
 
 })();
