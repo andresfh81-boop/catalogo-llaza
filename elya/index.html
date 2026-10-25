@@ -540,6 +540,11 @@ const MOTOR_W=3.6*24;
 /* Cable del motor: manguera H05VV-F 2×0,75 mm² (catálogo 48008100000): 300/500 V, cobre flexible clase 5,
    aislamiento y cubierta de PVC, 70 °C. Caída de tensión a 3,6 A: ΔU = 2·L·I·ρ/S, ρ = 0,021 Ω·mm²/m (cobre a 70 °C). */
 const CAB_MOT="H05VV-F 2×0,75 mm²",caidaMot=L=>2*L*3.6*0.021/0.75;
+/* Caída de tensión (ITC-BT-19): alumbrado 3 %, resto (motor) 5 %. Alargos LED de 0,75 mm² con ρ = 0,021 Ω·mm²/m (cobre a 70 °C,
+   como el motor), ida y vuelta con toda la corriente del grupo (RGB: el común lleva toda y cada color un tercio).
+   Dentro de la tira, carga repartida alimentada por un extremo: ΔU = I · R · L / 2, con R ≈ 0,04 Ω/m (ida + vuelta) estimado
+   para tiras de 24 V; el dato bueno es el de la ficha de cada tira. */
+const RHO=0.021,R_TIRA=0.04,CAIDA_LUZ=3,CAIDA_MOT=5,pct1=v=>v.toLocaleString("es-ES",{maximumFractionDigits:1});
 /* Nombre corto de cada tira, para rotularla en la planta. */
 /* Las tiras se cortan a la medida del lado (dato SAT): un rollo por lado (el sobrante se tira) y el consumo se calcula
    con el largo cortado. No hace falta anotarlo en el material. */
@@ -1006,7 +1011,7 @@ function calcular(cfg){
     const cx=m.cent[1]==="i"?0:m.A,cy=m.cent[0]==="i"?0:m.P;
     const run=rm.len+1; /* + 1 m para bajar a la centralita y holgura */
     /* cable del motor: siempre manguera 2 × 0,75 mm² (dato SAT, también con Teleco) */
-    if(caidaMot(run)/24>0.1)av.push(["warn",`${m.nombre}: cable del motor de ≈ ${Math.ceil(run)} m: caída ≈ ${m2(caidaMot(run))} V (${Math.round(caidaMot(run)/24*100)} %) a 3,6 A con 2×0,75 mm².`]);
+    if(caidaMot(run)/24*100>CAIDA_MOT)av.push(["warn",`${m.nombre}: cable del motor de ≈ ${Math.ceil(run)} m: caída ≈ ${m2(caidaMot(run))} V (${pct1(caidaMot(run)/24*100)} %) a 3,6 A con 2×0,75 mm²; el máximo es el ${CAIDA_MOT} % (ITC-BT-19). Acorta el recorrido o sube la sección.`]);
     add("motor",1);add("mang",Math.ceil(run),`${tag} motor → centralita`,true);
     if((m.motor==="izq"&&m.cent[1]==="i")||(m.motor==="der"&&m.cent[1]==="d"))av.push(["info",`${m.nombre}: centralita en el mismo lado que el motor. El manual la pone en el lado contrario (el desagüe va en el lado motor); si el plano lo marca así, vale.`]);
 
@@ -1069,6 +1074,10 @@ function calcular(cfg){
       const yS=((m.alSel||{})[key]||{})._y,yOn=yS==="si"?true:yS==="no"?false:ts.length===2;
       if(yS==="no"&&ts.length===2)av.push(["info",`${m.nombre}, ${dn}: sin cable de 3 vías (quitado a mano). Las dos tiras tienen que ir unidas de otra forma.`]);
       grAl[key]={al,d,alDe,enCent,n:ts.length,rgb,y:yOn,yS:yS||"auto",niv:nv};
+      /* caída de tensión del grupo a 24 V: el alargo lleva la corriente de las dos tiras; luego, la de la tira más cargada */
+      {const Ig=ts.reduce((a,t)=>a+t.W,0)/24,Lal=periMan?0:sumAl(al),dAl=Lal*RHO/0.75*(rgb?Ig*4/3:2*Ig),dT=Math.max(0,...ts.map(t=>t.W/24*R_TIRA*t.len/2)),pc=(dAl+dT)/24*100;
+        grAl[key].caida={dAl,dT,pc};
+        if(pc>CAIDA_LUZ+1e-9)av.push([pc>CAIDA_MOT?"bad":"warn",`${m.nombre}, ${dn}: caída de tensión ≈ ${m2(dAl+dT)} V (${pct1(pc)} %): ${periMan?"":`alargo ${m2c(Lal)} m ${secAl(rgb)} con ${pct1(Ig)} A → ${m2(dAl)} V, `}tira ≈ ${m2(dT)} V (estimado). En alumbrado el máximo es el ${CAIDA_LUZ} % (ITC-BT-19): acorta el alargo, reparte las tiras en más salidas o lleva la central más cerca.`]);}
       if(rl)rutas.push({ruta:rl,al,alDe,corner:G.corner,key,niv:nv,g:G.g,out:G.out,ts,rgb});
       if(!periMan){al.forEach(([l,k])=>add(k,1,`${tag} ${dn}`));
         if(yOn)add(rgb?"y3RGB":"y3",1,`${tag} ${dn}`);}
@@ -1592,7 +1601,7 @@ function dibujaModulo(pm,cfg){
   const k0=m.cent,[cx,cy]=SP(k0),[ix,iy]=ins(k0),lat=k0[1]==="i"?"izq":"der";
   const lista=[];
   if(pm.rm)lista.push({k:"motor",ed:"motor",r:pm.rm,col:CC.mot,t:`Motor · ${CAB_MOT} · ≈ ${Math.ceil(pm.run)} m`});
-  (pm.rutas||[]).forEach(R=>lista.push({k:"al",ed:"grupo:"+R.key,r:R.ruta,col:CC.al,R,t:pm.periMan?`Recorrido perímetro ≈ ${m2(R.ruta.len)} m`:`Alargo${nivTxt(m,R.niv)&&m.ledPos==="ambos"?" "+nivTxt(m,R.niv):""} ${secAl(R.rgb)} · ${R.al.map(([l])=>m2c(l)).join(" + ")} m${R.alDe==="aprendido"?" (aprendido)":""} · ≈ ${m2(R.ruta.len)} m`}));
+  (pm.rutas||[]).forEach(R=>lista.push({k:"al",ed:"grupo:"+R.key,r:R.ruta,col:CC.al,R,t:pm.periMan?`Recorrido perímetro ≈ ${m2(R.ruta.len)} m`:`Alargo${nivTxt(m,R.niv)&&m.ledPos==="ambos"?" "+nivTxt(m,R.niv):""} ${secAl(R.rgb)} · ${R.al.map(([l])=>m2c(l)).join(" + ")} m${R.alDe==="aprendido"?" (aprendido)":""} · ≈ ${m2(R.ruta.len)} m${((pm.grAl||{})[R.key]||{}).caida?` · caída ${pct1(pm.grAl[R.key].caida.pc)} %`:""}`}));
   if(pm.focos)lista.push({k:"foc",ed:"focos",r:pm.focos.ruta,col:CC.foc,dash:"6 3",t:pm.focos&&pm.focos.lam?`${m.focN} focos en lamas ${pm.focos.lamas.map(l=>l.k).join(", ")} · por el lateral`:`${m.focN} focos · cable en T${pm.focos.al&&pm.focos.al.length?" + alargo "+pm.focos.al.map(([l])=>m2c(l)).join(" + ")+" m":""} · ≈ ${m2(pm.focos.ruta.len)} m`});
   if(m.lamasN){const xs=lat==="izq"?0:A,yFar=k0[0]==="s"?Math.min(...lamYs):Math.max(...lamYs),yc=k0[0]==="s"?P:0;
     lista.push({k:"lam",ed:"lamas",r:{pts:[[xs,yFar],[xs,yc]],sides:[lat]},col:CC.lam,dash:"5 3",t:`LED lamas ${lamLED(m).join(", ")} · cable en T 3 m ×${Math.ceil(m.lamasN/2)}`,lamX:xs});}
@@ -1733,12 +1742,12 @@ function recorridos(pm,cfg){
   if(pm.rm)L.push(`<b style="color:var(--c-mot)">Motor</b> (lado ${m.motor==="izq"?"izquierdo":"derecho"}, extremo ${pm.motY==="s"?"superior":"inferior"}): manguera ${CAB_MOT} (${C.mang[0]}; 300/500 V, cobre flexible, PVC) de ≈ ${Math.ceil(pm.run)} m por encima de ${esc(vigasDe(m,pm.rm.sides))} (entre la viga y la tapa) hasta la centralita. Azul = +, marrón = −. Caída ≈ ${m2(caidaMot(pm.run))} V (${Math.round(caidaMot(pm.run)/24*100)} %) a 3,6 A.`);
   NIV(m).forEach(nv=>gruposTira(m,cfg.periProd).forEach(G=>{const ts=tiras.filter(t=>t.g===G.g&&t.niv===nv);if(!ts.length)return;
     const key=G.corner+(nv==="i"?":i":""),nt=nivTxt(m,nv),sR=(pm.salReal||{})[(nv==="i"&&m.ledPos==="ambos"?"i":"")+G.out]||G.out,oG=luzNiv(m,nv)==="rgb"?(nexta?" → TKL RGBW":""):out("OUT"+sR);
-    const una=ts[0].una&&ts[0].sides.length>1;
+    const una=ts[0].una&&ts[0].sides.length>1,cd=(()=>{const c=((pm.grAl||{})[key]||{}).caida;return c?` Caída ≈ ${m2(c.dAl+c.dT)} V (${pct1(c.pc)} %${c.pc>CAIDA_LUZ?`, más del ${CAIDA_LUZ} %`:""}).`:"";})();
     const tt=una?`<b style="color:var(--c-al)">Tira ${esc(ts[0].viga)}</b> (una sola tira de ${m2(ts[0].len)} m que dobla la esquina ${esc(esq(EXT[ts[0].sides[0]].find(k=>EXT[ts[0].sides[1]].includes(k))))})`
       :`<b style="color:var(--c-al)">${ts.length>1?"Tiras":"Tira"}${nt?" "+nt.replace(/o$/,"a")+(ts.length>1?"s":"")+" ":" "}${esc(ts.map(t=>t.viga).join(" y "))}</b>`,y3=((pm.grAl||{})[key]||{}).y?" + cable de 3 vías":"";
     if(pm.periMan){const R=(pm.rutas||[]).find(r=>r.g===G.g&&r.niv===nv);L.push(`${tt}: ${G.corner===m.cent?`desde la centralita (${esc(cp)})`:`por encima de ${esc(vigasDe(m,R.ruta.sides))} (≈ ${m2(R.ruta.len)} m) hasta la esquina ${esc(esq(G.corner))}`}${oG}.`);return;}
-    if(G.corner===m.cent)L.push(`${tt}: alargo ${secAl(luzNiv(m,nv)==="rgb")} de ${(((pm.grAl||{})[key]||{}).al||[[1.5]]).map(([l])=>m2c(l)).join(" + ")} m${y3} desde la centralita (${esc(cp)})${oG}.`);
-    else{const R=(pm.rutas||[]).find(r=>r.g===G.g&&r.niv===nv);if(R)L.push(`${tt}: alargo ${secAl(R.rgb)} ${R.al.map(([l])=>m2c(l)+" m").join(" + ")}${R.al.length>1?" empalmados":""} (recorrido ≈ ${m2(R.ruta.len)} m) por encima de ${esc(vigasDe(m,R.ruta.sides))} hasta la esquina ${esc(esq(G.corner))}${y3}${oG}.`);}
+    if(G.corner===m.cent)L.push(`${tt}: alargo ${secAl(luzNiv(m,nv)==="rgb")} de ${(((pm.grAl||{})[key]||{}).al||[[1.5]]).map(([l])=>m2c(l)).join(" + ")} m${y3} desde la centralita (${esc(cp)})${oG}.${cd}`);
+    else{const R=(pm.rutas||[]).find(r=>r.g===G.g&&r.niv===nv);if(R)L.push(`${tt}: alargo ${secAl(R.rgb)} ${R.al.map(([l])=>m2c(l)+" m").join(" + ")}${R.al.length>1?" empalmados":""} (recorrido ≈ ${m2(R.ruta.len)} m) por encima de ${esc(vigasDe(m,R.ruta.sides))} hasta la esquina ${esc(esq(G.corner))}${y3}${oG}.${cd}`);}
   }));
   if(pm.periMan)L.push(`<b style="color:var(--c-al)">Cables del perímetro</b> (a mano): ${PERCAB.filter(k=>m.periCab[k]>0).map(k=>`${m.periCab[k]} × ${esc(C[k][1])}`).join(", ")}.`);
   if(m.lamasN)L.push(`<b style="color:var(--c-lam)">Lamas LED (${m.lamasN}: lamas ${lamLED(m).join(", ")} de ${lamT(m)})</b>: unir los dos conectores de cada lama (conector de lama + conector de eje) y llevar los cables por el mecanizado de la viga ${esc(vigaDe(m,m.cent[1]==="i"?"izq":"der"))} hasta la centralita${out(pm.lamOut||"OUT2 / OUT4")}.${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?` Cables: ${LAMCAB.filter(k=>m.lamCab[k]>0).map(k=>`${m.lamCab[k]} × ${esc(C[k][1])}`).join(", ")}.`:` Cable 3 m 2P + 2 micro en T: uno por cada 2 lamas, encadenados.`}`);
@@ -1882,7 +1891,7 @@ function conexiones(cfg,r){
   out.push({t:"Normativa (REBT, RD 842/2002)",code:"",li:[
     "Exterior = local mojado (ITC-BT-30): canalizaciones estancas; empalmes, cajas, aparamenta y tomas con IPX4 como mínimo (o dentro de cajas que lo den); luminarias de clase distinta de 0.",
     "Colores (ITC-BT-19): fase marrón o negro (gris si hay tres fases), neutro azul, protección verde-amarillo.",
-    "Caída de tensión máxima (ITC-BT-19): 3 % en alumbrado y 5 % en el resto; en viviendas, 3 %.",
+    "Caída de tensión máxima (ITC-BT-19): 3 % en alumbrado y 5 % en el resto; en viviendas, 3 %. La app la calcula en el cable del motor (aviso del 5 %) y en cada alargo y tira LED (aviso del 3 %; la de dentro de la tira es estimada, ≈ 0,04 Ω/m).",
     "24 V DC (ITC-BT-36): muy baja tensión, hasta 75 V en continua. Sin puesta a tierra si es MBTS.",
   ],src:"REBT: ITC-BT-19, 30 y 36 (copias no oficiales; contrastar con el BOE vigente)"});
   return out.map(c=>`<section><h3>${esc(c.t)}</h3>${c.code?`<div class="tag" style="margin-top:4px">${esc(c.code)}</div>`:""}<ul>${c.li.map(l=>`<li>${esc(l)}</li>`).join("")}</ul><p class="src">Fuente: ${esc(c.src)}</p></section>`).join("");
