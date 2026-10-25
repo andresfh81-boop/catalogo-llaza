@@ -332,7 +332,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <section class="sheet" data-hoja="consumo">
     <div class="hd"><h2>Consumo</h2><span class="tag" id="sumW"></span></div>
     <div class="bd scroll"><table id="consumo"></table></div>
-    <div class="bd" style="padding-top:0"><p class="hint">Cargas: motor 3,6 A × 24 V, tiras según su W/m, tomas USB 15 W y sensor de lluvia MT-R 4,5 W (a 230 V). En 230 V, lo que va por fuente de 24 V se cuenta con un rendimiento del 90 %. No incluye lo que se enchufe a las tomas Schuko.</p></div>
+    <div class="bd" style="padding-top:0"><p class="hint">Cargas: motor 3,6 A × 24 V, tiras según su W/m, tomas USB 15 W y sensor de lluvia MT-R 4,5 W (a 230 V). En 230 V, lo que va por fuente de 24 V se cuenta con un rendimiento del 90 %. Las pérdidas en los cables (caída de tensión × corriente en los alargos LED y en el cable del motor) se suman a las cargas y, por el lado de 24 V, al estimado en 230 V. No incluye lo que se enchufe a las tomas Schuko.</p></div>
   </section>
 
   <section class="sheet" data-hoja="planta">
@@ -943,7 +943,7 @@ function focosRuta(m){
 
 /* ---------- cálculo ---------- */
 function calcular(cfg){
-  const av=[],bom=new Map(),dev=[],plan=[],outs=[];
+  const av=[],bom=new Map(),dev=[],plan=[],outs=[],perd=[]; /* perd: vatios que se pierden en los cables (ΔU × I) */
   const add=(k,q,nota,rev)=>{if(q<=0)return;const e=bom.get(k)||{k,q:0,notas:new Set(),rev:false};e.q+=q;if(nota)e.notas.add(nota);if(rev)e.rev=true;bom.set(k,e);};
   const sis=cfg.sistema,ul=sis==="teleco_ul",H=cfg.alto,emisor=cfg.emisor,mods=cfg.modulos;
   /* luces: su propio sistema (o el del motor) y su emisor */
@@ -1016,6 +1016,7 @@ function calcular(cfg){
     const cx=m.cent[1]==="i"?0:m.A,cy=m.cent[0]==="i"?0:m.P;
     const run=rm.len+1; /* + 1 m para bajar a la centralita y holgura */
     /* cable del motor: siempre manguera 2 × 0,75 mm² (dato SAT, también con Teleco) */
+    perd.push({tag,t:"cable del motor",W:caidaMot(run)*3.6});
     if(caidaMot(run)/24*100>CAIDA_MOT)av.push(["warn",`${m.nombre}: cable del motor de ≈ ${Math.ceil(run)} m: caída ≈ ${m2(caidaMot(run))} V (${pct1(caidaMot(run)/24*100)} %) a 3,6 A con 2×0,75 mm²; el máximo es el ${CAIDA_MOT} % (ITC-BT-19). Acorta el recorrido o sube la sección.`]);
     add("motor",1);add("mang",Math.ceil(run),`${tag} motor → centralita`,true);
     if((m.motor==="izq"&&m.cent[1]==="i")||(m.motor==="der"&&m.cent[1]==="d"))av.push(["info",`${m.nombre}: centralita en el mismo lado que el motor. El manual la pone en el lado contrario (el desagüe va en el lado motor); si el plano lo marca así, vale.`]);
@@ -1081,7 +1082,7 @@ function calcular(cfg){
       grAl[key]={al,d,alDe,enCent,n:ts.length,rgb,y:yOn,yS:yS||"auto",niv:nv};
       /* caída de tensión del grupo a 24 V: el alargo lleva la corriente de las dos tiras; luego, la de la tira más cargada */
       {const Ig=ts.reduce((a,t)=>a+t.W,0)/24,Lal=periMan?0:sumAl(al),dAl=Lal*RHO/0.75*(rgb?Ig*4/3:2*Ig),dT=Math.max(0,...ts.map(t=>t.W/24*R_TIRA*t.len/2)),pc=(dAl+dT)/24*100;
-        grAl[key].caida={dAl,dT,pc};
+        grAl[key].caida={dAl,dT,pc};if(dAl>0)perd.push({tag,t:`alargo ${dn}`,W:dAl*Ig});
         if(pc>CAIDA_LUZ+1e-9)av.push([pc>CAIDA_MOT?"bad":"warn",`${m.nombre}, ${dn}: caída de tensión ≈ ${m2(dAl+dT)} V (${pct1(pc)} %): ${periMan?"":`alargo ${m2c(Lal)} m ${secAl(rgb)} con ${pct1(Ig)} A → ${m2(dAl)} V, `}tira ≈ ${m2(dT)} V (estimado). En alumbrado el máximo es el ${CAIDA_LUZ} % (ITC-BT-19): acorta el alargo, reparte las tiras en más salidas o lleva la central más cerca.`]);}
       if(rl)rutas.push({ruta:rl,al,alDe,corner:G.corner,key,niv:nv,g:G.g,out:G.out,ts,rgb});
       if(!periMan){al.forEach(([l,k])=>add(k,1,`${tag} ${dn}`));
@@ -1263,7 +1264,9 @@ function calcular(cfg){
   }
   dev.forEach(d=>d.W=d.Wfix!=null?d.Wfix:d.right.reduce((a,it)=>a+(it.W||0),0));
   /* Lo que va por fuente de 24 V se divide por su rendimiento (90 %); lo que es directo a 230 V (MT-R), tal cual. */
-  const W24=dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0),0),W230=dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0)/(d.directo?1:0.9),0),I230=W230/230;
+  /* lo que se pierde en los cables va por el lado de 24 V: cuenta en las cargas y, al 90 %, en 230 V */
+  const PW=perd.reduce((x,q)=>x+q.W,0);
+  const W24=PW+dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0),0),W230=PW/0.9+dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0)/(d.directo?1:0.9),0),I230=W230/230;
   if(cfg.schuko)av.push(["info","Las tomas de 230 V llevan conductor de protección (verde-amarillo) y en exterior han de ser IPX4 como mínimo (ITC-BT-30). La toma Schuko del catálogo es IP54."]);
   /* ---- canales del mando: por módulo motor, perímetro, indirecto, lamas y focos; con varios módulos sigue la numeración.
      Sin encendido independiente, las luces de un módulo van en un solo canal. Se puede fijar cada uno a mano. ---- */
@@ -1293,7 +1296,7 @@ function calcular(cfg){
   /* STILO: un solo canal del mando por central; si una STILO lleva dos encendidos, se encienden juntos */
   dev.filter(d=>/STL/.test(d.t||"")).forEach(d=>{const radio=(d.right||[]).find(i=>i.kind==="radio");if(radio&&/·/.test(radio.s||""))
     av.push(["warn",`${d.t.split(" · ")[0]}: la STILO graba en un solo canal del mando; ${radio.s.replace(/canal \d+ /g,"")} se encienden juntos. Para encenderlos aparte, una STILO por encendido («Centrales de luces» en Auto con encendido independiente).`]);});
-  return {av,bom,dev,plan,outs,W24,W230,I230,canales};
+  return {av,bom,dev,plan,outs,W24,W230,I230,canales,perd,PW};
 }
 
 /* ---------- dibujo: esquema unifilar ---------- */
@@ -2650,11 +2653,13 @@ function render(){
   $("conx").innerHTML=conexiones(cfg,r);
   {const h=esquemaSomfy(r);$("somfyRx").innerHTML=h;$("somfySheet").hidden=!h;}
   /* Consumo: centrales alimentadas a 230 V (un receptor de 24 V ya cuenta en su transformador). */
-  const cw=r.dev.filter(d=>d.feed==="230"&&d.W>0),TW=cw.reduce((a,d)=>a+d.W,0),W230=r.W230;
+  const cw=r.dev.filter(d=>d.feed==="230"&&d.W>0),PW=r.PW||0,TW=cw.reduce((a,d)=>a+d.W,0)+PW,W230=r.W230;
+  /* pérdidas en los cables (ΔU × I): una línea con el detalle por módulo */
+  const perdTxt=(r.perd||[]).filter(q=>q.W>=0.05).map(q=>`${q.tag} ${q.t} ${w0(q.W)}`).join(" · ");
   $("sumW").textContent=`Total ${w0(TW)}`;
   $("consumo").innerHTML=`<thead><tr><th>Central</th><th>Alimenta</th><th style="text-align:right">W</th></tr></thead><tbody>${
     cw.map(d=>`<tr><td>${esc(d.t)}<div class="hint">${esc(d.code)}</div></td><td>${esc(d.alimenta||d.right.filter(it=>it.W).map(it=>it.t).join(" · "))}</td><td class="qty">${w0(d.W)}</td></tr>`).join("")
-  }</tbody><tfoot><tr><th colspan="2">Total de las cargas</th><th style="text-align:right" class="mono">${w0(TW)}</th></tr><tr><th colspan="2">Estimado en 230 V (fuentes de 24 V al 90 %)</th><th style="text-align:right" class="mono">${w0(W230)} · ${(W230/230).toLocaleString("es-ES",{maximumFractionDigits:1})} A</th></tr></tfoot>`;
+  }${PW>=0.05?`<tr><td>Pérdidas en los cables<div class="hint">caída de tensión × corriente, a 24 V</div></td><td>${esc(perdTxt)}</td><td class="qty">${w0(PW)}</td></tr>`:""}</tbody><tfoot><tr><th colspan="2">Total de las cargas</th><th style="text-align:right" class="mono">${w0(TW)}</th></tr><tr><th colspan="2">Estimado en 230 V (fuentes de 24 V al 90 %)</th><th style="text-align:right" class="mono">${w0(W230)} · ${(W230/230).toLocaleString("es-ES",{maximumFractionDigits:1})} A</th></tr></tfoot>`;
   pintaMaterial(r);
   pintaAprendido();
   pintaCliente(cfg,r,cj);
