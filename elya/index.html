@@ -587,17 +587,17 @@ const abDe=m=>m.ab==="s"||m.ab==="i"?m.ab:motYde(m);
 const lamY=(m,k)=>abDe(m)==="i"?MEDIA_L+(k-0.5)*lamPaso(m):m.P-MEDIA_L-(k-0.5)*lamPaso(m);
 /* Focos: 3 W cada uno (dato SAT). */
 /* Conector entre dos cables (alargo ↔ Y, Y ↔ tira, alargo ↔ alargo): cuerpo negro con la junta en blanco, en el sentido del cable. */
-const conSvg=(x,y,a)=>`<g transform="translate(${x} ${y}) rotate(${a})"><rect x="-5.5" y="-3.2" width="11" height="6.4" rx="1.6" fill="#2e3135"/><line x1="0" y1="-3.2" x2="0" y2="3.2" stroke="#fff" stroke-width="1.2"/></g>`;
+const conSvg=(x,y,a,e=1)=>`<g transform="translate(${x} ${y}) rotate(${a})${e!==1?` scale(${e})`:""}"><rect x="-5.5" y="-3.2" width="11" height="6.4" rx="1.6" fill="#2e3135"/><line x1="0" y1="-3.2" x2="0" y2="3.2" stroke="#fff" stroke-width="1.2"/></g>`;
 const angulo=(a,b)=>Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI;
-/* Cable de 3 vías (Y): cuerpo moldeado del que salen la entrada y los dos brazos; un conector en la punta de cada uno. */
+/* Cable de 3 vías (Y): cuerpo del color de su alargo, del que salen la entrada y los dos brazos; un conector en la punta de cada uno. */
 const ySvg=(q,ps,cols)=>{const [ent,...sal]=ps,de=Math.hypot(q[0]-ent[0],q[1]-ent[1])||1,b=[(q[0]-ent[0])/de,(q[1]-ent[1])/de],
     rot=(v,g)=>{const c=Math.cos(g),s=Math.sin(g);return [v[0]*c-v[1]*s,v[0]*s+v[1]*c];},
     sg=sal.map(p=>Math.sign(b[0]*(p[1]-q[1])-b[1]*(p[0]-q[0]))||1);if(sal.length===2&&sg[0]===sg[1])sg[1]=-sg[0];
     const ramas=[[-b[0],-b[1]],...sal.map((p,k)=>rot(b,sg[k]*0.61))];
     /* el cable que llega a cada punta: el alargo a la entrada y la tira a cada brazo */
     const cab=ramas.map(([ux,uy],k)=>{const x1=q[0]+ux*17,y1=q[1]+uy*17;return k&&typeof cols[1]==="function"?cols[1](x1,y1,ps[k][0],ps[k][1],k-1):`<line x1="${x1}" y1="${y1}" x2="${ps[k][0]}" y2="${ps[k][1]}" stroke="${cols[k?1:0]}" stroke-width="${k?3:2.2}"/>`;}).join("");
-    return cab+ramas.map(([ux,uy])=>`<line x1="${q[0]}" y1="${q[1]}" x2="${q[0]+ux*12}" y2="${q[1]+uy*12}" stroke="#2e3135" stroke-width="5.5" stroke-linecap="round"/>`+conSvg(q[0]+ux*17,q[1]+uy*17,Math.atan2(uy,ux)*180/Math.PI)).join("")
-    +`<circle cx="${q[0]}" cy="${q[1]}" r="5" fill="#2e3135"/><text x="${q[0]}" y="${q[1]+2.7}" text-anchor="middle" font-size="7.5" font-weight="700" style="fill:#fff">Y</text>`;};
+    return cab+ramas.map(([ux,uy])=>`<line x1="${q[0]}" y1="${q[1]}" x2="${q[0]+ux*12}" y2="${q[1]+uy*12}" stroke="${cols[0]}" stroke-width="5.5" stroke-linecap="round"/>`+conSvg(q[0]+ux*17,q[1]+uy*17,Math.atan2(uy,ux)*180/Math.PI)).join("")
+    +`<circle cx="${q[0]}" cy="${q[1]}" r="5.5" fill="${cols[0]}" stroke="var(--paper)" stroke-width="1"/><text x="${q[0]}" y="${q[1]+2.7}" text-anchor="middle" font-size="7.5" font-weight="700" style="fill:#fff">Y</text>`;};
 /* Punto de una polilínea a una distancia de su principio, con el sentido del tramo. */
 const enPoli=(pts,d)=>{for(let j=1;j<pts.length;j++){const a=pts[j-1],b=pts[j],l=Math.hypot(b[0]-a[0],b[1]-a[1]);if(d<=l||j===pts.length-1){const t=l?Math.min(1,d/l):0;return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,angulo(a,b)];}d-=l;}return [pts[0][0],pts[0][1],0];};
 /* Foco visto desde abajo, como es: aro del acabado (aluminio anodizado; negro en el mini NG), el difusor encendido
@@ -1607,8 +1607,10 @@ function dibujaModulo(pm,cfg){
     if(c.k==="foc"&&pm.focos.lam)pm.focos.lamas.forEach(l=>{const yy=Y(l.y),xf=X(l.xs[l.xs.length-1]);extra+=`<line x1="${X(latX)+NRM[lat][0]*c.off}" y1="${yy}" x2="${xf}" y2="${yy}" stroke="${c.col}" stroke-width="1.6" stroke-dasharray="5 3"/>`;});
     else if(c.k==="foc")pm.focos.pos.forEach(f=>{const [nx,ny]=NRM[f.sd],fx=X(f.p[0]),fy=Y(f.p[1]);extra+=`<line x1="${fx+nx*c.off}" y1="${fy+ny*c.off}" x2="${fx-nx*(hw(f.sd)+9)}" y2="${fy-ny*(hw(f.sd)+9)}" stroke="${c.col}" stroke-width="1.6"/>`;});
     /* alargo de varios tramos (p. ej. 1,5 + 3 m): un conector en cada empalme, repartidos según la medida de cada tramo */
-    if(c.k==="al"&&c.R.al&&c.R.al.length>1&&!pm.periMan){const tot=c.R.al.reduce((a,[l])=>a+l,0),Lp=c.pts.slice(1).reduce((a,q,j)=>a+Math.hypot(q[0]-c.pts[j][0],q[1]-c.pts[j][1]),0);let ac=0;
-      c.R.al.slice(0,-1).forEach(([l])=>{ac+=l;const [x,y,a]=enPoli(c.pts,Lp*ac/tot);extra+=conSvg(x,y,a);});}
+    /* el empalme cae donde se acaba el primer tramo, medido desde la centralita (5 + 5 m: a 5 m); el sobrante queda al final */
+    if(c.k==="al"&&c.R.al&&c.R.al.length>1&&!pm.periMan){const Lm=c.R.ruta.len||1,Lp=c.pts.slice(1).reduce((a,q,j)=>a+Math.hypot(q[0]-c.pts[j][0],q[1]-c.pts[j][1]),0);let ac=0;
+      c.R.al.slice(0,-1).forEach(([l],j)=>{ac+=l;const [x,y,a]=enPoli(c.pts,Lp*Math.min(1,ac/Lm)),v=Math.abs(Math.sin(a*Math.PI/180))>0.5;
+        extra+=conSvg(x,y,a,1.6)+T(x+(v?(x<X(A/2)?-14:14):0),y+(v?0:(y<Y(P/2)?-12:12)),`empalme ${m2c(l)} + ${m2c(c.R.al[j+1][0])} m`,{fs:9,col:CC.al,anchor:v?(x<X(A/2)?"end":"start"):"middle"});});}
     /* conductores: trazos oblicuos (UNE-EN 60617) a mitad del tramo más largo */
     const nc=c.k==="al"&&c.R.rgb?4:2;let lb=0,sa=null,sb=null;c.pts.slice(1).forEach((q,j)=>{const l=Math.hypot(q[0]-c.pts[j][0],q[1]-c.pts[j][1]);if(l>lb){lb=l;sa=c.pts[j];sb=q;}});
     if(sa&&lb>30){const ux=(sb[0]-sa[0])/lb,uy=(sb[1]-sa[1])/lb,mx0=(sa[0]+sb[0])/2+ux*(i-n/2)*18,my0=(sa[1]+sb[1])/2+uy*(i-n/2)*18;
@@ -1638,7 +1640,8 @@ function dibujaModulo(pm,cfg){
   NIV(m).forEach(nv=>gs.forEach(G=>{const ts=tiras.filter(t=>t.g===G.g&&t.niv===nv);if(!ts.length)return;const key=kN(G.corner,nv);
     const [gx,gy]=SP(G.corner),[dx,dy]=ins(G.corner),desde=G.corner===k0?[cx,cy]:finAl[key];if(!desde)return;
     const col=pm.periMan?"var(--muted)":CC.al;
-    if(conY.has(key)){const q=[gx+dx*(hX+16),gy+dy*(hY+16+(nv==="i"&&amb?28:0))];
+    if(conY.has(key)){const q0=[gx+dx*(hX+16),gy+dy*(hY+16+(nv==="i"&&amb?28:0))],dq=Math.hypot(desde[0]-q0[0],desde[1]-q0[1])||1,
+        q=[q0[0]+(desde[0]-q0[0])/dq*Math.min(14,dq*0.5),q0[1]+(desde[1]-q0[1])/dq*Math.min(14,dq*0.5)]; /* un poco más atrás, hacia el alargo: no pisa las tiras */
       const tsY=ts.filter(t=>inicio[t.n+t.niv+t.sides[0]]);
       sim+=ed("grupo:"+key,ySvg(q,[desde,...tsY.map(t=>inicio[t.n+t.niv+t.sides[0]])],[col,(x1,y1,x2,y2,k)=>lineaLed(x1,y1,x2,y2,tsY[k].prod,3)]));
 }
