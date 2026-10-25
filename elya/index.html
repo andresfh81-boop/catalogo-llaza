@@ -1762,30 +1762,54 @@ function esquemaSomfy(r){
     Tx=(x,y,t,o={})=>`<text x="${x}" y="${y}" text-anchor="${o.a||"start"}" font-size="${o.fs||11}" font-weight="${o.w||500}" style="fill:${o.c||"var(--ink)"}">${esc(t)}</text>`,
     corta=(t,n)=>t.length>n?t.slice(0,n-1)+"…":t;
   return rxs.map(x=>{
-    const W=780,H=330,rx0=300,ry0=50,rw=170,rh=250,yP=78,yS=c=>110+(c-1)*44,xa=rx0+rw,bus=560,tx=600;
+    /* Dibujo como se ve en obra: transformador de aluminio IP67 con su cable a cada lado, conector de 2 pines, receptor
+       con sus dos mazos enfundados (B: marrón y azul · A: cables 1 a 5), conector de 5 pines y cada tira con sus LED. */
+    const W=900,H=340,yP=96,yS=c=>136+(c-1)*44,rx0=372,rx1=522,ry0=118,ry1=228,yB1=164,yB2=184,c2=246,c5=600,bus=716,tx=752;
     const usa=c=>x.o.find(y=>y.s===c&&y.items.length),ultimo=Math.max(0,...[1,2,3,4].filter(usa));
-    let g=`<rect x="20" y="125" width="160" height="96" rx="4" fill="var(--paper)" stroke="var(--ink)" stroke-width="2"/>`+
-      Tx(100,150,`Transformador ${TR_W[x.tr]} W`,{a:"middle",w:700})+Tx(100,168,"230 V CA → 24 V CC",{a:"middle"})+Tx(100,186,C[x.tr][0],{a:"middle",fs:10,c:"var(--muted)"})+
-      L(100,125,100,96,"var(--ink)",1.6)+Tx(100,88,"230 V (L · N · PE) desde la centralita",{a:"middle",fs:10,c:"var(--muted)"})+
-      `<rect x="${rx0}" y="${ry0}" width="${rw}" height="${rh}" rx="6" fill="var(--soft)" stroke="var(--ink)" stroke-width="2"/>`+
-      Tx(rx0+rw/2,ry0+rh-38,"Receptor io LED blanco",{a:"middle",w:700})+Tx(rx0+rw/2,ry0+rh-22,`Somfy 1822611 · ${C.somLed[0]}`,{a:"middle",fs:10,c:"var(--muted)"})+
-      Tx(rx0+8,ry0+16,"Mazo B",{fs:10,w:700,c:"var(--muted)"})+Tx(xa-8,ry0+16,"Mazo A",{fs:10,w:700,c:"var(--muted)",a:"end"})+
-      /* mazo B: alimentación */
-      L(180,155,rx0,155,"var(--w-l)",3)+Tx(240,148,"marrón +24 V",{a:"middle",fs:10,c:"var(--w-l)",w:700})+
-      L(180,195,rx0,195,"var(--w-n)",3)+Tx(240,212,"azul 0 V",{a:"middle",fs:10,c:"var(--w-n)",w:700})+
-      /* mazo A: cable 5 = V+ común */
-      L(xa,yP,bus,yP,"var(--w-p)",3)+Tx(xa+8,yP-6,"5 · V+ común",{fs:10,c:"var(--w-p)",w:700})+(ultimo?L(bus,yP,bus,yS(ultimo)-9,"var(--w-p)",3):"");
+    const vaina=(x1,y1,x2,y2,w=9)=>L(x1,y1,x2,y2,"#5b6168",w)+L(x1,y1,x2,y2,"#80878f",w-4);
+    /* conector visto de lado: macho y hembra encajados, con la marca de la junta y un pin por cable */
+    const conector=(x0,ys,tit)=>{const y0=Math.min(...ys)-12,y1=Math.max(...ys)+12;
+      return `<rect x="${x0}" y="${y0}" width="16" height="${y1-y0}" rx="3" fill="#2e3135"/><rect x="${x0+16}" y="${y0+3}" width="4" height="${y1-y0-6}" fill="#9aa1a8"/><rect x="${x0+20}" y="${y0}" width="16" height="${y1-y0}" rx="3" fill="#3d4146"/>`+
+        ys.map(y=>`<circle cx="${x0+18}" cy="${y}" r="1.8" fill="#e2c26a"/>`).join("")+Tx(x0+18,y1+26,tit,{a:"middle",fs:9.5,c:"var(--muted)",w:600});};
+    /* transformador */
+    let g=`<rect x="16" y="150" width="14" height="40" rx="3" fill="#aab0b7" stroke="#7d838a"/><circle cx="23" cy="158" r="2.5" fill="var(--paper)"/><circle cx="23" cy="182" r="2.5" fill="var(--paper)"/>`+
+      `<rect x="196" y="150" width="14" height="40" rx="3" fill="#aab0b7" stroke="#7d838a"/><circle cx="203" cy="158" r="2.5" fill="var(--paper)"/><circle cx="203" cy="182" r="2.5" fill="var(--paper)"/>`+
+      `<rect x="28" y="126" width="170" height="88" rx="8" fill="#c9cdd2" stroke="#7d838a" stroke-width="1.5"/><rect x="28" y="126" width="170" height="20" rx="8" fill="#dde0e3"/>`+
+      [...Array(15)].map((_,k)=>`<line x1="${40+k*10.5}" y1="128" x2="${40+k*10.5}" y2="144" stroke="#a4aab1" stroke-width="1.4"/>`).join("")+
+      `<rect x="48" y="154" width="130" height="52" rx="3" fill="#fbfbfa" stroke="#b9bec3"/>`+
+      Tx(113,171,`Transformador ${TR_W[x.tr]} W`,{a:"middle",w:700,fs:10.5})+Tx(113,186,"230 V CA → 24 V CC · IP67",{a:"middle",fs:9.5})+Tx(113,199,C[x.tr][0],{a:"middle",fs:9,c:"var(--muted)"})+
+      /* entrada 230 V: cable gris por la izquierda */
+      vaina(16,170,6,170,8)+L(6,170,6,96,"#80878f",4)+Tx(8,86,"230 V (L · N · PE) desde la centralita",{fs:10,c:"var(--muted)"})+
+      /* salida 24 V: cable por la derecha que se abre en rojo y negro */
+      vaina(210,174,226,174,8)+L(226,174,c2,yB1,"var(--w-p)",3)+L(226,174,c2,yB2,"var(--ink)",3)+
+      Tx(236,148,"rojo +24 V",{a:"middle",fs:9.5,c:"var(--w-p)",w:700})+Tx(222,204,"negro 0 V",{a:"end",fs:9.5,w:700})+
+      conector(c2,[yB1,yB2],"conector 2 pines")+
+      /* del conector al receptor: marrón y azul dentro de la vaina del mazo B */
+      L(c2+36,yB1,330,yB1,"var(--w-l)",3)+L(c2+36,yB2,330,yB2,"var(--w-n)",3)+Tx(306,yB1-7,"marrón",{a:"middle",fs:9.5,c:"var(--w-l)",w:700})+Tx(306,yB2+15,"azul",{a:"middle",fs:9.5,c:"var(--w-n)",w:700})+
+      L(330,yB1,344,174,"var(--w-l)",3)+L(330,yB2,344,174,"var(--w-n)",3)+vaina(344,174,rx0,174)+Tx(354,192,"mazo B",{a:"middle",fs:9,c:"var(--muted)",w:700})+
+      /* receptor */
+      `<rect x="${rx0}" y="${ry0}" width="${rx1-rx0}" height="${ry1-ry0}" rx="12" fill="#f1f2f3" stroke="#8b9198" stroke-width="1.6"/><rect x="${rx0+8}" y="${ry0+8}" width="${rx1-rx0-16}" height="${ry1-ry0-16}" rx="8" fill="none" stroke="#d5d8db"/>`+
+      `<circle cx="${rx1-20}" cy="${ry0+20}" r="3.5" fill="#46b06a"/><rect x="${rx0+18}" y="${ry1-34}" width="26" height="12" rx="3" fill="#c8ccd0"/>`+Tx(rx0+31,ry1-25,"PROG",{a:"middle",fs:7,w:700,c:"#4a4f55"})+
+      Tx((rx0+rx1)/2,ry0+40,"somfy",{a:"middle",fs:15,w:700,c:"#1d2329"})+Tx((rx0+rx1)/2,ry0+58,"LED Receiver io",{a:"middle",fs:10.5,w:600})+Tx((rx0+rx1)/2,ry0+74,`1822611 · ${C.somLed[0]}`,{a:"middle",fs:9,c:"var(--muted)"})+
+      /* mazo A: vaina hasta el abanico de 5 cables y el conector de 5 pines */
+      vaina(rx1,174,556,174)+Tx(539,192,"mazo A",{a:"middle",fs:9,c:"var(--muted)",w:700})+
+      L(556,174,c5,yP,"var(--w-p)",3)+[1,2,3,4].map(c=>L(556,174,c5,yS(c),usa(c)?"var(--ink)":"var(--muted)",3)).join("")+
+      conector(c5,[yP,...[1,2,3,4].map(yS)],"conector 5 pines")+
+      L(c5+36,yP,bus,yP,"var(--w-p)",3)+Tx(c5+44,yP-7,"5 · V+ común",{fs:10,c:"var(--w-p)",w:700})+(ultimo?L(bus,yP,bus,yS(ultimo)-7,"var(--w-p)",3):"");
+    /* cada tira como es: banda con sus LED (cálida o neutra) y sus dos cables (+ rojo, − negro) */
     [1,2,3,4].forEach(c=>{const y=yS(c),o=usa(c);
-      if(o){g+=L(xa,y+9,tx,y+9,"var(--ink)",3)+Tx(xa+8,y+4,`${c} · − luz ${c}`,{fs:10,w:700})+L(bus,y-9,tx,y-9,"var(--w-p)",3)+`<circle cx="${bus}" cy="${y-9}" r="3.5" fill="var(--w-p)"/>`+
-        `<rect x="${tx}" y="${y-20}" width="${W-tx-10}" height="40" rx="4" fill="var(--paper)" stroke="var(--c-led)" stroke-width="2"/>`+
-        Tx(tx-4,y-12,"+",{a:"end",w:700,c:"var(--w-p)"})+Tx(tx-4,y+14,"−",{a:"end",w:700})+
-        Tx(tx+8,y-4,corta(o.items.map(i=>i.n).join(" + "),26),{fs:10.5,w:600})+Tx(tx+8,y+12,`${w0(o.W)}${o.W>90?" · ¡más de 90 W!":""}`,{fs:10,c:o.W>90?"var(--bad)":"var(--muted)"});}
-      else g+=L(xa,y,xa+50,y,"var(--muted)",2.4,"4 3")+`<rect x="${xa+50}" y="${y-5}" width="14" height="10" rx="2" fill="var(--muted)"/>`+Tx(xa+70,y+4,`${c} · sin usar: aislar`,{fs:10,c:"var(--muted)"});});
+      if(o){const frio=o.items.some(i=>/4000|neutr/i.test(i.n)),led=frio?"#fff3dc":"#ffc46b",n=Math.floor((W-tx-26)/9);
+        g+=L(c5+36,y+7,tx,y+7,"var(--ink)",3)+Tx(c5+44,y+3,`${c} · − luz ${c}`,{fs:10,w:700})+L(bus,y-7,tx,y-7,"var(--w-p)",3)+`<circle cx="${bus}" cy="${y-7}" r="3.5" fill="var(--w-p)"/>`+
+          `<rect x="${tx}" y="${y-11}" width="${W-tx-10}" height="22" rx="3" fill="#f6f2ea" stroke="#cfc4ad"/>`+
+          [...Array(n)].map((_,k)=>`<rect x="${tx+12+k*9}" y="${y-4}" width="5" height="8" rx="1" fill="${led}" stroke="#d29a3a" stroke-width=".5"/>`).join("")+
+          `<rect x="${tx+2}" y="${y-9}" width="7" height="5" fill="#c9a646"/><rect x="${tx+2}" y="${y+4}" width="7" height="5" fill="#c9a646"/>`+
+          Tx(tx,y-15,corta(o.items.map(i=>i.n).join(" + "),24),{fs:10,w:700})+Tx(W-12,y+24,`${w0(o.W)}${o.W>90?" · ¡más de 90 W!":""}`,{a:"end",fs:9.5,c:o.W>90?"var(--bad)":"var(--muted)"});}
+      else g+=L(c5+36,y,c5+76,y,"var(--muted)",2.4,"4 3")+`<rect x="${c5+76}" y="${y-5}" width="14" height="10" rx="5" fill="var(--muted)"/>`+Tx(c5+96,y+4,`${c} · sin usar: aislar`,{fs:10,c:"var(--muted)"});});
     const libres=[1,2,3,4].filter(c=>!usa(c));
     return `<figure class="somfy"><figcaption><b>${esc(x.tag)} · ${esc(x.nombre)}</b>${x.tot>1?` · receptor ${x.n} de ${x.tot}`:""} · ${w0(x.W)} en total (máx. 240 W)</figcaption>
       <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Cableado del receptor io LED" style="width:100%;height:auto;max-width:${W}px">${g}</svg>
       <ul class="hint">${[1,2,3,4].filter(usa).map(c=>`<li>Cable ${c} (−) y cable 5 (+) → ${esc(usa(c).items.map(i=>i.n).join(" + "))} · ${w0(usa(c).W)}</li>`).join("")}${libres.length?`<li>Cable${libres.length>1?"s":""} ${libres.join(", ")} sin usar: aislar uno a uno.</li>`:""}</ul></figure>`;
-  }).join("")+`<p class="hint">Mazo B (alimentación): marrón +24 V CC, azul 0 V, desde su transformador. Mazo A (salidas): cable 5 = V+ común a todas las tiras; cables 1 a 4 = − de cada luz. Máx. 90 W (3,75 A) por salida y 240 W (10 A) en total. Respetar la polaridad. Enlazar el mando 1W io: dar tensión → Subir + Bajar a la vez → PROG breve cuando se encienda y apague la salida que quieres. Fuente: guía rápida White LED Receiver io (SAT Llaza, v2 02/10/2026).</p>`;
+  }).join("")+`<p class="hint">Mazo B (alimentación), con un conector de 2 pines: rojo del transformador (+24 V CC) al marrón del receptor y negro (0 V) al azul. Mazo A (salidas), con un conector de 5 pines: cable 5 = V+ común a todas las tiras; cables 1 a 4 = − de cada luz. Máx. 90 W (3,75 A) por salida y 240 W (10 A) en total. Respetar la polaridad. Enlazar el mando 1W io: dar tensión → Subir + Bajar a la vez → PROG breve cuando se encienda y apague la salida que quieres. Fuente: guía rápida White LED Receiver io (SAT Llaza, v2 02/10/2026).</p>`;
 }
 function conexiones(cfg,r){
   const out=[],sis=cfg.sistema,sisL=sisLuzDe(cfg),outLines=lo=>lo.o.filter(x=>x.items.length).map(x=>`${lo.tag} OUT${x.s}: ${x.items.map(i=>i.n).join(" + ")} · ${w0(x.W)}`);
@@ -1822,8 +1846,8 @@ function conexiones(cfg,r){
   /* receptor io LED blanco de Somfy: qué cable va a cada tira (guía rápida SAT, v2 02/10/2026) */
   {const rxs=r.plan.flatMap(pm=>(pm.rx||[]).filter(x=>x.k==="somLed").map(x=>Object.assign({tag:pm.tag},x)));
     if(rxs.length)out.push({t:"Somfy Receptor io LED blanco (1822611)",code:C.somLed[0],li:[
-      "Mazo B (alimentación), desde su transformador de 24 V CC: marrón = +24 V · azul = 0 V.",
-      "Mazo A (salidas): cable 5 = V+ común (va al + de todas las tiras de ese receptor) · cables 1, 2, 3 y 4 = − de la luz 1, 2, 3 y 4.",
+      "Mazo B (alimentación), con un conector de 2 pines desde su transformador de 24 V CC: rojo del transformador (+24 V) → marrón del receptor · negro (0 V) → azul.",
+      "Mazo A (salidas), con un conector de 5 pines hacia las tiras: cable 5 = V+ común (va al + de todas las tiras de ese receptor) · cables 1, 2, 3 y 4 = − de la luz 1, 2, 3 y 4.",
       ...rxs.flatMap(x=>{const nm=`${x.tag} · receptor${x.tot>1?` ${x.n}/${x.tot}`:""} (trafo ${TR_W[x.tr]} W)`,usa=x.o.filter(y=>y.items.length),libres=[1,2,3,4].filter(c=>!usa.some(y=>y.s===c));
         return [...usa.map(y=>`${nm}: cable ${y.s} (−) + cable 5 (+) → ${y.items.map(i=>i.n).join(" + ")} · ${w0(y.W)}`),
           libres.length?`${nm}: ${libres.length>1?"cables":"cable"} ${libres.join(", ")} sin usar → aislar uno a uno.`:""].filter(Boolean);}),
