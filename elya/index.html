@@ -359,6 +359,10 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <div class="hd"><h2>Material</h2><span class="tag">Hoja 4</span></div>
     <div class="bd scroll"><table id="bom"></table></div>
     <div class="bd noprint bomadd" id="bomAdd"></div>
+    <div class="bd noprint bomadd" style="padding-top:0"><b style="font-size:13px">Orden de trabajo</b><button type="button" class="mini" id="bOT">Contrastar con la OT (PDF / CSV / foto)</button><button type="button" class="mini" id="bOTCam">📷 Cámara</button>
+      <input type="file" id="fOT" accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain,image/*" hidden><input type="file" id="fOTCam" accept="image/*" capture="environment" hidden>
+      <span class="hint">Lee los códigos (11 cifras) y cantidades de la orden de trabajo y los compara con este material (con tus cambios). No toca la obra; se guarda con ella.</span></div>
+    <div class="bd" style="padding-top:0"><div id="otRes" class="impres" hidden></div></div>
     <div class="bd" style="padding-top:0"><p class="hint">Cambia cualquier producto por otro de su familia, corrige la cantidad, quita líneas o añade productos del catálogo. Los cambios se guardan con la obra. «Revisar» = cantidad estimada o dato sin confirmar en manual.</p></div>
   </section>
 </main>
@@ -516,6 +520,8 @@ const famDe=k=>(FAMILIAS.find(f=>f[1].includes(k))||[null,[k]])[1];
 /* Cambios a mano sobre el material calculado: sw = producto cambiado, q = cantidad, del = quitados, extra = añadidos. */
 const MAT0=()=>({sw:{},q:{},del:[],extra:[]});
 let mat=MAT0();
+/* Orden de trabajo para contrastar con el material: {nombre, fecha, q: {código: cantidad}}; se guarda con la obra. */
+let ot=null;
 const EMISORES={nexta:["pop","hoblo6","hobloMF","eco1"],teleco_eu:["noonEU"],teleco_ul:["noonUL"],somfy:["situo"]};
 const LADOS_ALL={sup:true,inf:true,izq:true,der:true};
 /* Valores por defecto de una obra nueva; el resto sale del plano que se carga. */
@@ -765,7 +771,7 @@ function readForm(){
   o.altoFalta=!(o.alto>0);o.alto=num(o.alto,2.5);o.wm=num(o.wm,10);o.wmRGB=num(o.wmRGB,12);
   ["schuko","usb"].forEach(k=>{o[k]=Math.max(0,Math.round(isFinite(o[k])?o[k]:0));});
   o.modulos=readMods();
-  o.material=mat;o.difs=difsCliente;
+  o.material=mat;o.difs=difsCliente;o.ot=ot;
   return o;
 }
 /* Sistema de las luces: el elegido, o el mismo que el del motor. Su emisor solo se pide si es otro sistema. */
@@ -794,7 +800,7 @@ function writeMods(mods){
   $("bAdd").disabled=mods.length>=6;
 }
 function writeForm(o){
-  difsCliente=Array.isArray(o.difs)?o.difs:[];
+  difsCliente=Array.isArray(o.difs)?o.difs:[];ot=o.ot&&o.ot.q?o.ot:null;
   const m=o.material||{};mat={sw:m.sw||{},q:m.q||{},del:Array.isArray(m.del)?m.del:[],extra:Array.isArray(m.extra)?m.extra.filter(x=>C[x.k]):[]};
   fillEmisores(o.sistema,o.emisor);
   FIELDS.forEach(k=>{if(k==="emisor"||k==="emisorL")return;const el=$(k);if(el.type==="checkbox")el.checked=!!o[k];else el.value=o[k]??"";});
@@ -2660,7 +2666,7 @@ function render(){
   $("consumo").innerHTML=`<thead><tr><th>Central</th><th>Alimenta</th><th style="text-align:right">W</th></tr></thead><tbody>${
     cw.map(d=>`<tr><td>${esc(d.t)}<div class="hint">${esc(d.code)}</div></td><td>${esc(d.alimenta||d.right.filter(it=>it.W).map(it=>it.t).join(" · "))}</td><td class="qty">${w0(d.W)}</td></tr>`).join("")
   }${PW>=0.05?`<tr><td>Pérdidas en los cables<div class="hint">caída de tensión × corriente, a 24 V</div></td><td>${esc(perdTxt)}</td><td class="qty">${w0(PW)}</td></tr>`:""}</tbody><tfoot><tr><th colspan="2">Total de las cargas</th><th style="text-align:right" class="mono">${w0(TW)}</th></tr><tr><th colspan="2">Estimado en 230 V (fuentes de 24 V al 90 %)</th><th style="text-align:right" class="mono">${w0(W230)} · ${(W230/230).toLocaleString("es-ES",{maximumFractionDigits:1})} A</th></tr></tfoot>`;
-  pintaMaterial(r);
+  pintaMaterial(r);pintaOT(r);
   pintaAprendido();
   pintaCliente(cfg,r,cj);
 }
@@ -2816,16 +2822,19 @@ function codigosDeLineas(lines){
   return out;
 }
 const PROMPT_MAT=`Es una hoja (o foto) de material de una pérgola ELYA (Llaza / Umara). Devuelve SOLO un JSON {"items":[{"codigo":"11 cifras","cantidad":número,"descripcion":"texto"}]} con cada línea que tenga un código de producto de 11 cifras y su cantidad (unidades; si no se ve, 1). No inventes códigos.`;
+/* Códigos de 11 cifras y cantidades de una hoja (PDF con texto, CSV / texto, o foto / escaneado leído por Claude). */
+async function codigosDeArchivo(file){
+  if(/pdf/.test(file.type)||/\.pdf$/i.test(file.name)){const buf=await file.arrayBuffer(),T=await textoPlano(buf.slice(0)),filas={};
+    T.forEach(t=>{const k=Math.round(t.y/4);(filas[k]=filas[k]||[]).push(t);});
+    const q=codigosDeLineas(Object.keys(filas).sort((a,b)=>a-b).map(k=>filas[k].sort((a,b)=>a.x-b.x).map(t=>t.s).join(" | ")));
+    return Object.keys(q).length?q:await materialConClaude(file,buf);}
+  if(/image/.test(file.type)||/\.(jpe?g|png|webp|heic)$/i.test(file.name))return await materialConClaude(file,null);
+  return codigosDeLineas((await file.text()).split(/\r?\n/));
+}
 async function leeMaterial(file){
   const box=$("matRes");box.hidden=false;box.innerHTML=`<div><b>Leyendo la hoja de material…</b></div>`;
   let q={};
-  try{
-    if(/pdf/.test(file.type)||/\.pdf$/i.test(file.name)){const buf=await file.arrayBuffer(),T=await textoPlano(buf.slice(0)),filas={};
-      T.forEach(t=>{const k=Math.round(t.y/4);(filas[k]=filas[k]||[]).push(t);});
-      q=codigosDeLineas(Object.keys(filas).sort((a,b)=>a-b).map(k=>filas[k].sort((a,b)=>a.x-b.x).map(t=>t.s).join(" | ")));
-      if(!Object.keys(q).length)q=await materialConClaude(file,buf);}
-    else if(/image/.test(file.type)||/\.(jpe?g|png|webp|heic)$/i.test(file.name))q=await materialConClaude(file,null);
-    else q=codigosDeLineas((await file.text()).split(/\r?\n/));
+  try{q=await codigosDeArchivo(file);
   }catch(e){box.innerHTML=`<div class="contraste ko">${esc(e.message||"No se pudo leer la hoja.")}</div>`;return;}
   if(!Object.keys(q).length){box.innerHTML=`<div class="contraste ko">No he encontrado códigos de 11 cifras en la hoja.</div>`;return;}
   adjuntos.push(file);adjPinta();
@@ -2869,6 +2878,31 @@ function aplicaMaterial(q){
   ${filas.some(f=>f.h>f.a)?`<button type="button" class="mini" id="matAdd">Añadir al material lo que lleva la hoja de más</button>`:""}`)}`;
   const b=$("matAdd");if(b)b.onclick=()=>{cambiaMaterial(()=>filas.filter(f=>f.h>f.a).forEach(f=>mat.extra.push({k:f.kk,q:f.h-f.a})));toast("Añadido al material");b.remove();};
 }
+/* ---------- Orden de trabajo ↔ material: cada código con su cantidad en la OT y en el material (con los cambios a mano) ---------- */
+async function leeOT(file){
+  const box=$("otRes");box.hidden=false;box.innerHTML=`<div><b>Leyendo la orden de trabajo…</b></div>`;
+  let q={};
+  try{q=await codigosDeArchivo(file);}catch(e){box.innerHTML=`<div class="ko">${esc(e.message||"No se pudo leer la orden de trabajo.")}</div>`;return;}
+  if(!Object.keys(q).length){box.innerHTML=`<div class="ko">No he encontrado códigos de 11 cifras en la orden de trabajo.</div>`;return;}
+  ot={nombre:file.name.replace(/\.[^.]+$/,""),fecha:new Date().toISOString(),q};render();toast("Orden de trabajo leída: revisa el contraste");
+}
+function pintaOT(r){
+  const box=$("otRes");if(!box)return;
+  if(!ot){box.hidden=true;box.innerHTML="";return;}
+  const fin=bomFinal(r).filter(x=>!x.quitado&&x.q>0),app={};
+  fin.forEach(x=>{const c=C[x.k][0];if(/^\d{11}$/.test(c))app[c]=(app[c]||0)+x.q;});
+  const sinCod=[...new Set(fin.filter(x=>!/^\d{11}$/.test(C[x.k][0])).map(x=>C[x.k][1]))];
+  const filas=[...new Set([...Object.keys(ot.q),...Object.keys(app)])].map(c=>({c,k:CODE2K[c],o:ot.q[c]||0,a:app[c]||0}))
+    .sort((x,y)=>(x.o===x.a)-(y.o===y.a)||x.c.localeCompare(y.c));
+  const dif=filas.filter(f=>f.o!==f.a).length,ud=f=>f.k==="mang"?" m":"";
+  box.hidden=false;
+  box.innerHTML=cuadroContraste(`Orden de trabajo «${esc(ot.nombre)}» ↔ material`,dif,`<table><thead><tr><th>Código</th><th>Producto</th><th>OT</th><th>Material</th><th>Dif.</th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.o!==f.a?"dif":""}"><td class="mono">${f.c}</td><td>${esc(f.k?C[f.k][1]:"(no está en el catálogo de la app)")}</td><td>${f.o}${ud(f)}</td><td>${f.a}${ud(f)}</td><td>${f.o===f.a?"✓":(f.o>f.a?"+":"")+(Math.round((f.o-f.a)*100)/100)}</td></tr>`).join("")}</tbody></table>
+  <div class="hint">OT leída el ${esc(new Date(ot.fecha).toLocaleString("es-ES"))}. «Dif.» = OT − material: + la OT lleva más, − lleva menos.${sinCod.length?` Sin código Llaza (no pueden salir en la OT): ${esc(sinCod.join(" · "))}.`:""}</div>
+  <div class="noprint"><button type="button" class="mini" id="otX">Quitar la orden de trabajo</button></div>`);
+  const bx=$("otX");if(bx)bx.onclick=()=>{ot=null;render();};
+}
+$("bOT").addEventListener("click",()=>$("fOT").click());$("bOTCam").addEventListener("click",()=>$("fOTCam").click());
+["fOT","fOTCam"].forEach(id=>$(id).addEventListener("change",e=>{const f=e.target.files[0];e.target.value="";if(f)leeOT(f);}));
 $("bMat").addEventListener("click",()=>$("fMat").click());$("bMatCam").addEventListener("click",()=>$("fMatCam").click());
 ["fMat","fMatCam"].forEach(id=>$(id).addEventListener("change",e=>{const f=e.target.files[0];e.target.value="";if(f)leeMaterial(f);}));
 $("adjBox").addEventListener("click",e=>{const b=e.target.closest("[data-adj]");if(b)adjVer(+b.dataset.adj);});
