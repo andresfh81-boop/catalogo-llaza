@@ -361,7 +361,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <div class="bd noprint bomadd" id="bomAdd"></div>
     <div class="bd noprint bomadd" style="padding-top:0"><b style="font-size:13px">Orden de trabajo</b><button type="button" class="mini" id="bOT">Contrastar con la OT (PDF / CSV / foto)</button><button type="button" class="mini" id="bOTCam">📷 Cámara</button>
       <input type="file" id="fOT" accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain,image/*" hidden><input type="file" id="fOTCam" accept="image/*" capture="environment" hidden>
-      <span class="hint">Lee los códigos (11 cifras) y cantidades de la orden de trabajo y los compara con este material (con tus cambios). No toca la obra; se guarda con ella.</span></div>
+      <span class="hint">Lee los códigos (11 cifras) y cantidades de la orden de trabajo y los compara con este material. Manda el cálculo de la app: la OT no cambia nada, solo se indican las diferencias.</span></div>
     <div class="bd" style="padding-top:0"><div id="otRes" class="impres" hidden></div></div>
     <div class="bd" style="padding-top:0"><p class="hint">Cambia cualquier producto por otro de su familia, corrige la cantidad, quita líneas o añade productos del catálogo. Los cambios se guardan con la obra. «Revisar» = cantidad estimada o dato sin confirmar en manual.</p></div>
   </section>
@@ -2897,7 +2897,7 @@ function pintaOT(r){
   const dif=filas.filter(f=>f.o!==f.a).length,ud=f=>f.k==="mang"?" m":"";
   box.hidden=false;
   box.innerHTML=cuadroContraste(`Orden de trabajo «${esc(ot.nombre)}» ↔ material`,dif,`<table><thead><tr><th>Código</th><th>Producto</th><th>OT</th><th>Material</th><th>Dif.</th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.o!==f.a?"dif":""}"><td class="mono">${f.c}</td><td>${esc(f.k?C[f.k][1]:"(no está en el catálogo de la app)")}</td><td>${f.o}${ud(f)}</td><td>${f.a}${ud(f)}</td><td>${f.o===f.a?"✓":(f.o>f.a?"+":"")+(Math.round((f.o-f.a)*100)/100)}</td></tr>`).join("")}</tbody></table>
-  <div class="hint">OT leída el ${esc(new Date(ot.fecha).toLocaleString("es-ES"))}. «Dif.» = OT − material: + la OT lleva más, − lleva menos.${sinCod.length?` Sin código Llaza (no pueden salir en la OT): ${esc(sinCod.join(" · "))}.`:""}</div>
+  <div class="hint"><b>Manda el cálculo de la app:</b> la OT no cambia el material; las diferencias son solo para revisarlas. OT leída el ${esc(new Date(ot.fecha).toLocaleString("es-ES"))}. «Dif.» = OT − material: + la OT lleva más, − lleva menos.${sinCod.length?` Sin código Llaza (no pueden salir en la OT): ${esc(sinCod.join(" · "))}.`:""}</div>
   <div class="noprint"><button type="button" class="mini" id="otX">Quitar la orden de trabajo</button></div>`);
   const bx=$("otX");if(bx)bx.onclick=()=>{ot=null;render();};
 }
