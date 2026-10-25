@@ -1792,7 +1792,7 @@ function esquemaSomfy(r){
       /* salida 24 V: cable por la derecha que se abre en rojo y negro */
       vaina(210,174,226,174,8)+L(226,174,c2,yB1,"var(--w-p)",3)+L(226,174,c2,yB2,"var(--ink)",3)+
       Tx(236,148,"rojo +24 V",{a:"middle",fs:9.5,c:"var(--w-p)",w:700})+Tx(222,204,"negro 0 V",{a:"end",fs:9.5,w:700})+
-      conector(c2,[yB1,yB2],"conector 2 pines")+
+      conector(c2,[yB1,yB2],"conector 2 pines · Tekox WP2")+
       /* del conector al receptor: marrón y azul dentro de la vaina del mazo B */
       L(c2+36,yB1,330,yB1,"var(--w-l)",3)+L(c2+36,yB2,330,yB2,"var(--w-n)",3)+Tx(306,yB1-7,"marrón",{a:"middle",fs:9.5,c:"var(--w-l)",w:700})+Tx(306,yB2+15,"azul",{a:"middle",fs:9.5,c:"var(--w-n)",w:700})+
       L(330,yB1,344,174,"var(--w-l)",3)+L(330,yB2,344,174,"var(--w-n)",3)+vaina(344,174,rx0,174)+Tx(354,192,"mazo B",{a:"middle",fs:9,c:"var(--muted)",w:700})+
@@ -1803,7 +1803,7 @@ function esquemaSomfy(r){
       /* mazo A: vaina hasta el abanico de 5 cables y el conector de 5 pines */
       vaina(rx1,174,556,174)+Tx(539,192,"mazo A",{a:"middle",fs:9,c:"var(--muted)",w:700})+
       L(556,174,c5,yP,"var(--w-p)",3)+[1,2,3,4].map(c=>L(556,174,c5,yS(c),usa(c)?"var(--ink)":"var(--muted)",3)).join("")+
-      conector(c5,[yP,...[1,2,3,4].map(yS)],"conector 5 pines")+
+      conector(c5,[yP,...[1,2,3,4].map(yS)],"conector 5 pines · Tekox WP5")+
       L(c5+36,yP,bus,yP,"var(--w-p)",3)+Tx(c5+44,yP-7,"5 · V+ común",{fs:10,c:"var(--w-p)",w:700})+(ultimo?L(bus,yP,bus,yS(ultimo)-7,"var(--w-p)",3):"");
     /* cada tira como es: banda con sus LED (cálida o neutra) y sus dos cables (+ rojo, − negro) */
     [1,2,3,4].forEach(c=>{const y=yS(c),o=usa(c);
@@ -1855,8 +1855,8 @@ function conexiones(cfg,r){
   /* receptor io LED blanco de Somfy: qué cable va a cada tira (guía rápida SAT, v2 02/10/2026) */
   {const rxs=r.plan.flatMap(pm=>(pm.rx||[]).filter(x=>x.k==="somLed").map(x=>Object.assign({tag:pm.tag},x)));
     if(rxs.length)out.push({t:"Somfy Receptor io LED blanco (1822611)",code:C.somLed[0],li:[
-      "Mazo B (alimentación), con un conector de 2 pines desde su transformador de 24 V CC: rojo del transformador (+24 V) → marrón del receptor · negro (0 V) → azul.",
-      "Mazo A (salidas), con un conector de 5 pines hacia las tiras: cable 5 = V+ común (va al + de todas las tiras de ese receptor) · cables 1, 2, 3 y 4 = − de la luz 1, 2, 3 y 4.",
+      "Mazo B (alimentación), con un conector de 2 pines (Tekox WP2/M 48008003002 + WP2/H 48008004002) desde su transformador de 24 V CC: rojo del transformador (+24 V) → marrón del receptor · negro (0 V) → azul.",
+      "Mazo A (salidas), con un conector de 5 pines (Tekox WP5/M + WP5/H IP68, 15 A, 0,5–1,5 mm²; sin código Llaza) hacia las tiras: cable 5 = V+ común (va al + de todas las tiras de ese receptor) · cables 1, 2, 3 y 4 = − de la luz 1, 2, 3 y 4.",
       ...rxs.flatMap(x=>{const nm=`${x.tag} · receptor${x.tot>1?` ${x.n}/${x.tot}`:""} (trafo ${TR_W[x.tr]} W)`,usa=x.o.filter(y=>y.items.length),libres=[1,2,3,4].filter(c=>!usa.some(y=>y.s===c));
         return [...usa.map(y=>`${nm}: cable ${y.s} (−) + cable 5 (+) → ${y.items.map(i=>i.n).join(" + ")} · ${w0(y.W)}`),
           libres.length?`${nm}: ${libres.length>1?"cables":"cable"} ${libres.join(", ")} sin usar → aislar uno a uno.`:""].filter(Boolean);}),
