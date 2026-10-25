@@ -488,6 +488,9 @@ const C={
   tkMiM:["48008001000","Conector aéreo mini macho 2 polos","Tekox WP68"],
   tkWPM:["48008003002","Conector aéreo macho IP68","Tekox WP2/M"],
   tkWPH:["48008004002","Conector aéreo hembra IP68","Tekox WP2/H"],
+  /* conector de 5 pines del receptor io LED (dato SAT): sin código Llaza (SINREF-002 / 003 en el catálogo) */
+  wp5M:["—","Conector aéreo macho IP68 5 polos (sin código Llaza)","Tekox WP5/M · 15 A 450 V · 0,5–1,5 mm²"],
+  wp5H:["—","Conector aéreo hembra IP68 5 polos (sin código Llaza)","Tekox WP5/H · 15 A 450 V · 0,5–1,5 mm²"],
   alW5:["48009017000","Alargador LED BL 5 m","SPT074 (2 pines) · 2×0,75 mm²"],
   alW7:["48009018000","Alargador LED BL 7 m","SPT050001 (2 pines) · 2×0,75 mm²"],
   alRGB5:["48009019000","Alargador RGB 5 m","SPT068 (4 pines) · 4×0,75 mm²"],
@@ -505,7 +508,7 @@ const FAMILIAS=[
   ["Tiras y neón LED",["rW5","rW7","rN5","rN7","nP45","nP6","rgbP6","lamaW","rgbL"]],
   ["Alargadores",["alW15","alW5","alW7","alRGB5","alRGB7","ext05"]],
   ["Cables y divisores",["y3","y3RGB","sp4W","sp4RGB","sp4Mi","cabT","c1m","cabEje","conRGBW","mang"]],
-  ["Conectores y accesorios",["conLama","conEje","conMM","tapon","tkMiH","tkMiM","tkWPM","tkWPH"]],
+  ["Conectores y accesorios",["conLama","conEje","conMM","tapon","tkMiH","tkMiM","tkWPM","tkWPH","wp5M","wp5H"]],
   ["Fuentes de alimentación",["tr150","tr200","tr250"]],
   ["Tomas y focos",["schuko","usb","aries","fMiAL","fMiNG"]]
 ];
@@ -984,6 +987,8 @@ function calcular(cfg){
       dev.push({id,t:`${tag} · Transformador ${TR_W[tr]} W${n} · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",trafo:true,Wfix:g.W,alimenta:`Receptor${n} (24 V DC, cable hacia abajo)`,right:[]});
       dev.push(Object.assign(mkRx(o,n,k),{feed:"24",from:id}));
       add(tr,1,tag);add(rx,1,"",rx==="somLed");
+      /* receptor io LED (dato SAT): transformador → receptor con un conector de 2 pines y receptor → tiras con uno de 5 pines */
+      if(rx==="somLed"){const nt=`${tag} receptor io LED${n}`;add("tkWPM",1,nt+" · trafo → receptor");add("tkWPH",1,nt+" · trafo → receptor");add("wp5M",1,nt+" · receptor → tiras");add("wp5H",1,nt+" · receptor → tiras");}
     });
     return nTr;
   }
