@@ -20,7 +20,7 @@
   --accent:#c4561d; --accent-ink:#ffffff; --ok:#2f7d4f; --warn:#a86a00; --bad:#b3261e;
   --w-l:#8a5a2b; --w-n:#2b66c4; --w-pe:#3f9a3a; --w-p:#d0342c; --w-m:#1d2329; --w-s:#7a8590; --w-r:#7a8590;
   --t1:#d98a00; --t2:#2b8f8a; --t3:#8a4fc4; --t4:#c43d6b; --lama:#e0a83a; --wall:#9aa3a0;
-  --c-led:#f0b400; --c-al:#e03a12; --c-mot:#1f5fbf; --c-lam:#8a3fc4; --c-foc:#0f8a7a; --c-x:#c2185b;
+  --c-led:#f0b400; --c-al:#e03a12; --c-mot:#1f5fbf; --c-lam:#8a3fc4; --c-foc:#6f757d; --c-x:#c2185b;
   --f-disp:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;
   --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -30,13 +30,13 @@
   --accent:#e07a3f; --accent-ink:#14181b; --ok:#5cbf85; --warn:#e0a83a; --bad:#ef6b62;
   --w-l:#c08a55; --w-n:#5b95ec; --w-pe:#6cc35f; --w-p:#f0605a; --w-m:#e6e9ea; --w-s:#9aa4ab; --w-r:#9aa4ab;
   --t1:#f0a830; --t2:#45bdb6; --t3:#b083ec; --t4:#ec6a96; --lama:#e8b85a; --wall:#5d666b;
-  --c-led:#ffc933; --c-al:#ff6b3d; --c-mot:#6ea2f0; --c-lam:#b98af0; --c-foc:#3fc9b3; --c-x:#f06292; color-scheme:dark}}
+  --c-led:#ffc933; --c-al:#ff6b3d; --c-mot:#6ea2f0; --c-lam:#b98af0; --c-foc:#aab0b8; --c-x:#f06292; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#14181b; --paper:#1c2125; --ink:#e6e9ea; --muted:#9aa4ab; --line:#353d43; --soft:#252b30;
   --accent:#e07a3f; --accent-ink:#14181b; --ok:#5cbf85; --warn:#e0a83a; --bad:#ef6b62;
   --w-l:#c08a55; --w-n:#5b95ec; --w-pe:#6cc35f; --w-p:#f0605a; --w-m:#e6e9ea; --w-s:#9aa4ab; --w-r:#9aa4ab;
   --t1:#f0a830; --t2:#45bdb6; --t3:#b083ec; --t4:#ec6a96; --lama:#e8b85a; --wall:#5d666b;
-  --c-led:#ffc933; --c-al:#ff6b3d; --c-mot:#6ea2f0; --c-lam:#b98af0; --c-foc:#3fc9b3; --c-x:#f06292; color-scheme:dark}
+  --c-led:#ffc933; --c-al:#ff6b3d; --c-mot:#6ea2f0; --c-lam:#b98af0; --c-foc:#aab0b8; --c-x:#f06292; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);margin:0;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
@@ -64,6 +64,19 @@ input[type=number]{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 input:disabled+span,label.chk:has(input:disabled){opacity:.5}
 .hint{font-size:12px;color:var(--muted);margin:0}
+/* Menú lateral plegable: se toca el título de cada apartado; plegado se ve un resumen y, si hay algo que revisar, el aviso. */
+#f>fieldset>legend{cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none}
+#f>fieldset>legend::before{content:"▾";font-size:11px;transition:transform .15s}
+#f>fieldset.pleg>legend::before{transform:rotate(-90deg)}
+#f>fieldset.pleg>:not(legend){display:none!important}
+#f>fieldset.pleg>legend{margin-bottom:0}
+.secres{margin-left:auto;font:400 12px/1.2 var(--f-body);letter-spacing:0;text-transform:none;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62%}
+.secres.ko{color:var(--bad);font-weight:600}
+details.ayuda{font-size:12px;color:var(--muted)}details.ayuda summary{cursor:pointer}details.ayuda p{margin:4px 0 0}
+.mod.pleg>:not(.mhd){display:none!important}
+.mod .mtog{padding:4px 8px;min-width:30px}.mod.pleg .mtog{transform:rotate(-90deg)}
+.mres{font-size:12px;color:var(--muted);padding:0 2px}.mod:not(.pleg) .mres{display:none}
+.focbox{display:grid;gap:8px}.focbox[data-l="lam"] .focvig,.focbox:not([data-l="lam"]) .foclam{display:none}
 .mods{display:grid;gap:10px}
 .rutas{margin:6px 0 0;padding-left:18px;font-size:13px;display:grid;gap:3px}
 #bom select.prod{width:100%;max-width:420px;padding:5px 7px;font-size:14px}
@@ -89,6 +102,8 @@ button.mini.del{color:var(--bad)}
 .contraste{display:grid;gap:6px}.contraste table{border-collapse:collapse;font-size:12px;width:100%}
 .contraste th,.contraste td{border-bottom:1px solid var(--line);padding:3px 6px;text-align:left}
 .contraste tr.dif td{color:var(--bad);font-weight:600}
+details.contraste{display:block}details.contraste>summary{cursor:pointer}details.contraste[open]>summary{margin-bottom:6px}
+details.contraste.dif{border-left:3px solid var(--bad);padding-left:8px}
 .impres .ok{color:var(--ok);font-weight:600}
 .impres .ko{color:var(--bad);font-weight:600}
 .mod{border:1px solid var(--line);border-radius:4px;padding:10px;display:grid;gap:8px;background:var(--bg)}
@@ -208,18 +223,19 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
 <div id="drive" class="drivebox" hidden></div>
 <div class="wrap">
 <form id="f" autocomplete="off">
-  <fieldset>
-    <legend>Plano de fabricación</legend>
-    <label class="drop" id="drop"><input type="file" id="fPlano" accept="application/pdf,.pdf,image/*" multiple hidden><b>Arrastra aquí los planos de la obra</b><span>Mejor la ficha de fabricación (PLANO.pdf) y el plano firmado juntos: de la ficha salen vigas, pilares y centralita, y del nombre del firmado las medidas. También vale uno solo; el firmado escaneado o una foto los lee Claude (desde el enlace de Claude). Puedes añadir la confirmación de pedido: te digo en qué no coincide con el plano (manda el plano del cliente). Toca para elegirlos.</span></label>
+  <fieldset data-sec="plano">
+    <legend>Plano de fabricación<span class="secres"></span></legend>
+    <label class="drop" id="drop"><input type="file" id="fPlano" accept="application/pdf,.pdf,image/*" multiple hidden><b>Arrastra aquí los planos de la obra</b><span>Ficha de fabricación, plano firmado y confirmación de pedido. Toca para elegirlos.</span></label>
+    <details class="ayuda"><summary>Qué planos van mejor</summary><p>Mejor la ficha de fabricación (PLANO.pdf) y el plano firmado juntos: de la ficha salen vigas, pilares y centralita, y del nombre del firmado las medidas. También vale uno solo; el firmado escaneado o una foto los lee Claude (desde el enlace de Claude). Puedes añadir la confirmación de pedido: te digo en qué no coincide con el plano (manda el plano del cliente).</p></details>
     <div class="adjbox"><b>Hoja de material</b><button type="button" class="mini" id="bMat">Subir hoja (PDF / CSV) o foto</button><button type="button" class="mini" id="bMatCam">📷 Cámara</button>
       <input type="file" id="fMat" accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain,image/*" hidden><input type="file" id="fMatCam" accept="image/*" capture="environment" hidden>
-      <span class="hint">Lee los códigos (11 cifras) y las cantidades, rellena la obra y la compara con el cálculo. Las fotos las lee Claude (enlace de Claude).</span></div>
+      <details class="ayuda"><summary>Qué hace</summary><p>Lee los códigos (11 cifras) y las cantidades, rellena la obra y la compara con el cálculo. Las fotos las lee Claude (enlace de Claude).</p></details></div>
     <div id="matRes" class="impres" hidden></div>
     <div id="adjBox" class="adjbox" hidden><b>Planos adjuntos</b><span id="adjList"></span></div>
     <div id="impRes" class="impres" hidden></div>
   </fieldset>
-  <fieldset>
-    <legend>Obra</legend>
+  <fieldset data-sec="obra">
+    <legend>Obra<span class="secres"></span></legend>
     <label>Obra / cliente<input type="text" id="obra"></label>
     <div class="row">
       <label>OF<input type="text" id="of"></label>
@@ -227,8 +243,8 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
       <label>Tipología<select id="tipol"><option value="testa">Testa (viga grande en los lados de las lamas)</option><option value="inglete">Inglete (todas viga)</option></select></label>
     </div>
   </fieldset>
-  <fieldset>
-    <legend>1 · Sistema motor</legend>
+  <fieldset data-sec="motor">
+    <legend>1 · Sistema motor<span class="secres"></span></legend>
     <label>Centralita del motor<select id="sistema">
       <option value="">— Elige el sistema —</option>
       <option value="nexta">Cherubini Nexta · TKM100 ONE</option>
@@ -239,8 +255,8 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <label>Emisor<select id="emisor"></select></label>
     <p class="hint">Los sensores (opcionales, según el cliente) se marcan en cada módulo.</p>
   </fieldset>
-  <fieldset>
-    <legend>2 · Sistema luces</legend>
+  <fieldset data-sec="luces">
+    <legend>2 · Sistema luces<span class="secres"></span></legend>
     <label>Sistema de luces<select id="sisLuz">
       <option value="nexta">Cherubini Nexta · TKL250 ONE, tira blanca (4 salidas, hasta 4 canales del mando)</option>
       <option value="nexta_rgbw">Cherubini Nexta · TKL RGBW 250 W, tira RGB</option>
@@ -264,14 +280,14 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <div class="row"><label>Tira blanca<span class="unid" data-u="W/m"><input type="number" id="wm" min="1" max="30" step="0.1"></span></label><label>Tira RGB<span class="unid" data-u="W/m"><input type="number" id="wmRGB" min="1" max="30" step="0.1"></span></label></div>
     <p class="hint">Consumo de la ficha de cada tira. Con él se calculan los vatios y la carga de cada salida. Motor: 3,6 A a 24 V.</p>
   </fieldset>
-  <fieldset>
-    <legend>Módulos</legend>
+  <fieldset data-sec="mods">
+    <legend>Módulos<span class="secres"></span></legend>
     <p class="hint">Como en el plano de fabricación: cada módulo lleva su motor, su centralita y sus tiras. A = ancho (sentido de las lamas), P = salida.</p>
     <div id="mods" class="mods"></div>
     <button type="button" id="bAdd">+ Añadir módulo</button>
   </fieldset>
-  <fieldset>
-    <legend>Tomas en pilar</legend>
+  <fieldset data-sec="tomas">
+    <legend>Tomas en pilar<span class="secres"></span></legend>
     <div class="row">
       <label>Schuko 230 V IP54<input type="number" id="schuko" min="0" max="6" step="1"></label>
       <label>USB A+C<input type="number" id="usb" min="0" max="6" step="1"></label>
@@ -548,6 +564,27 @@ const MEDIA_L=0.1,lamPaso=m=>(m.P-2*MEDIA_L)/lamT(m);
 const abDe=m=>m.ab==="s"||m.ab==="i"?m.ab:motYde(m);
 const lamY=(m,k)=>abDe(m)==="i"?MEDIA_L+(k-0.5)*lamPaso(m):m.P-MEDIA_L-(k-0.5)*lamPaso(m);
 /* Focos: 3 W cada uno (dato SAT). */
+/* Conector entre dos cables (alargo ↔ Y, Y ↔ tira, alargo ↔ alargo): cuerpo negro con la junta en blanco, en el sentido del cable. */
+const conSvg=(x,y,a)=>`<g transform="translate(${x} ${y}) rotate(${a})"><rect x="-5.5" y="-3.2" width="11" height="6.4" rx="1.6" fill="#2e3135"/><line x1="0" y1="-3.2" x2="0" y2="3.2" stroke="#fff" stroke-width="1.2"/></g>`;
+const angulo=(a,b)=>Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI;
+/* Cable de 3 vías (Y): cuerpo moldeado del que salen la entrada y los dos brazos; un conector en la punta de cada uno. */
+const ySvg=(q,ps,cols)=>{const [ent,...sal]=ps,de=Math.hypot(q[0]-ent[0],q[1]-ent[1])||1,b=[(q[0]-ent[0])/de,(q[1]-ent[1])/de],
+    rot=(v,g)=>{const c=Math.cos(g),s=Math.sin(g);return [v[0]*c-v[1]*s,v[0]*s+v[1]*c];},
+    sg=sal.map(p=>Math.sign(b[0]*(p[1]-q[1])-b[1]*(p[0]-q[0]))||1);if(sal.length===2&&sg[0]===sg[1])sg[1]=-sg[0];
+    const ramas=[[-b[0],-b[1]],...sal.map((p,k)=>rot(b,sg[k]*0.61))];
+    /* el cable que llega a cada punta: el alargo a la entrada y la tira a cada brazo */
+    const cab=ramas.map(([ux,uy],k)=>`<line x1="${q[0]+ux*17}" y1="${q[1]+uy*17}" x2="${ps[k][0]}" y2="${ps[k][1]}" stroke="${cols[k?1:0]}" stroke-width="${k?3:2.2}"/>`).join("");
+    return cab+ramas.map(([ux,uy])=>`<line x1="${q[0]}" y1="${q[1]}" x2="${q[0]+ux*12}" y2="${q[1]+uy*12}" stroke="#2e3135" stroke-width="5.5" stroke-linecap="round"/>`+conSvg(q[0]+ux*17,q[1]+uy*17,Math.atan2(uy,ux)*180/Math.PI)).join("")
+    +`<circle cx="${q[0]}" cy="${q[1]}" r="5" fill="#2e3135"/><text x="${q[0]}" y="${q[1]+2.7}" text-anchor="middle" font-size="7.5" font-weight="700" style="fill:#fff">Y</text>`;};
+/* Punto de una polilínea a una distancia de su principio, con el sentido del tramo. */
+const enPoli=(pts,d)=>{for(let j=1;j<pts.length;j++){const a=pts[j-1],b=pts[j],l=Math.hypot(b[0]-a[0],b[1]-a[1]);if(d<=l||j===pts.length-1){const t=l?Math.min(1,d/l):0;return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,angulo(a,b)];}d-=l;}return [pts[0][0],pts[0][1],0];};
+/* Foco visto desde abajo, como es: aro del acabado (aluminio anodizado; negro en el mini NG), el difusor encendido
+   con el color de su luz (3000 K cálida, 4000 K neutra) y el halo que deja en la lama. */
+const FOCO_K={3000:["#ffd9a1","#ffb84d"],4000:["#fff3df","#ffe3a8"]};
+const focoSvg=(x,y,r,t,k)=>{const [luz,halo]=FOCO_K[k]||FOCO_K[3000],ng=t==="fMiNG";
+  return `<circle cx="${x}" cy="${y}" r="${r*1.8}" fill="${halo}" opacity=".3"/><circle cx="${x}" cy="${y}" r="${r}" fill="${ng?"#232527":"#c4c8cd"}" stroke="${ng?"#0f1011":"#8b9096"}" stroke-width="1"/><circle cx="${x}" cy="${y}" r="${r*0.68}" fill="${luz}" stroke="${ng?"#3a3d41":"#a7acb2"}" stroke-width=".6"/><circle cx="${x-r*0.18}" cy="${y-r*0.18}" r="${r*0.22}" fill="#fffaf0" opacity=".85"/>`;};
+/* Dónde van los focos: en lamas salvo que el módulo ya los tuviera en una viga (obras guardadas antes). */
+const focLDe=m=>m.focL||(m.focN?"sup":"lam"),modPleg=new Set();
 const FOCO_W=3,FOCOS={aries:"Foco Aries bi-emisión",fMiAL:"Foco LED mini AL",fMiNG:"Foco LED mini NG"};
 const SALOPT={auto:"Auto",1:"OUT1",2:"OUT2",3:"OUT3",4:"OUT4"};
 /* Cables de la tira perimetral, desde la centralita, que se pueden poner a mano en cada módulo. */
@@ -584,8 +621,9 @@ function modCard(m,i){
   const opt=(o,v)=>Object.entries(o).map(([k,t])=>`<option value="${k}"${k===v?" selected":""}>${esc(t)}</option>`).join("");
   const md=m.med||{},pp=($("periProd")&&$("periProd").value)||"rollo";
   const lado=(k,t)=>`<div class="lado"><label class="chk"><input type="checkbox" id="m${i}_${k}"${m.lados[k]?" checked":""}> <b id="m${i}_t_${k}" class="mono">${esc(vigaDe(m,k))}</b></label><select id="m${i}_md_${k}" aria-label="Medida de la tira, ${t}">${medOpts(m.luz,pp,md[k])}</select></div>`;
-  return `<div class="mod">
-  <div class="mhd"><input type="text" id="m${i}_nombre" value="${esc(m.nombre)}" aria-label="Nombre del módulo"><button type="button" class="del" data-del="${i}">Quitar</button></div>
+  return `<div class="mod${modPleg.has(i)?" pleg":""}">
+  <div class="mhd"><button type="button" class="mini mtog" data-mtog="${i}" aria-label="Plegar o desplegar el módulo">▾</button><input type="text" id="m${i}_nombre" value="${esc(m.nombre)}" aria-label="Nombre del módulo"><button type="button" class="del" data-del="${i}">Quitar</button></div>
+  <div class="mres" id="m${i}_res"></div>
   <div class="row"><label>Ancho A<span class="unid" data-u="m"><input type="number" id="m${i}_A" step="0.01" min="1" max="6" value="${m.A}"></span></label><label>Salida P<span class="unid" data-u="m"><input type="number" id="m${i}_P" step="0.01" min="1" max="8" value="${m.P}"></span></label></div>
   <div class="row"><label>Lamas en total (vacío = calculadas)<input type="number" id="m${i}_lamT" min="1" max="80" step="1" value="${m.lamT>0?m.lamT:""}" placeholder="${lamTDef(m)} (calculadas)"></label><label>Lamas con LED (neón de lama 3000 K)<input type="number" id="m${i}_lamasN" min="0" max="80" step="1" value="${lamLED(m).length}"></label></div>
   <label>Nº de las lamas con LED<input type="text" id="m${i}_lamL" value="${esc(lamLED(m).join(", "))}" placeholder="ej. 5, 12, 19, 26"></label>
@@ -621,9 +659,13 @@ function modCard(m,i){
     <div class="row"><label>Altavoces<input type="number" id="m${i}_altN" min="0" max="8" step="1" value="${m.altN||0}"></label><label>Cortinas verticales (motores)<input type="number" id="m${i}_cortN" min="0" max="8" step="1" value="${m.cortN||0}"></label></div>
   </details>
   <div class="lados"><label class="chk"><input type="checkbox" id="m${i}_viento"${m.viento?" checked":""}> Anemómetro</label><label class="chk"><input type="checkbox" id="m${i}_lluvia"${m.lluvia?" checked":""}> Sensor lluvia</label></div>
-  <div class="row"><label>Focos<input type="number" id="m${i}_focN" min="0" max="40" step="1" value="${m.focN||0}"></label><label>Tipo de foco<select id="m${i}_focT">${opt(FOCOS,m.focT||"aries")}</select></label></div>
-  <label>Focos en<select id="m${i}_focL">${opt({sup:"Viga sup.",der:"Viga der.",inf:"Viga inf.",izq:"Viga izq.",per:"Repartidos por el perímetro",lam:"En lamas (elige cuáles)"},m.focL||"sup")}</select></label>
-  <div class="row"><label>Lamas con focos (nº)<input type="text" id="m${i}_focLam" value="${esc((m.focLam||[]).join(", "))}" placeholder="ej. 3, 10"></label><label>Focos por lama<input type="number" id="m${i}_focPL" min="1" max="8" step="1" value="${m.focPL||2}"></label></div>
+  <div class="focbox" id="m${i}_focbox" data-l="${focLDe(m)}"><div class="tag">Focos</div>
+  <div class="row"><label>Focos en<select id="m${i}_focL">${opt({lam:"Lamas",sup:"Viga sup.",der:"Viga der.",inf:"Viga inf.",izq:"Viga izq.",per:"Repartidos por el perímetro"},focLDe(m))}</select></label><label>Tipo de foco<select id="m${i}_focT">${opt(FOCOS,m.focT||"aries")}</select></label></div>
+  <label>Luz de los focos<select id="m${i}_focK">${opt({3000:"3000 K · cálida",4000:"4000 K · neutra"},String(m.focK||3000))}</select></label>
+  <div class="row foclam"><label>Focos por lama<input type="number" id="m${i}_focPL" min="1" max="8" step="1" value="${m.focPL||2}"></label><label>Lamas con focos<input type="number" id="m${i}_focNL" min="0" max="80" step="1" value="${(m.focLam||[]).length}"></label></div>
+  <label class="foclam">Posición: nº de las lamas con focos<input type="text" id="m${i}_focLam" value="${esc((m.focLam||[]).join(", "))}" placeholder="ej. 3, 10 (se reparten solas)"></label>
+  <p class="hint foclam" id="m${i}_focTot">${focLDe(m)==="lam"&&(m.focLam||[]).length?`${(m.focLam||[]).length} lamas × ${m.focPL||2} = ${(m.focLam||[]).length*(m.focPL||2)} focos. También se marcan tocando cada lama en la planta.`:"Pon cuántos focos lleva cada lama y en cuántas lamas: se reparten solas y puedes cambiar la posición."}</p>
+  <label class="focvig">Nº de focos<input type="number" id="m${i}_focN" min="0" max="40" step="1" value="${m.focN||0}"></label></div>
   <div class="salidas"><div class="tag">Central de luces (Nexta) · la del motor es la TKM</div>
   <label>Centrales de luces (aparte de la del motor)<select id="m${i}_ledn">${opt({0:"Auto (las que hagan falta)",1:"1",2:"2",3:"3",4:"4"},String(m.ledN||0))}</select></label>
   <label>Central LED blanca<select id="m${i}_ledc">${opt({"":"Como la general",tkl:"TKL250 ONE · 4 salidas",stl250:"STILO STL250 · 2 salidas",stl100:"STILO STL100 · 2 salidas"},m.ledc||"")}</select></label>
@@ -654,7 +696,7 @@ function readMods(){
       vig:{sup:g("v_sup").value.trim(),inf:g("v_inf").value.trim(),izq:g("v_izq").value.trim(),der:g("v_der").value.trim()},luz:g("luz").value,
       lados:{sup:g("sup").checked,inf:g("inf").checked,izq:g("izq").checked,der:g("der").checked},
       extra:(()=>{const xs=[];for(let j=0;g(`x${j}_k`);j++)xs.push({k:g(`x${j}_k`).value,q:Math.max(1,Math.round(parseFloat(g(`x${j}_q`).value)||1)),loc:g(`x${j}_loc`).value,d:fnum(g(`x${j}_d`).value),W:Math.max(0,fnum(g(`x${j}_w`).value)||0),s:g(`x${j}_s`).value});return xs;})(),
-      focN:Math.max(0,Math.round(parseFloat(g("focN").value)||0)),focT:g("focT").value,focL:g("focL").value,
+      focN:Math.max(0,Math.round(parseFloat(g("focN").value)||0)),focT:g("focT").value,focK:+g("focK").value||3000,focL:g("focL").value,
       aisl:g("aisl").checked,can:Object.fromEntries(ENCAN.map(([k])=>[k,g("c_"+k).value])),calN:Math.max(0,parseInt(g("calN").value)||0),calW:Math.max(0,parseFloat(g("calW").value)||0),altN:Math.max(0,parseInt(g("altN").value)||0),cortN:Math.max(0,parseInt(g("cortN").value)||0),
       focLam:numLista(g("focLam").value),focPL:Math.max(1,Math.round(parseFloat(g("focPL").value)||2)),lamT:Math.max(0,Math.round(parseFloat(g("lamT").value)||0)),lamLed:numLista(g("lamL").value),
       ledc:g("ledc").value,ledN:parseInt(g("ledn").value,10)||0,ledPos:g("lpos").value,sal:{p1:g("s_p1").value,p2:g("s_p2").value,i1:g("s_i1").value,i2:g("s_i2").value,lam:g("s_lam").value,foc:g("s_foc").value},
@@ -1388,7 +1430,7 @@ function pintaModulo(pm,cfg,X,Y,o){
   if(pm.focos){const F=pm.focos,dF=36,pts=linea(F.ruta,dF);
     cab+=ed("focos",`<polyline points="${ptsAttr(pts)}" fill="none" stroke="${CC.foc}" stroke-width="2.5" stroke-dasharray="7 3" stroke-linejoin="round"/>`+(o.fuera?`<polyline points="${ptsAttr(pts)}" fill="none" stroke="transparent" stroke-width="16"/>`:""));
     F.pos.forEach(f=>{const [nx,ny]=f.sd?NRM[f.sd]:[0,0],fx=X(f.p[0])+nx*dF*sg,fy=Y(f.p[1])+ny*dF*sg;
-      txt+=`<circle data-ed="focos" class="ed" cx="${fx}" cy="${fy}" r="8" fill="var(--paper)" stroke="${CC.foc}" stroke-width="2.5"/><text x="${fx}" y="${fy+3.5}" text-anchor="middle" font-size="9" font-weight="700" style="fill:${CC.foc}">F</text>`;});
+      txt+=`<g data-ed="focos" class="ed">${focoSvg(fx,fy,7,m.focT,m.focK)}</g>`;});
     /* rótulo en el último tramo (donde están los focos), un poco por fuera para no pisar otros cables */
     if(o.fuera){const a=pts[pts.length-2],b=pts[pts.length-1],sdL=F.ruta.sides[F.ruta.sides.length-1],[nx,ny]=NRM[sdL],ver=Math.abs(b[0]-a[0])<1;
       txt+=rotulo((a[0]+b[0])/2+nx*16,(a[1]+b[1])/2+ny*16,`${m.focN} focos · ≈ ${m2(F.ruta.len)} m${F.al&&F.al.length?` · alargo ${F.al.map(([l])=>m2c(l)).join(" + ")} m ${secAl(false)}`:""}`,{col:CC.foc,borde:CC.foc,fs:10,rot:ver});}}
@@ -1400,14 +1442,13 @@ function pintaModulo(pm,cfg,X,Y,o){
       qx=ax+(bx2-ax)/L*34-nx*20;qy=ay+(by2-ay)/L*34-ny*20;}
     else [qx,qy]=yCirc(G.corner);
     /* la Y une las dos tiras en su esquina: un brazo a cada tira y la entrada desde el alargo */
-    let uni="";
+    let uni="",uniY=null;
     if(n===2&&!G.una){const [gx,gy]=SP(G.corner),dx=G.corner[1]==="i"?1:-1,dy=G.corner[0]==="i"?-1:1,f=finAl[G.corner]||[gx,gy];
-      [[gx+dx*40,gy+dy*7],[gx+dx*7,gy+dy*40]].forEach(([bx2,by2])=>{uni+=`<line x1="${qx}" y1="${qy}" x2="${bx2}" y2="${by2}" stroke="${CC.led}" stroke-width="3"/>`;});
-      uni+=`<line x1="${f[0]}" y1="${f[1]}" x2="${qx}" y2="${qy}" stroke="${CC.al}" stroke-width="3"/>`;}
+      uniY=[f,[gx+dx*40,gy+dy*7],[gx+dx*7,gy+dy*40]];}
     else if(G.corner===m.cent)uni+=`<line x1="${cx}" y1="${cy}" x2="${qx}" y2="${qy}" stroke="${CC.al}" stroke-width="3"/>`;
     else if(finAl[G.corner])uni+=`<line x1="${finAl[G.corner][0]}" y1="${finAl[G.corner][1]}" x2="${qx}" y2="${qy}" stroke="${CC.al}" stroke-width="3"/>`;
     cab+=uni;
-    txt+=ed("grupo:"+G.corner,`<circle cx="${qx}" cy="${qy}" r="10" fill="var(--paper)" stroke="${CC.al}" stroke-width="2.5"/><text x="${qx}" y="${qy+4}" text-anchor="middle" font-size="11" font-weight="700" style="fill:${CC.al}">${hayY?"Y":"→"}</text>`);
+    txt+=ed("grupo:"+G.corner,uniY?ySvg([qx,qy],uniY,[CC.al,CC.led]):`<circle cx="${qx}" cy="${qy}" r="10" fill="var(--paper)" stroke="${CC.al}" stroke-width="2.5"/><text x="${qx}" y="${qy+4}" text-anchor="middle" font-size="11" font-weight="700" style="fill:${CC.al}">${hayY?"Y":"→"}</text>`);
     if(G.corner===m.cent&&!rot15&&o.fuera){rot15=true;const [zx,zy]=yCirc(m.cent),gs=gruposTira(m,cfg.periProd).filter(H=>H.corner===m.cent&&tiras.some(t=>t.g===H.g)),ga=(pm.grAl||{})[m.cent],al=ga?ga.al.map(([l])=>m2c(l)).join(" + "):"1,5";
       txt+=ed("grupo:"+m.cent,`<text x="${zx-ix*6}" y="${zy+iy*34+4}" text-anchor="${ix>0?"start":"end"}" font-size="10" font-weight="700" style="fill:${CC.al}">${gs.length>1?gs.length+" × ":""}alargo ${al} m ${secAl(pm.rgb)}${ga&&ga.alDe==="aprendido"?" (aprendido)":""}</text>`);}});
   /* lamas con LED: por el mecanizado de la viga lateral de la centralita */
@@ -1505,6 +1546,9 @@ function dibujaModulo(pm,cfg){
     /* focos: un ramal del carril a cada foco */
     if(c.k==="foc"&&pm.focos.lam)pm.focos.lamas.forEach(l=>{const yy=Y(l.y),xf=X(l.xs[l.xs.length-1]);extra+=`<line x1="${X(latX)+NRM[lat][0]*c.off}" y1="${yy}" x2="${xf}" y2="${yy}" stroke="${c.col}" stroke-width="1.6" stroke-dasharray="5 3"/>`;});
     else if(c.k==="foc")pm.focos.pos.forEach(f=>{const [nx,ny]=NRM[f.sd],fx=X(f.p[0]),fy=Y(f.p[1]);extra+=`<line x1="${fx+nx*c.off}" y1="${fy+ny*c.off}" x2="${fx-nx*(hw(f.sd)+9)}" y2="${fy-ny*(hw(f.sd)+9)}" stroke="${c.col}" stroke-width="1.6"/>`;});
+    /* alargo de varios tramos (p. ej. 1,5 + 3 m): un conector en cada empalme, repartidos según la medida de cada tramo */
+    if(c.k==="al"&&c.R.al&&c.R.al.length>1&&!pm.periMan){const tot=c.R.al.reduce((a,[l])=>a+l,0),Lp=c.pts.slice(1).reduce((a,q,j)=>a+Math.hypot(q[0]-c.pts[j][0],q[1]-c.pts[j][1]),0);let ac=0;
+      c.R.al.slice(0,-1).forEach(([l])=>{ac+=l;const [x,y,a]=enPoli(c.pts,Lp*ac/tot);extra+=conSvg(x,y,a);});}
     /* conductores: trazos oblicuos (UNE-EN 60617) a mitad del tramo más largo */
     const nc=c.k==="al"&&pm.rgb?4:2;let lb=0,sa=null,sb=null;c.pts.slice(1).forEach((q,j)=>{const l=Math.hypot(q[0]-c.pts[j][0],q[1]-c.pts[j][1]);if(l>lb){lb=l;sa=c.pts[j];sb=q;}});
     if(sa&&lb>30){const ux=(sb[0]-sa[0])/lb,uy=(sb[1]-sa[1])/lb,mx0=(sa[0]+sb[0])/2+ux*(i-n/2)*18,my0=(sa[1]+sb[1])/2+uy*(i-n/2)*18;
@@ -1535,19 +1579,17 @@ function dibujaModulo(pm,cfg){
     const [gx,gy]=SP(G.corner),[dx,dy]=ins(G.corner),desde=G.corner===k0?[cx,cy]:finAl[key];if(!desde)return;
     const col=pm.periMan?"var(--muted)":CC.al;
     if(conY.has(key)){const q=[gx+dx*(hX+16),gy+dy*(hY+16+(nv==="i"&&amb?28:0))];
-      ts.forEach(t=>{const s0=inicio[t.n+t.niv+t.sides[0]];if(s0)tir+=`<line x1="${q[0]}" y1="${q[1]}" x2="${s0[0]}" y2="${s0[1]}" stroke="${CC.led}" stroke-width="3"/>`;});
-      cab+=`<line x1="${desde[0]}" y1="${desde[1]}" x2="${q[0]}" y2="${q[1]}" stroke="${col}" stroke-width="2.2"/>`;
-      sim+=ed("grupo:"+key,`<circle cx="${q[0]}" cy="${q[1]}" r="8" fill="var(--paper)" stroke="${CC.al}" stroke-width="2"${nv==="i"&&amb?' stroke-dasharray="3 2"':""}/><text x="${q[0]}" y="${q[1]+3.5}" text-anchor="middle" font-size="10" font-weight="700" style="fill:${CC.al}">Y</text>`);
+      sim+=ed("grupo:"+key,ySvg(q,[desde,...ts.map(t=>inicio[t.n+t.niv+t.sides[0]]).filter(Boolean)],[col,CC.led]));
 }
     else ts.forEach(t=>{const s0=inicio[t.n+t.niv+t.sides[0]];if(!s0)return;
-      cab+=ed("grupo:"+key,`<line x1="${desde[0]}" y1="${desde[1]}" x2="${s0[0]}" y2="${s0[1]}" stroke="${col}" stroke-width="2.2"/><circle cx="${s0[0]}" cy="${s0[1]}" r="3.5" fill="${CC.al}"/>`);});}));
+      cab+=ed("grupo:"+key,`<line x1="${desde[0]}" y1="${desde[1]}" x2="${s0[0]}" y2="${s0[1]}" stroke="${col}" stroke-width="2.2"/>${conSvg(s0[0],s0[1],angulo(desde,s0))}`);});}));
   /* ---- símbolos ---- */
   /* desagües en los dos extremos de la viga del motor, por dentro */
   const mside=m.motor==="izq"?0:A,mi=m.motor==="izq"?1:-1;
   [0,P].forEach(yy=>{const x=X(mside),y=Y(yy);viga+=`<circle cx="${x}" cy="${y}" r="6" fill="var(--paper)" stroke="var(--wall)" stroke-width="1.4"/><path d="M${x-4} ${y-4}L${x+4} ${y+4}M${x+4} ${y-4}L${x-4} ${y+4}" stroke="var(--wall)" stroke-width="1.2"/>`;});
   /* focos */
   if(pm.focos)pm.focos.pos.forEach(f=>{const [nx,ny]=f.sd?NRM[f.sd]:[0,0],fx=X(f.p[0])-nx*(f.sd?hw(f.sd)+9:0),fy=Y(f.p[1])-ny*(f.sd?hw(f.sd)+9:0);
-    sim+=ed("focos",`<circle cx="${fx}" cy="${fy}" r="6.5" fill="var(--paper)" stroke="${CC.foc}" stroke-width="2"/><path d="M${fx-4.5} ${fy-4.5}L${fx+4.5} ${fy+4.5}M${fx+4.5} ${fy-4.5}L${fx-4.5} ${fy+4.5}" stroke="${CC.foc}" stroke-width="1.3"/>`);});
+    sim+=ed("focos",focoSvg(fx,fy,6,m.focT,m.focK));});
   /* productos puestos a mano */
   (m.extra||[]).forEach((x,j)=>{if(!C[x.k])return;const l=x.loc||"cent";let px,py;
     if(l==="cent"){px=cx+ix*(hX+34);py=cy+iy*(hY+34);}
@@ -1988,6 +2030,8 @@ function aplicaPlanoClaude(d,nombreArchivo,quien){
 /* Varios archivos a la vez (lo que trae cada obra): la ficha de fabricación da la geometría, las vigas y la centralita,
    y el nombre del plano firmado («…_4000x5500_…» = largo de lama × la otra medida) da la escala exacta. */
 const DIMS_NOMBRE=/(\d{3,5})x(\d{3,5})/;
+/* Cuadro de contraste plegado: si algo no coincide se ve el aviso y se despliega para comprobarlo. */
+const cuadroContraste=(tit,mal,cuerpo)=>`<details class="contraste${mal?" dif":""}"><summary><b>${tit}</b> ${mal?`<span class="ko">⚠ ${mal} diferencia(s)</span>`:`<span class="ok">✓ todo coincide</span>`}</summary>${cuerpo}</details>`;
 /* Contraste de la ficha de fabricación con el plano del cliente (firmado): lo que no coincide se marca. */
 let difsCliente=[];
 function contraste(fi,pc,nombre){
@@ -2009,9 +2053,8 @@ function contraste(fi,pc,nombre){
   const mal=filas.filter(f=>f.ok===false).length;
   /* las diferencias quedan como avisos de la obra (manda el plano del cliente) */
   difsCliente=filas.filter(f=>f.ok===false).map(f=>({que:f.que,ficha:f.a,cliente:f.b}));
-  return `<div class="contraste"><b>Contraste ficha ↔ plano del cliente</b> ${mal?`<span class="ko">${mal} diferencia(s)</span>`:`<span class="ok">todo coincide</span>`}
-  <table><thead><tr><th></th><th>Ficha</th><th>Plano cliente</th><th></th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.ok===false?"dif":""}"><td>${esc(f.que)}</td><td>${esc(f.a)}</td><td>${esc(f.b)}</td><td>${f.ok==null?"–":f.ok?"✓":"⚠"}</td></tr>`).join("")}</tbody></table>
-  ${mot.length?`<div class="hint">Plano cliente: motor a la ${mot[0]==="izq"?"izquierda":"derecha"} (en su vista). Márcalo en el módulo.</div>`:""}</div>`;
+  return cuadroContraste("Contraste ficha ↔ plano del cliente",mal,`<table><thead><tr><th></th><th>Ficha</th><th>Plano cliente</th><th></th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.ok===false?"dif":""}"><td>${esc(f.que)}</td><td>${esc(f.a)}</td><td>${esc(f.b)}</td><td>${f.ok==null?"–":f.ok?"✓":"⚠"}</td></tr>`).join("")}</tbody></table>
+  ${mot.length?`<div class="hint">Plano cliente: motor a la ${mot[0]==="izq"?"izquierda":"derecha"} (en su vista). Márcalo en el módulo.</div>`:""}`);
 }
 /* ---------- Confirmación de pedido de Llaza («CONFIRMACION PEDIDO» / «ORDER CONFIRMATION») ----------
    Cada posición «BIOCLIMATICA ELYA» trae modelo, medidas totales, alturas, aislante, LED y electrónica.
@@ -2095,10 +2138,9 @@ function contrastePedido(p){
   difsCliente=difsCliente.filter(d=>!(d.txt&&d.txt.startsWith(`Pedido ${p.num}`))).concat(mal.map(f=>({txt:`Pedido ${p.num} distinto del plano · ${f.que}: pedido «${f.a}», plano «${f.b}». Manda el plano del cliente; confírmalo con la oficina.`})));
   render();
   const info=p.elya.map((e,k)=>`${p.elya.length>1?`ELYA ${k+1}: `:""}${esc(e.modelo)}${e.mont?` (${MONT_TXT[e.mont]})`:""}${e.ral?` · RAL ${esc(e.ral)}`:""}${e.ralL?` · lamas ${esc(e.ralL)}`:""}`).join("<br>");
-  return `<div class="contraste"><b>Contraste pedido ${esc(p.num||"")}${p.ref?` (${esc(p.ref)})`:""} ↔ plano</b> ${mal.length?`<span class="ko">${mal.length} diferencia(s)</span>`:`<span class="ok">todo coincide</span>`}
-  <table><thead><tr><th></th><th>Pedido</th><th>Esquema (plano)</th><th></th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.ok===false?"dif":""}"><td>${esc(f.que)}</td><td>${esc(f.a)}</td><td>${esc(f.b)}</td><td>${f.ok==null?"–":f.ok?"✓":"⚠"}</td></tr>`).join("")}</tbody></table>
+  return cuadroContraste(`Contraste pedido ${esc(p.num||"")}${p.ref?` (${esc(p.ref)})`:""} ↔ plano`,mal.length,`<table><thead><tr><th></th><th>Pedido</th><th>Esquema (plano)</th><th></th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.ok===false?"dif":""}"><td>${esc(f.que)}</td><td>${esc(f.a)}</td><td>${esc(f.b)}</td><td>${f.ok==null?"–":f.ok?"✓":"⚠"}</td></tr>`).join("")}</tbody></table>
   <div class="hint">${info}${p.fin?`<br>Fin de producción: ${esc(p.fin)}`:""}${p.otros.length?`<br>Otras líneas del pedido: ${esc(p.otros.join(" · "))}`:""}</div>
-  ${mal.length?`<div class="hint">Manda el plano del cliente: las diferencias quedan en los avisos.</div>`:""}</div>`;
+  ${mal.length?`<div class="hint">Manda el plano del cliente: las diferencias quedan en los avisos.</div>`:""}`);
 }
 /* Pedido sin plano: se arma la obra con lo que trae (las medidas se reparten en módulos de hasta 4,50 m de lama). */
 function obraDelPedido(p){
@@ -2388,7 +2430,33 @@ function etiquetasMod(m,i,pp){
   [1,-1].forEach((d,j)=>{const r=rutaEsquinas(m,m.cent,c(2),[],d);sr.options[j+1].text=`Por ${vigasDe(m,r.sides)}`;});
   sr.disabled=!gruposTira(m,pp).some(G=>G.g==="lejos");
 }
+/* Menú lateral: apartados plegados (se recuerdan en el navegador) y módulos plegados (mientras dure la página). */
+const PLEGK="elya-plegado";
+let secPleg=(()=>{try{const a=JSON.parse(localStorage.getItem(PLEGK)||"null");return Array.isArray(a)?a:null;}catch(e){return null;}})()||["motor","luces","tomas"];
+function pintaSecs(){
+  const v=id=>$(id)?$(id).value:"",tx=id=>{const s=$(id);return s&&s.selectedIndex>=0&&s.value?s.options[s.selectedIndex].text.split(" · ")[0]:"";};
+  const nDif=[...document.querySelectorAll("#impRes details.contraste.dif,#matRes details.contraste.dif")].length,nAdj=(()=>{try{return adjuntos.length;}catch(e){return 0;}})();
+  const ms=readMods(),res={
+    plano:nDif?[`⚠ ${nDif} contraste(s) con diferencias`,1]:[nAdj?`${nAdj} plano(s)`:""],
+    obra:[[v("obra"),v("of"),parseFloat(v("alto"))>0?"H "+m2(+v("alto"))+" m":""].filter(Boolean).join(" · ")],
+    motor:[[tx("sistema"),tx("emisor")].filter(Boolean).join(" · ")||"sin elegir",!v("sistema")],
+    luces:[tx("sisLuz")],
+    mods:[ms.length?`${ms.length} módulo(s)`:"sin módulos"],
+    tomas:[[+v("schuko")?v("schuko")+" Schuko":"",+v("usb")?v("usb")+" USB":""].filter(Boolean).join(" · ")||"ninguna"]};
+  document.querySelectorAll("#f>fieldset[data-sec]").forEach(fs=>{const k=fs.dataset.sec,[t,ko]=res[k]||[""],sp=fs.querySelector(".secres");
+    fs.classList.toggle("pleg",secPleg.includes(k));if(sp){sp.textContent=fs.classList.contains("pleg")||ko?t:"";sp.classList.toggle("ko",!!ko);}});
+  ms.forEach((m,i)=>{const r=$(`m${i}_res`);if(r)r.textContent=[`${m2(m.A)} × ${m2(m.P)} m`,"motor "+(m.motor==="izq"?"izq.":"der."),m.ref?"centralita "+m.ref:"",m.luz!=="none"?LUZ[m.luz]:"",m.focN?m.focN+" focos":""].filter(Boolean).join(" · ");});
+}
+$("f").addEventListener("click",e=>{
+  const lg=e.target.closest("#f>fieldset>legend");
+  if(lg){const k=lg.parentNode.dataset.sec;secPleg=secPleg.includes(k)?secPleg.filter(x=>x!==k):secPleg.concat(k);try{localStorage.setItem(PLEGK,JSON.stringify(secPleg));}catch(x){}pintaSecs();return;}
+  const mt=e.target.closest("[data-mtog]");
+  if(mt){const i=+mt.dataset.mtog;modPleg.has(i)?modPleg.delete(i):modPleg.add(i);mt.closest(".mod").classList.toggle("pleg",modPleg.has(i));pintaSecs();}
+});
+/* los cuadros de contraste llegan después de render(): el resumen del apartado se repinta al cambiar */
+["impRes","matRes"].forEach(id=>new MutationObserver(()=>pintaSecs()).observe($(id),{childList:true,subtree:true}));
 function render(){
+  pintaSecs();
   const sis=$("sistema").value;if(EMISORES[sis]&&!EMISORES[sis].includes($("emisor").value))fillEmisores(sis,$("emisor").value);
   syncForm();
   const cfg=readForm();
@@ -2500,10 +2568,16 @@ $("uniDesde").value=verCuadro?"cuadro":"cent";$("uniDisp").value=uniVert?"v":"h"
 $("uniDisp").addEventListener("change",e=>{uniVert=e.target.value==="v";try{localStorage.setItem("elya-univ",uniVert?"v":"h");}catch(x){}render();});
 $("uniDesde").addEventListener("change",e=>{verCuadro=e.target.value==="cuadro";impPref.cuadro=verCuadro;try{localStorage.setItem("elya-uni",verCuadro?"cuadro":"cent");}catch(x){}render();});
 /* nº de lamas con LED ↔ lista de lamas: cambiar el número las reparte; escribir la lista pone el número */
-$("f").addEventListener("input",e=>{const mm=e.target.id&&e.target.id.match(/^m(\d+)_(lamasN|lamL|focLam|focPL|lamT)$/);if(!mm)return;const i=mm[1],g=k=>$(`m${i}_${k}`);
+$("f").addEventListener("input",e=>{const mm=e.target.id&&e.target.id.match(/^m(\d+)_(lamasN|lamL|focLam|focPL|focNL|focL|lamT)$/);if(!mm)return;const i=mm[1],g=k=>$(`m${i}_${k}`);
+  /* focos en lamas: nº de focos por lama × lamas con focos; las lamas se reparten solas y se pueden cambiar */
+  if(mm[2]==="focNL")g("focLam").value=reparteLamas(Math.max(0,parseInt(g("focNL").value)||0),parseInt(g("lamT").value)||parseInt(g("lamT").placeholder)||1).join(", ");
+  if(mm[2]==="focLam")g("focNL").value=numLista(g("focLam").value).length;
+  if(mm[2]==="focL")g("focbox").dataset.l=g("focL").value;
+  if(/^foc/.test(mm[2])&&g("focL").value==="lam"){const nl=numLista(g("focLam").value).length,pl=parseInt(g("focPL").value)||2;g("focN").value=nl*pl;
+    g("focTot").textContent=nl?`${nl} lamas × ${pl} = ${nl*pl} focos. También se marcan tocando cada lama en la planta.`:"Pon cuántos focos lleva cada lama y en cuántas lamas: se reparten solas y puedes cambiar la posición.";}
   if(mm[2]==="lamasN")g("lamL").value=reparteLamas(Math.max(0,parseInt(g("lamasN").value)||0),parseInt(g("lamT").value)||parseInt(g("lamT").placeholder)||1).join(", ");
   if(mm[2]==="lamL")g("lamasN").value=numLista(g("lamL").value).length;
-  if((mm[2]==="focLam"||mm[2]==="focPL")&&numLista(g("focLam").value).length){g("focL").value="lam";g("focN").value=numLista(g("focLam").value).length*(parseInt(g("focPL").value)||2);}},true);
+  if(mm[2]==="focLam"&&numLista(g("focLam").value).length&&g("focL").value!=="lam"){g("focL").value="lam";g("focbox").dataset.l="lam";g("focN").value=numLista(g("focLam").value).length*(parseInt(g("focPL").value)||2);}},true);
 /* Ampliar un dibujo de la planta: se copia a una capa a pantalla completa, con + / − y «Ajustar» (cabe entero). */
 let zW=0,zK=1;
 function zoomA(k){zK=Math.min(8,Math.max(0.5,k));const sv=$("zBox").querySelector("svg,.pags");if(sv)sv.style.width=Math.round(zW*zK)+"px";}
@@ -2623,10 +2697,9 @@ function aplicaMaterial(q){
   const dif=filas.filter(f=>f.h!==f.a).length;
   $("matRes").hidden=false;
   $("matRes").innerHTML=`<div><span class="ok">Hoja de material leída:</span> ${Object.keys(q).length} códigos. ${hechos.length?"He puesto: "+esc(hechos.join(" · "))+".":""} Las medidas de la pérgola no salen de la hoja: ponlas o carga el plano.</div>
-  <div class="contraste"><b>Hoja ↔ cálculo de la app</b> ${dif?`<span class="ko">${dif} diferencia(s)</span>`:`<span class="ok">todo coincide</span>`}
-  <table><thead><tr><th>Código</th><th>Producto</th><th>Hoja</th><th>App</th><th></th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.h!==f.a?"dif":""}"><td class="mono">${C[f.kk][0]}</td><td>${esc(C[f.kk][1])}</td><td>${f.h}</td><td>${f.a}</td><td>${f.h===f.a?"✓":"⚠"}</td></tr>`).join("")}</tbody></table>
+  ${cuadroContraste("Hoja ↔ cálculo de la app",dif,`<table><thead><tr><th>Código</th><th>Producto</th><th>Hoja</th><th>App</th><th></th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.h!==f.a?"dif":""}"><td class="mono">${C[f.kk][0]}</td><td>${esc(C[f.kk][1])}</td><td>${f.h}</td><td>${f.a}</td><td>${f.h===f.a?"✓":"⚠"}</td></tr>`).join("")}</tbody></table>
   ${desconocidos.length?`<div class="hint">Códigos que la app no conoce: ${desconocidos.map(([c,nn])=>`${c} ×${nn}`).join(", ")}.</div>`:""}
-  ${filas.some(f=>f.h>f.a)?`<button type="button" class="mini" id="matAdd">Añadir al material lo que lleva la hoja de más</button>`:""}</div>`;
+  ${filas.some(f=>f.h>f.a)?`<button type="button" class="mini" id="matAdd">Añadir al material lo que lleva la hoja de más</button>`:""}`)}`;
   const b=$("matAdd");if(b)b.onclick=()=>{cambiaMaterial(()=>filas.filter(f=>f.h>f.a).forEach(f=>mat.extra.push({k:f.kk,q:f.h-f.a})));toast("Añadido al material");b.remove();};
 }
 $("bMat").addEventListener("click",()=>$("fMat").click());$("bMatCam").addEventListener("click",()=>$("fMatCam").click());
@@ -2693,7 +2766,7 @@ function edPinta(todo){
     body=edCopia(P+"lamasN","Lamas con LED")+edCopia(P+"lamL","Nº de las lamas con LED")+LAMCAB.map(kk=>edCopia(P+"lc_"+kk,C[kk][1])).join("")+(nexta?edCopia(P+"s_lam","Salida"):"");}
   else if(tipo==="focos"){tit="Focos";loc=SIDES.includes(m.focL)?"v:"+m.focL:"cent";
     info=pm.focos?`<span>${m.focN} focos · cadena ≈ ${m2(pm.focos.ruta.len)} m${pm.focos.al&&pm.focos.al.length?" · alargo "+pm.focos.al.map(([l])=>m2c(l)).join(" + ")+" m":""}</span>`:"";
-    body=edCopia(P+"focN","Focos")+edCopia(P+"focT","Tipo")+edCopia(P+"focL","Focos en")+edCopia(P+"focLam","Lamas con focos (nº)")+edCopia(P+"focPL","Focos por lama")+(nexta?edCopia(P+"s_foc","Salida"):"");}
+    body=edCopia(P+"focN","Focos")+edCopia(P+"focT","Tipo")+edCopia(P+"focK","Luz")+edCopia(P+"focL","Focos en")+edCopia(P+"focPL","Focos por lama")+edCopia(P+"focNL","Lamas con focos")+edCopia(P+"focLam","Posición: nº de las lamas con focos")+(nexta?edCopia(P+"s_foc","Salida"):"");}
   else if(tipo==="extra"){const j=+arg,x=m.extra[j];tit=`Producto a mano ${j+1}`;loc=x&&x.loc||"cent";
     info=x&&C[x.k]?`<span>${esc(C[x.k][1])} · ${C[x.k][0]}</span>`:"";
     body=edCopia(`${P}x${j}_k`,"Producto")+edCopia(`${P}x${j}_q`,"Cantidad")+edCopia(`${P}x${j}_loc`,"Dónde")+edCopia(`${P}x${j}_d`,"A (m) desde el principio de la viga")+`<button type="button" class="mini" data-edxdel="${j}">Quitar este producto</button>`;}
@@ -2708,7 +2781,7 @@ function edAplica(ev){
   if((t.dataset.lamled||t.dataset.lamfoc)&&ev.type==="change"){const n=+(t.dataset.lamled||t.dataset.lamfoc),id=t.dataset.lamled?`m${i}_lamL`:`m${i}_focLam`,el=$(id);
     const L=new Set(numLista(el.value));if(t.checked)L.add(n);else L.delete(n);el.value=[...L].sort((a,b)=>a-b).join(", ");
     el.dispatchEvent(new Event("input",{bubbles:true}));
-    if(t.dataset.lamfoc&&L.size)$(`m${i}_focL`).value="lam";
+    if(t.dataset.lamfoc){if(L.size)$(`m${i}_focL`).value="lam";$(`m${i}_focLam`).dispatchEvent(new Event("input",{bubbles:true}));}
     $(`m${i}_focL`).dispatchEvent(new Event("change",{bubbles:true}));edPinta(false);return;}
   const [tipo,arg]=k.split(":");
   if(t.dataset.src){const o=$(t.dataset.src);if(o.type==="checkbox")o.checked=t.checked;else o.value=t.value;
