@@ -2917,12 +2917,14 @@ function pintaOT(r){
   fin.forEach(x=>{const c=C[x.k][0];if(/^\d{11}$/.test(c))app[c]=(app[c]||0)+x.q;});
   const sinCod=[...new Set(fin.filter(x=>!/^\d{11}$/.test(C[x.k][0])).map(x=>C[x.k][1]))];
   /* solo lo que está en el catálogo eléctrico de la app: perfiles, piezas, juntas, tornillería… de la OT no se contrastan */
-  const elec=c=>!!CODE2K[c],noElec=Object.keys(ot.q).filter(c=>!elec(c));
-  const filas=[...new Set([...Object.keys(ot.q).filter(elec),...Object.keys(app)])].map(c=>({c,k:CODE2K[c],o:ot.q[c]||0,a:app[c]||0}))
+  /* el motor lineal viene dentro del «CTO. MOTOR ELYA» (28100002000) o suelto: cuentan los dos; si no hay ninguno, falta */
+  const CTOMOT="28100002000",elec=c=>!!CODE2K[c],noElec=Object.keys(ot.q).filter(c=>!elec(c)&&c!==CTOMOT);
+  const oq=c=>(ot.q[c]||0)+(c===C.motor[0]?ot.q[CTOMOT]||0:0);
+  const filas=[...new Set([...Object.keys(ot.q).filter(elec),...Object.keys(app)])].map(c=>({c,k:CODE2K[c],o:oq(c),a:app[c]||0}))
     .sort((x,y)=>(x.o===x.a)-(y.o===y.a)||x.c.localeCompare(y.c));
   const dif=filas.filter(f=>f.o!==f.a).length,ud=f=>f.k==="mang"?" m":"",nf=x=>String(x).replace(".",",");
   box.hidden=false;
-  box.innerHTML=cuadroContraste(`Orden de trabajo «${esc(ot.nombre)}» ↔ material`,dif,`<table><thead><tr><th>Código</th><th>Producto</th><th>OT</th><th>Material</th><th>Dif.</th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.o!==f.a?"dif":""}"><td class="mono">${f.c}</td><td>${esc(f.k?C[f.k][1]:"(no está en el catálogo de la app)")}</td><td>${nf(f.o)}${ud(f)}</td><td>${nf(f.a)}${ud(f)}</td><td>${f.o===f.a?"✓":(f.o>f.a?"+":"")+nf(Math.round((f.o-f.a)*100)/100)}</td></tr>`).join("")}</tbody></table>
+  box.innerHTML=cuadroContraste(`Orden de trabajo «${esc(ot.nombre)}» ↔ material`,dif,`<table><thead><tr><th>Código</th><th>Producto</th><th>OT</th><th>Material</th><th>Dif.</th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.o!==f.a?"dif":""}"><td class="mono">${f.c}</td><td>${esc(f.k?C[f.k][1]:"(no está en el catálogo de la app)")}${f.k==="motor"?(ot.q[CTOMOT]?` <span class="hint">(dentro del CTO. MOTOR ELYA ${CTOMOT})</span>`:f.o<f.a?` <span class="hint">· falta: la OT no lleva CTO. MOTOR ELYA (${CTOMOT}) ni el motor suelto</span>`:""):""}</td><td>${nf(f.o)}${ud(f)}</td><td>${nf(f.a)}${ud(f)}</td><td>${f.o===f.a?"✓":(f.o>f.a?"+":"")+nf(Math.round((f.o-f.a)*100)/100)}</td></tr>`).join("")}</tbody></table>
   <div class="hint"><b>Manda el cálculo de la app:</b> la OT no cambia el material; las diferencias son solo para revisarlas. OT leída el ${esc(new Date(ot.fecha).toLocaleString("es-ES"))}. «Dif.» = OT − material: + la OT lleva más, − lleva menos.${sinCod.length?` Sin código Llaza (no pueden salir en la OT): ${esc(sinCod.join(" · "))}.`:""}</div>
   ${noElec.length?`<details class="hint noprint"><summary>${noElec.length} líneas de la OT fuera del catálogo eléctrico, sin contrastar (perfiles, piezas, juntas, tornillería…)</summary>${noElec.map(c=>`${c} ×${ot.q[c]}`).join(", ")}</details>`:""}
   <div class="noprint"><button type="button" class="mini" id="otX">Quitar la orden de trabajo</button></div>`);
