@@ -1925,8 +1925,15 @@ let pdfReady=null;
 /* El «worker» de pdf.js se carga en la página (pdfjsWorker): así no hace falta un Worker de otro origen. */
 const pdfjs=()=>pdfReady||(pdfReady=(async()=>{if(!window.pdfjsLib)await loadScript(PDFJS+"pdf.min.js");if(!globalThis.pdfjsWorker)await loadScript(PDFJS+"pdf.worker.min.js");return window.pdfjsLib;})().catch(e=>{pdfReady=null;throw e;}));
 async function tituloPDF(buf){try{const L=await pdfjs(),doc=await L.getDocument({data:buf}).promise,md=await doc.getMetadata();return String(md&&md.info&&md.info.Title||"");}catch(e){return "";}}
-async function textoPlano(buf){
-  const L=await pdfjs(),doc=await L.getDocument({data:buf}).promise,pg=await doc.getPage(1),vp=pg.getViewport({scale:1}),tc=await pg.getTextContent();
+async function textoPlano(buf,todas){
+  const L=await pdfjs(),doc=await L.getDocument({data:buf}).promise;
+  if(todas){/* todas las páginas, una debajo de otra (la OT lleva el material eléctrico en la página 3) */
+    let dy=0;const T=[];for(let p=1;p<=doc.numPages;p++){const t=await textoPagina(L,await doc.getPage(p));t.forEach(x=>{x.y+=dy;});T.push(...t);dy+=10000;}
+    return T;}
+  return textoPagina(L,await doc.getPage(1));
+}
+async function textoPagina(L,pg){
+  const vp=pg.getViewport({scale:1}),tc=await pg.getTextContent();
   return tc.items.filter(it=>it.str&&it.str.trim()).map(it=>{
     const t=L.Util.transform(vp.transform,it.transform),size=Math.hypot(t[0],t[1])||1,dx=t[0]/size,dy=t[1]/size;
     /* centro del texto: inicio + medio ancho en su dirección + media altura hacia «arriba» del texto */
@@ -2342,9 +2349,12 @@ async function importaPedidos(peds,llenar){
 }
 async function importaVarios(files){
   adjPon(files);
-  const peds=[],resto=[];
+  const peds=[],resto=[];let ots=[];
   for(const f of files){
-    if(/\.pdf$/i.test(f.name)||f.type==="application/pdf"){try{const p=datosPedido(await textoLineas(await f.arrayBuffer()));if(p){peds.push(p);continue;}}catch(e){console.warn(e);}}
+    if(/\.pdf$/i.test(f.name)||f.type==="application/pdf"){try{const p=datosPedido(await textoLineas(await f.arrayBuffer()));if(p){peds.push(p);continue;}}catch(e){console.warn(e);}
+      /* orden de trabajo (cabecera «Article … Ordre …» y la lista de códigos de 11 cifras): se contrasta abajo con el material */
+      try{const T=await textoPlano(await f.arrayBuffer(),true),q=codigosDeTexto(T);
+        if(T.some(t=>/^Ordre\b/i.test(t.s))&&Object.keys(q).length>=5){ots.push({f,q});continue;}}catch(e){console.warn(e);}}
     resto.push(f);
   }
   if(resto.length)await importaPlanos(resto);
@@ -2353,6 +2363,9 @@ async function importaVarios(files){
   if(!$("sistema").value&&readMods().length){$("sistema").value="nexta";fillEmisores("nexta","");
     difsCliente=difsCliente.concat([{txt:"Ni el plano ni el pedido dicen la electrónica: he puesto Cherubini Nexta para sacar el esquema. Cámbiala arriba si no es esa."}]);render();
     const b=$("impRes");if(b){b.hidden=false;b.insertAdjacentHTML("afterbegin",`<div class="ko">El plano no dice la electrónica: pongo Cherubini Nexta. Cámbiala si no es esa (o suelta también el pedido).</div>`);}}
+  if(ots.length){const q={};ots.forEach(o=>Object.entries(o.q).forEach(([c,n])=>{q[c]=Math.round(((q[c]||0)+n)*100)/100;}));
+    ot={nombre:ots.map(o=>o.f.name.replace(/\.[^.]+$/,"")).join(" + "),fecha:new Date().toISOString(),q};render();
+    if(!resto.length&&!peds.length)toast("Orden de trabajo leída: el contraste está abajo, en el material");}
 }
 async function importaPlanos(files){
   if(files.length<2)return importaPlano(files[0]);
@@ -2816,22 +2829,28 @@ function cfgCrea(){
 $("bCfg").addEventListener("click",cfgAbre);$("bCfg2").addEventListener("click",cfgAbre);$("cf_ok").addEventListener("click",cfgCrea);
 /* ---------- Hoja de material (PDF, CSV o foto): códigos y cantidades → rellena la obra y compara con el cálculo ---------- */
 const CODE2K=Object.fromEntries(Object.entries(C).filter(([k,v])=>/^\d{11}$/.test(v[0])).map(([k,v])=>[v[0],k]));
-/* cantidad de una línea: el campo que sea un número entero (no el código), o el último número suelto que no sea una medida */
+/* cantidad de una línea: el primer campo numérico detrás del código (OT: «código | descripción | 5,250 | stock…»; la
+   manguera va en metros con decimales), si no el último campo entero, o el último número suelto que no sea una medida */
 function codigosDeLineas(lines){
   const out={};
   lines.forEach(l=>{const cs=l.match(/\b\d{11}\b/g);if(!cs)return;
     cs.forEach(c=>{let q=null;const campos=l.split(/[;\t|]/).map(x=>x.trim());
-      if(campos.length>1){const n=campos.filter(x=>x!==c&&/^\d{1,4}([.,]0+)?$/.test(x)).map(x=>parseInt(x,10));if(n.length)q=n[n.length-1];}
+      if(campos.length>1){const tras=campos.slice(campos.indexOf(c)+1).find(x=>/^\d{1,4}([.,]\d{1,3})?$/.test(x));
+        if(tras&&parseFloat(tras.replace(",","."))>0)q=Math.round(parseFloat(tras.replace(",","."))*100)/100;
+        if(q==null){const n=campos.filter(x=>x!==c&&/^\d{1,4}([.,]0+)?$/.test(x)).map(x=>parseInt(x,10));if(n.length)q=n[n.length-1];}}
       if(q==null){const resto=l.replace(c," "),ns=[...resto.matchAll(/(?:^|[\s(x×])(\d{1,3})(?![\d.,]|\s*(?:m\b|mm|cm|w\b|k\b|v\b|a\b|%|°|ºC|uds? de))/gi)].map(m=>+m[1]).filter(n=>n>0);if(ns.length)q=ns[ns.length-1];}
-      out[c]=(out[c]||0)+(q||1);});});
+      out[c]=Math.round(((out[c]||0)+(q||1))*100)/100;});});
   return out;
 }
 const PROMPT_MAT=`Es una hoja (o foto) de material de una pérgola ELYA (Llaza / Umara). Devuelve SOLO un JSON {"items":[{"codigo":"11 cifras","cantidad":número,"descripcion":"texto"}]} con cada línea que tenga un código de producto de 11 cifras y su cantidad (unidades; si no se ve, 1). No inventes códigos.`;
+/* texto de un PDF (todas las páginas) → filas «a | b | c» → códigos y cantidades */
+function codigosDeTexto(T){
+  const filas={};T.forEach(t=>{const k=Math.round(t.y/4);(filas[k]=filas[k]||[]).push(t);});
+  return codigosDeLineas(Object.keys(filas).sort((a,b)=>a-b).map(k=>filas[k].sort((a,b)=>a.x-b.x).map(t=>t.s).join(" | ")));
+}
 /* Códigos de 11 cifras y cantidades de una hoja (PDF con texto, CSV / texto, o foto / escaneado leído por Claude). */
 async function codigosDeArchivo(file){
-  if(/pdf/.test(file.type)||/\.pdf$/i.test(file.name)){const buf=await file.arrayBuffer(),T=await textoPlano(buf.slice(0)),filas={};
-    T.forEach(t=>{const k=Math.round(t.y/4);(filas[k]=filas[k]||[]).push(t);});
-    const q=codigosDeLineas(Object.keys(filas).sort((a,b)=>a-b).map(k=>filas[k].sort((a,b)=>a.x-b.x).map(t=>t.s).join(" | ")));
+  if(/pdf/.test(file.type)||/\.pdf$/i.test(file.name)){const buf=await file.arrayBuffer(),q=codigosDeTexto(await textoPlano(buf.slice(0),true));
     return Object.keys(q).length?q:await materialConClaude(file,buf);}
   if(/image/.test(file.type)||/\.(jpe?g|png|webp|heic)$/i.test(file.name))return await materialConClaude(file,null);
   return codigosDeLineas((await file.text()).split(/\r?\n/));
@@ -2897,12 +2916,15 @@ function pintaOT(r){
   const fin=bomFinal(r).filter(x=>!x.quitado&&x.q>0),app={};
   fin.forEach(x=>{const c=C[x.k][0];if(/^\d{11}$/.test(c))app[c]=(app[c]||0)+x.q;});
   const sinCod=[...new Set(fin.filter(x=>!/^\d{11}$/.test(C[x.k][0])).map(x=>C[x.k][1]))];
-  const filas=[...new Set([...Object.keys(ot.q),...Object.keys(app)])].map(c=>({c,k:CODE2K[c],o:ot.q[c]||0,a:app[c]||0}))
+  /* solo lo que está en el catálogo eléctrico de la app: perfiles, piezas, juntas, tornillería… de la OT no se contrastan */
+  const elec=c=>!!CODE2K[c],noElec=Object.keys(ot.q).filter(c=>!elec(c));
+  const filas=[...new Set([...Object.keys(ot.q).filter(elec),...Object.keys(app)])].map(c=>({c,k:CODE2K[c],o:ot.q[c]||0,a:app[c]||0}))
     .sort((x,y)=>(x.o===x.a)-(y.o===y.a)||x.c.localeCompare(y.c));
-  const dif=filas.filter(f=>f.o!==f.a).length,ud=f=>f.k==="mang"?" m":"";
+  const dif=filas.filter(f=>f.o!==f.a).length,ud=f=>f.k==="mang"?" m":"",nf=x=>String(x).replace(".",",");
   box.hidden=false;
-  box.innerHTML=cuadroContraste(`Orden de trabajo «${esc(ot.nombre)}» ↔ material`,dif,`<table><thead><tr><th>Código</th><th>Producto</th><th>OT</th><th>Material</th><th>Dif.</th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.o!==f.a?"dif":""}"><td class="mono">${f.c}</td><td>${esc(f.k?C[f.k][1]:"(no está en el catálogo de la app)")}</td><td>${f.o}${ud(f)}</td><td>${f.a}${ud(f)}</td><td>${f.o===f.a?"✓":(f.o>f.a?"+":"")+(Math.round((f.o-f.a)*100)/100)}</td></tr>`).join("")}</tbody></table>
+  box.innerHTML=cuadroContraste(`Orden de trabajo «${esc(ot.nombre)}» ↔ material`,dif,`<table><thead><tr><th>Código</th><th>Producto</th><th>OT</th><th>Material</th><th>Dif.</th></tr></thead><tbody>${filas.map(f=>`<tr class="${f.o!==f.a?"dif":""}"><td class="mono">${f.c}</td><td>${esc(f.k?C[f.k][1]:"(no está en el catálogo de la app)")}</td><td>${nf(f.o)}${ud(f)}</td><td>${nf(f.a)}${ud(f)}</td><td>${f.o===f.a?"✓":(f.o>f.a?"+":"")+nf(Math.round((f.o-f.a)*100)/100)}</td></tr>`).join("")}</tbody></table>
   <div class="hint"><b>Manda el cálculo de la app:</b> la OT no cambia el material; las diferencias son solo para revisarlas. OT leída el ${esc(new Date(ot.fecha).toLocaleString("es-ES"))}. «Dif.» = OT − material: + la OT lleva más, − lleva menos.${sinCod.length?` Sin código Llaza (no pueden salir en la OT): ${esc(sinCod.join(" · "))}.`:""}</div>
+  ${noElec.length?`<details class="hint noprint"><summary>${noElec.length} líneas de la OT fuera del catálogo eléctrico, sin contrastar (perfiles, piezas, juntas, tornillería…)</summary>${noElec.map(c=>`${c} ×${ot.q[c]}`).join(", ")}</details>`:""}
   <div class="noprint"><button type="button" class="mini" id="otX">Quitar la orden de trabajo</button></div>`);
   const bx=$("otX");if(bx)bx.onclick=()=>{ot=null;render();};
 }
