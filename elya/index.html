@@ -460,6 +460,9 @@ const C={
   /* otros equipos previstos (aún sin probar en la ELYA ni código en el catálogo) */
   calef:["—","Calefactor (sin código Llaza)","230 V · línea propia"],altav:["—","Altavoz (sin código Llaza)","por definir"],cortina:["—","Motor cortina vertical (sin código Llaza)","por definir"],
   situo:["48044101000","Situo 5 io Pure","Somfy 1870330"],
+  /* Ysia Patio io: 16 canales con pantalla, 2 pilas AAA; cada color con su código (etiquetas del almacén, 26/10/2026) */
+  ysiaBL:["48043112001","Emisor Ysia Patio io Pure BL","Somfy 1871289 · 16 canales"],
+  ysiaNG:["48043112002","Emisor Ysia Patio io Antracita NG","Somfy 1871290 · 16 canales"],
   tr150:["43000003000","Transformador IP67 150W 24V","iPixel"],
   tr200:["43000004000","Transformador IP67 200W 24V","iPixel"],
   tr250:["43000005000","Transformador IP67 250W 24V","iPixel"],
@@ -507,7 +510,7 @@ const C={
 const FAMILIAS=[
   ["Motor y centrales de motor",["motor","tkm","telEU","telUL","somCtrl"]],
   ["Centrales de iluminación",["tkl","stl250","stl100","tklrgbw","stick","rgbww","somLed"]],
-  ["Emisores",["hoblo6","hobloMF","eco1","pop","noonEU","noonUL","situo"]],
+  ["Emisores",["hoblo6","hobloMF","eco1","pop","noonEU","noonUL","situo","ysiaBL","ysiaNG"]],
   ["Sensores",["mtw","mtr","rain"]],
   ["Tiras y neón LED",["rW5","rW7","rN5","rN7","nP45","nP6","rgbP6","lamaW","rgbL"]],
   ["Alargadores",["alW15","alW5","alW7","alRGB5","alRGB7","ext05"]],
@@ -522,7 +525,7 @@ const MAT0=()=>({sw:{},q:{},del:[],extra:[]});
 let mat=MAT0();
 /* Orden de trabajo para contrastar con el material: {nombre, fecha, q: {código: cantidad}}; se guarda con la obra. */
 let ot=null;
-const EMISORES={nexta:["pop","hoblo6","hobloMF","eco1"],teleco_eu:["noonEU"],teleco_ul:["noonUL"],somfy:["situo"]};
+const EMISORES={nexta:["pop","hoblo6","hobloMF","eco1"],teleco_eu:["noonEU"],teleco_ul:["noonUL"],somfy:["situo","ysiaBL","ysiaNG"]};
 const LADOS_ALL={sup:true,inf:true,izq:true,der:true};
 /* Valores por defecto de una obra nueva; el resto sale del plano que se carga. */
 const BASE={obra:"",of:"",alto:2.5,tipol:"testa",sistema:"",emisor:"",sisLuz:"auto",emisorL:"",
@@ -565,7 +568,7 @@ const TKL_MODOS=[{n:1,col:"rojo",g:[[1,2,3,4]]},{n:2,col:"verde",g:[[1,3],[2,4]]
 const ENC={dir:"perímetro",ind:"indirecto",lam:"lamas",foc:"focos",x:"productos a mano"};
 /* Canales de cada emisor (fichas y catálogo). */
 /* Pop Plus: canales 1 a 7; el 0 es el común (todos a la vez), dato SAT */
-const CANALES={hoblo6:6,hobloMF:20,eco1:1,pop:7,noonEU:9,noonUL:9,situo:5};
+const CANALES={hoblo6:6,hobloMF:20,eco1:1,pop:7,noonEU:9,noonUL:9,situo:5,ysiaBL:16,ysiaNG:16};
 const ENCAN=[["mot","Motor"],["peri","Perímetro"],["ind","Indirecto"],["lam","LED lamas"],["foc","Focos"]];
 const ENCAN_m={mot:"motor",peri:"perímetro",ind:"indirecto",lam:"LED lamas",foc:"focos"};
 /* Perfil LED perimetral: dos alojamientos, arriba (luz indirecta) y abajo (luz directa) (dato SAT). Con los dos, cada uno
@@ -1047,7 +1050,7 @@ function calcular(cfg){
       dev.push({id:"trm"+mi,t:`${tag} · Transformador 150 W motor · ${loc}`,code:C.tr150[0],model:C.tr150[1],feed:"230",trafo:true,Wfix:MOTOR_W,alimenta:"Pergola io Louver Control (24 V DC, cable hacia abajo)",abajo:"central",right:[]});
       add("tr150",1,`${tag} motor`);
       dev.push({id:"som"+mi,t:`${tag} · Pergola io Louver Control · ${loc}`,code:C.somCtrl[0],model:C.somCtrl[2],feed:"24",from:"trm"+mi,
-        right:[{kind:"motor",W:MOTOR_W,t:`Motor ${tag}`,s:`${C.motor[0]} · 24 V DC`,wires:[["p","+"],["m","−"]],pin:"M1"},{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]});
+        right:[{kind:"motor",W:MOTOR_W,t:`Motor ${tag}`,s:`${C.motor[0]} · 24 V DC`,wires:[["p","+"],["m","−"]],pin:"M1"},{kind:"radio",t:(C[emisor]||C.situo)[1],s:"io",wires:[["r",""]],pin:"Radio io"}]});
       add("somCtrl",1,"",true);
     }
 
@@ -1219,7 +1222,7 @@ function calcular(cfg){
         d.right.splice(d.right.length-1,0,...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})));
         av.push(["info",`${m.nombre}: la luz blanca va a la salida LED de la central Teleco (${w0(totW(white))}). Comprueba la potencia máxima en su etiqueta.`]);
       }else if(sisL==="somfy"){
-        const nTr=trafoReceptor(white,tag,loc,false,"somLed",(o,n,k)=>({id:`sl${mi}_${k}`,t:`${tag} · Receptor io LED${n} · ${loc}`,code:C.somLed[0],model:C.somLed[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})),{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]}));
+        const nTr=trafoReceptor(white,tag,loc,false,"somLed",(o,n,k)=>({id:`sl${mi}_${k}`,t:`${tag} · Receptor io LED${n} · ${loc}`,code:C.somLed[0],model:C.somLed[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})),{kind:"radio",t:(C[emL]||C.situo)[1],s:"io",wires:[["r",""]],pin:"Radio io"}]}));
         if(nTr>1)av.push(["warn",`${m.nombre}: las luces suman ${w0(totW(white))} y el transformador (fuente de 24 V) más grande, el de 250 W, no se carga a más de 200 W (80 %). Por eso van ${nTr} transformadores, cada uno con su receptor io LED, y las tiras se reparten entre ellos.`]);
       }
     }
@@ -1240,7 +1243,7 @@ function calcular(cfg){
         if(nTr>1)av.push(["warn",`${m.nombre}: las luces suman ${w0(totW(all))} y el transformador (fuente de 24 V) más grande, el de 250 W, no se carga a más de 200 W (80 %). Por eso van ${nTr} transformadores, cada uno con su receptor, y las tiras se reparten entre ellos.`]);
       }else if(sisL==="somfy"){
         /* receptor RGB io de Somfy: previsto, sin código Llaza todavía; va a 24 V con su transformador como el de blanco */
-        trafoReceptor(rgbL,tag,loc,true,"somRGB",(o,n,k)=>({id:`srgb${mi}_${k}`,t:`${tag} · Receptor io RGB${n} · ${loc}`,code:C.somRGB[0],model:C.somRGB[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida RGB"})),{kind:"radio",t:C.situo[1],s:"io",wires:[["r",""]],pin:"Radio io"}]}));
+        trafoReceptor(rgbL,tag,loc,true,"somRGB",(o,n,k)=>({id:`srgb${mi}_${k}`,t:`${tag} · Receptor io RGB${n} · ${loc}`,code:C.somRGB[0],model:C.somRGB[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida RGB"})),{kind:"radio",t:(C[emL]||C.situo)[1],s:"io",wires:[["r",""]],pin:"Radio io"}]}));
         av.push(["warn",`${m.nombre}: receptor io RGB de Somfy previsto, pero aún no tiene código en el catálogo Llaza. Pide la referencia y comprueba sus límites en su manual.`]);
       }else av.push(["bad",`${m.nombre}: no hay receptor RGB para este sistema de luces.`]);
     }
@@ -1291,7 +1294,7 @@ function calcular(cfg){
   const nMando={};
   canales.forEach(x=>{const cap=CANALES[x.em];x.mando=1;if(cap&&x.c>cap){x.mando=Math.ceil(x.c/cap);x.c=(x.c-1)%cap+1;}nMando[x.em]=Math.max(nMando[x.em]||1,x.mando);});
   Object.entries(nMando).forEach(([em,n])=>{if(n<2)return;add(em,n-1,"más canales");
-    av.push(["info",`${C[em][1]} tiene ${CANALES[em]} canales y hacen falta más: van ${n} mandos (del canal ${CANALES[em]+1} en adelante, al mando nº 2…). Añadido al material.${sisBase(cfg.sistema)==="nexta"?" Con uno solo: Hoblo multifunción (20 canales).":""}`]);});
+    av.push(["info",`${C[em][1]} tiene ${CANALES[em]} canales y hacen falta más: van ${n} mandos (del canal ${CANALES[em]+1} en adelante, al mando nº 2…). Añadido al material.${sisBase(cfg.sistema)==="nexta"?" Con uno solo: Hoblo multifunción (20 canales).":em==="situo"?" Con uno solo: Ysia Patio io (16 canales).":""}`]);});
   canales.forEach(x=>{x.nM=nMando[x.em];});
   /* en el unifilar: el canal junto al mando de cada central */
   dev.forEach(d=>{const mi=parseInt((d.id.match(/\d+/)||[])[0],10),cs=canales.filter(x=>x.mi===mi);if(!cs.length)return;
@@ -1891,6 +1894,8 @@ function conexiones(cfg,r){
     if(r.dev.some(d=>/^rgbw/.test(d.id)))out.push({t:"TKL RGBW 250 W",code:C.tklrgbw[0],li:["Alimentación 230 V.","Salida RGBW por conector "+C.conRGBW[0]+" (CON-EP55/RGBS+W, 4 × RGB + 1 × blanco).","Máx. 250 W en total."],src:"Guía rápida TKL RGBW (Drive)"});
   }
   if(r.canales&&r.canales.length)out.push({t:"Grabar el mando",code:"",li:["Canales: en la hoja «Para el cliente». Pop Plus: canales 1 a 7 y el 0 es el común (todos).","TKM: P1 corto y subida en el canal del motor. TKL: P1 hasta el color del canal de la central y subida en el canal del mando. STILO: un solo canal por central (manuales Cherubini)."],src:"Manuales TKM / TKL / STILO (Drive)"});
+  /* Ysia Patio io (guía Somfy, 06/2024): los canales se crean en el propio mando */
+  if((r.canales||[]).some(x=>x.em==="ysiaBL"||x.em==="ysiaNG"))out.push({t:"Grabar el Ysia Patio io",code:"",li:["Pilas: al meter el cajón de pilas se enciende la pantalla; elige el idioma con el variador y confirma con el botón central.","Crea un canal por cada línea de la hoja «Para el cliente», con el mismo número: tipo «Producto» (o «Grupo»), tipo de producto (pérgola, luz…) y nombre.","Para emparejar: elige el canal con el variador, pulsa el botón central (modo control) y usa PROG, subida, my y bajada como con cualquier emisor io (p. ej. PROG de un mando ya emparejado y PROG corto del Ysia)."],src:"Guía Ysia Patio io (Somfy)"});
   out.push({t:"Recorrido de cables (manual ELYA)",code:"",li:[
     "Centralita: dentro de la viga o del pilar que indica la ficha de fabricación (número de viga o de pilar).",
     "Motor: cable por la parte superior del larguero hasta la centralita de su módulo.",
