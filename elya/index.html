@@ -1689,11 +1689,11 @@ function dibujaModulo(pm,cfg){
   sim+=ed("motor",`<circle cx="${mx}" cy="${my}" r="11" fill="var(--paper)" stroke="${CC.mot}" stroke-width="2.4"/><text x="${mx}" y="${my+4}" text-anchor="middle" font-size="11" font-weight="700" style="fill:${CC.mot}">M</text>`);
   /* centrales de luces (L), junto a la del motor */
   for(let j=0;j<(pm.nLed||0);j++){const lx=cx-ix*(laneOut+16+j*28),ly=cy-iy*(laneOut+56);
-    sim+=ed("cent",`<line x1="${cx}" y1="${cy}" x2="${lx}" y2="${ly}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 2"/><rect x="${lx-11}" y="${ly-11}" width="22" height="22" rx="3" fill="var(--paper)" stroke="var(--ink)" stroke-width="2"/><text x="${lx}" y="${ly+4}" text-anchor="middle" font-size="10" font-weight="700" style="fill:var(--ink)">L${pm.nLed>1?j+1:""}</text>`);}
+    sim+=ed("luz:"+j,`<line x1="${cx}" y1="${cy}" x2="${lx}" y2="${ly}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 2"/><rect x="${lx-11}" y="${ly-11}" width="22" height="22" rx="3" fill="var(--paper)" stroke="var(--ink)" stroke-width="2"/><text x="${lx}" y="${ly+4}" text-anchor="middle" font-size="10" font-weight="700" style="fill:var(--ink)">L${pm.nLed>1?j+1:""}</text>`);}
   /* receptores de luces (Somfy io LED / io RGB, Teleco UL), cada uno con su transformador, junto a la centralita */
   (pm.rx||[]).forEach((x,j)=>{const jj=(pm.nLed||0)+j,lx=cx-ix*(laneOut+16+jj*34),ly=cy-iy*(laneOut+56),
       lab={somLed:"io",somRGB:"RGB",rgbww:"R"}[x.k]||"R",nom={somLed:"Receptor io LED",somRGB:"Receptor io RGB",rgbww:"Receptor RGB+BL"}[x.k]||"Receptor";
-    sim+=ed("cent",`<line x1="${cx}" y1="${cy}" x2="${lx}" y2="${ly}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 2"/><rect x="${lx-13}" y="${ly-11}" width="26" height="22" rx="3" fill="var(--paper)" stroke="var(--ink)" stroke-width="2"/><text x="${lx}" y="${ly+4}" text-anchor="middle" font-size="9.5" font-weight="700" style="fill:var(--ink)">${lab}${x.tot>1?x.n:""}</text><title>${nom}${x.tot>1?` ${x.n}/${x.tot}`:""} + transformador ${TR_W[x.tr]} W</title>`);
+    sim+=ed("rx:"+j,`<line x1="${cx}" y1="${cy}" x2="${lx}" y2="${ly}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 2"/><rect x="${lx-13}" y="${ly-11}" width="26" height="22" rx="3" fill="var(--paper)" stroke="var(--ink)" stroke-width="2"/><text x="${lx}" y="${ly+4}" text-anchor="middle" font-size="9.5" font-weight="700" style="fill:var(--ink)">${lab}${x.tot>1?x.n:""}</text><title>${nom}${x.tot>1?` ${x.n}/${x.tot}`:""} + transformador ${TR_W[x.tr]} W</title>`);
     txt+=T(lx,ly-iy*22,`${nom}${x.tot>1?` ${x.n}`:""} + trafo ${TR_W[x.tr]} W`,{fs:9,col:"var(--ink)"});});
   /* centralita del motor, en su esquina: ahí llegan todos los cables */
   sim+=ed("cent",`<rect x="${cx-13}" y="${cy-13}" width="26" height="26" rx="3" fill="var(--ink)"/><text x="${cx}" y="${cy+4.5}" text-anchor="middle" font-size="12" font-weight="700" style="fill:var(--paper)">C</text>`);
@@ -2953,9 +2953,14 @@ function edPinta(todo){
         `<label>${esc(C[rgb?"y3RGB":"y3"][1])} (${C[rgb?"y3RGB":"y3"][0]})<select data-y><option value="auto"${ga.yS==="auto"?" selected":""}>Auto (${ga.n===2?"sí: entran dos tiras":"no: entra una tira"})</option><option value="si"${ga.yS==="si"?" selected":""}>Poner cable de 3 vías</option><option value="no"${ga.yS==="no"?" selected":""}>Quitar cable de 3 vías</option></select></label>`;}
     else info="<span>En esta esquina no entra ninguna tira.</span>";
     body+=edCopia(P+"ent","Entrada de los cables de 3 vías")+edCopia(P+"rut","Alargo a la esquina contraria, por");}
-  else if(tipo==="cent"){tit="Centralita";
-    info=`<span>${esc(m.loc||"")} · esquina ${esc(pilNom(pilDe(m,m.cent))||CN[m.cent])}</span>`;
-    body=edCopia(P+"cent","Esquina")+edCopia(P+"aloj","Alojada en")+edCopia(P+"ref","Nº viga / pilar")+(nexta?edCopia(P+"ledn","Centrales de luces")+edCopia(P+"ledc","Central LED blanca")+["p1","p2","lam","foc"].map(s=>edCopia(P+"s_"+s,{p1:"Salida perímetro 1",p2:"Salida perímetro 2",lam:"Salida lamas",foc:"Salida focos"}[s])).join(""):"");}
+  else if(tipo==="cent"){const d=last.r.dev.find(d=>/^(tkm|tel|som)/.test(d.id)&&d.t.startsWith(pm.tag+" "));tit="Centralita del motor";
+    info=`${d?`<span><b>${esc(d.t.split(" · ")[1]||"")}</b> · ${esc(d.code||"")}</span>`:""}<span>${esc(m.loc||"")} · esquina ${esc(pilNom(pilDe(m,m.cent))||CN[m.cent])}</span>${pm.nLed||(pm.rx||[]).length?"<span>Las centrales de luces (L) se eligen tocándolas en el plano.</span>":""}`;
+    body=edCopia(P+"cent","Esquina")+edCopia(P+"aloj","Alojada en")+edCopia(P+"ref","Nº viga / pilar");}
+  else if(tipo==="luz"){const j=+arg,lo=last.r.outs.filter(o=>o.tag===pm.tag||o.tag.startsWith(pm.tag+" "))[j];tit=`Central de luces${pm.nLed>1?" L"+(j+1):""}`;
+    info=lo?`<span><b>${esc(C[lo.k][1])}</b> · ${C[lo.k][0]} · ${esc(C[lo.k][2])}</span>${lo.o.filter(x=>x.items.length).map(x=>`<span>OUT${x.s}: ${esc(x.items.map(i=>i.n).join(" + "))} · ${w0(x.W)}</span>`).join("")}<span>${esc(lo.modo)}</span>`:"";
+    body=nexta?edCopia(P+"ledn","Centrales de luces")+edCopia(P+"ledc","Central LED blanca")+["p1","p2","lam","foc"].map(s=>edCopia(P+"s_"+s,{p1:"Salida perímetro 1",p2:"Salida perímetro 2",lam:"Salida lamas",foc:"Salida focos"}[s])).join(""):"";}
+  else if(tipo==="rx"){const x=(pm.rx||[])[+arg],nom=x&&({somLed:"Receptor io LED",somRGB:"Receptor io RGB",rgbww:"Receptor RGB+BL"}[x.k]||"Receptor");tit=`${nom||"Receptor"}${x&&x.tot>1?" "+x.n:""}`;
+    info=x?`<span><b>${esc(C[x.k]?C[x.k][1]:nom)}</b>${C[x.k]?" · "+C[x.k][0]:""}</span><span>+ transformador ${TR_W[x.tr]} W, junto a la centralita del motor</span>`:"";}
   else if(tipo==="motor"){tit="Motor y su cable";loc="v:"+m.motor;
     info=`<span><b>Manguera ${CAB_MOT}</b> · ${C.mang[0]}</span><span>300/500 V · cobre flexible clase 5 · aislamiento y cubierta PVC · 70 °C · 2 hilos: azul y marrón</span><span>≈ ${Math.ceil(pm.run)} m hasta la centralita · motor 24 V DC 3,6 A · caída ≈ ${m2(caidaMot(pm.run))} V (${Math.round(caidaMot(pm.run)/24*100)} %)</span>`;
     body=edCopia(P+"motor","Lado del motor / desagüe")+edCopia(P+"motY","Extremo del motor");}
