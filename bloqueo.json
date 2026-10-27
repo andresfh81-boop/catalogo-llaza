@@ -1,3 +1,7 @@
 {
-  "etiquetas": { "bloqueado": false }
+  "llave": "",
+  "etiquetas": { "bloqueado": false },
+  "modulbox": { "bloqueado": false, "modelos": [] },
+  "sombrex": { "bloqueado": false, "modelos": [] },
+  "kuadbox": { "bloqueado": false }
 }
