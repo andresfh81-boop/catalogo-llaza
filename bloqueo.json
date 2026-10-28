@@ -3,5 +3,5 @@
   "etiquetas": { "bloqueado": false },
   "modulbox": { "bloqueado": false, "modelos": [] },
   "sombrex": { "bloqueado": true, "modelos": [] },
-  "kuadbox": { "bloqueado": true }
+  "kuadbox": { "bloqueado": false }
 }
