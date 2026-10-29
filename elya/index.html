@@ -273,14 +273,24 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <fieldset data-sec="luces">
     <legend>4 · Sistema de luces<span class="secres"></span></legend>
     <label>Sistema de luces<select id="sisLuz">
-      <option value="nexta">Cherubini Nexta · tira blanca: STILO STL100 o STL250 según los W (TKL250 ONE, a elegir en cada módulo)</option>
-      <option value="nexta_rgbw">Cherubini Nexta · TKL RGBW 250 W, tira RGB</option>
-      <option value="nexta_stl250">Cherubini Nexta · STILO STL250 (2 salidas, 1 canal del mando)</option>
-      <option value="nexta_stl100">Cherubini Nexta · STILO STL100 (2 salidas, 1 canal del mando)</option>
-      <option value="teleco_eu">Teleco EU · salida LED de la central 2 Mot + LED (RGB: stick TVSTICK)</option>
-      <option value="teleco_ul">Teleco UL · receptor RGB + BL con transformador</option>
-      <option value="somfy">Somfy io · receptor io LED blanco o receptor io RGB, con transformador</option>
+      <optgroup label="Cherubini Nexta">
+        <option value="nexta_tkl">Nexta TKL250 ONE · tira blanca</option>
+        <option value="nexta_rgbw">Nexta TKL RGBW · tira RGB</option>
+        <option value="nexta_stl250">Nexta STILO STL250</option>
+        <option value="nexta_stl100">Nexta STILO STL100</option>
+        <option value="nexta">Nexta STILO según los W (auto)</option>
+      </optgroup>
+      <optgroup label="Teleco EU 868 MHz">
+        <option value="teleco_eu">Teleco EU · salida LED de la central</option>
+      </optgroup>
+      <optgroup label="Teleco UL 916 MHz">
+        <option value="teleco_ul">Teleco UL · Central RGB + Dynamic White</option>
+      </optgroup>
+      <optgroup label="Somfy io">
+        <option value="somfy">Somfy io · Receptor io LED BL</option>
+      </optgroup>
     </select></label>
+    <p class="hint" id="luzRef"></p>
     <label id="lEmisorL" hidden>Emisor de las luces<select id="emisorL"></select></label>
     <label id="lProd">Tira blanca del perímetro (las lamas llevan siempre su neón de lama)<select id="periProd">
       <option value="rollo">Rollo LED ELYA (5 / 7 m)</option>
@@ -401,7 +411,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <div class="lados"><label class="chk"><input type="checkbox" id="cf_viento"> Anemómetro (solo Nexta)</label><label class="chk"><input type="checkbox" id="cf_lluvia"> Sensor de lluvia</label></div>
   </fieldset>
   <fieldset class="cfgs"><legend>3 · Sistema luces</legend>
-    <label>Sistema de luces<select id="cf_sisL"><option value="nexta">Cherubini Nexta · STILO según los W (blanca)</option><option value="nexta_rgbw">Cherubini Nexta · TKL RGBW (RGB)</option><option value="nexta_stl250">Cherubini Nexta · STILO STL250</option><option value="nexta_stl100">Cherubini Nexta · STILO STL100</option><option value="teleco_eu">Teleco EU · salida LED de la central</option><option value="teleco_ul">Teleco UL · receptor RGB + BL</option><option value="somfy">Somfy io · receptor io LED blanco / io RGB</option></select></label>
+    <label>Sistema de luces<select id="cf_sisL"><optgroup label="Cherubini Nexta"><option value="nexta_tkl">Nexta TKL250 ONE · tira blanca</option><option value="nexta_rgbw">Nexta TKL RGBW · tira RGB</option><option value="nexta_stl250">Nexta STILO STL250</option><option value="nexta_stl100">Nexta STILO STL100</option><option value="nexta" selected>Nexta STILO según los W</option></optgroup><optgroup label="Teleco"><option value="teleco_eu">Teleco EU · salida LED de la central</option><option value="teleco_ul">Teleco UL · Central RGB + Dynamic White</option></optgroup><optgroup label="Somfy io"><option value="somfy">Somfy io · Receptor io LED BL</option></optgroup></select></label>
     <div class="row"><label>LED perimetral<select id="cf_led"><option value="none">No</option><option value="dir">Directo</option><option value="ind">Indirecto</option><option value="ambos">Directo + indirecto</option></select></label>
     <label>Luz<select id="cf_luz"><option value="w3000">Blanco cálido 3000 K</option><option value="w4000">Blanco neutro 4000 K</option><option value="rgb">RGB</option></select></label></div>
     <label>Producto<select id="cf_prod"><option value="rollo">LED ELYA (5 / 7 m)</option><option value="neon">Neón perimetral (4,50 / 6 m)</option></select></label>
@@ -781,7 +791,7 @@ function readForm(){
 /* «nexta_stl250» / «nexta_stl100»: sistema Nexta con STILO (la STILO graba en un solo canal del mando) */
 const sisBase=v=>/^nexta/.test(v||"")?"nexta":v;
 const sisLuzDe=cfg=>cfg.sisLuz&&cfg.sisLuz!=="auto"?sisBase(cfg.sisLuz):cfg.sistema;
-const ledGen=cfg=>cfg.sisLuz==="nexta_stl250"?"stl250":cfg.sisLuz==="nexta_stl100"?"stl100":/^nexta(_rgbw)?$/.test(cfg.sisLuz)?"tkl":cfg.ledCentral;
+const ledGen=cfg=>cfg.sisLuz==="nexta_stl250"?"stl250":cfg.sisLuz==="nexta_stl100"?"stl100":/^nexta(_rgbw|_tkl)?$/.test(cfg.sisLuz)?"tkl":cfg.ledCentral;
 function fillEmisorL(sel){
   const sL=sisBase($("sisLuz").value),s=$("sistema").value,otro=sL&&sL!=="auto"&&sL!==s&&EMISORES[sL];
   $("lEmisorL").hidden=!otro;if(!otro){$("emisorL").innerHTML="";return;}
@@ -789,6 +799,8 @@ function fillEmisorL(sel){
   $("emisorL").innerHTML=EMISORES[sL].map(k=>`<option value="${k}">${esc(C[k][1])} · ${esc(C[k][2])}</option>`).join("");
   $("emisorL").value=EMISORES[sL].includes(v)?v:EMISORES[sL][0];
 }
+/* Centralitas de luces del catálogo de cada opción (se enseñan debajo del selector). */
+const LUZ_REF={nexta_tkl:["tkl"],nexta_rgbw:["tklrgbw"],nexta_stl250:["stl250"],nexta_stl100:["stl100"],nexta:["stl100","stl250"],teleco_eu:["telEU","stick"],teleco_ul:["rgbww"],somfy:["somLed","somRGB"]};
 /* Sistema de luces que va con la centralita del motor (se pone al elegir el motor; luego se puede cambiar). */
 const luzMotor=(sis,lc)=>sis==="nexta"?({stl250:"nexta_stl250",stl100:"nexta_stl100"}[lc]||"nexta"):(EMISORES[sis]?sis:"nexta");
 function fillEmisores(sis,sel){
@@ -821,6 +833,7 @@ function syncForm(){
   }
   const sL=$("sisLuz").value&&$("sisLuz").value!=="auto"?sisBase($("sisLuz").value):s;fillEmisorL();
   $("lCentral").hidden=true;
+  $("luzRef").innerHTML=(LUZ_REF[$("sisLuz").value]||[]).map(k=>`${esc(C[k][1])} · ${esc(C[k][2])} · <b>${C[k][0]}</b>`).join("<br>");
   document.querySelectorAll(".mod .salidas").forEach(d=>d.hidden=sL!=="nexta");
   const pp=$("periProd").value;
   for(let i=0;$(`m${i}_luz`);i++){const luz=$(`m${i}_luz`).value,off=luz==="none";["sup","inf","izq","der"].forEach(k=>{
@@ -2883,7 +2896,7 @@ function aplicaMaterial(q){
   const n=ms.length,rep=(tot,i)=>Math.floor(tot/n)+(i<tot%n?1:0);
   const luz=k.rgbP6?"rgb":(k.rN5||k.rN7)?"w4000":(k.rW5||k.rW7||k.nP45||k.nP6)?"w3000":null;
   if(luz){ms.forEach(m=>{m.luz=luz;});hechos.push("LED perimetral "+LUZ[luz]);if(k.nP45||k.nP6){$("periProd").value="neon";hechos.push("neón");}}
-  if(k.stl250||k.stl100||k.tkl||k.tklrgbw){$("sisLuz").value=k.stl250?"nexta_stl250":k.stl100?"nexta_stl100":k.tkl?"nexta":"nexta_rgbw";hechos.push(k.stl250?"STILO STL250":k.stl100?"STILO STL100":k.tkl?"TKL250":"TKL RGBW");}
+  if(k.stl250||k.stl100||k.tkl||k.tklrgbw){$("sisLuz").value=k.stl250?"nexta_stl250":k.stl100?"nexta_stl100":k.tkl?"nexta_tkl":"nexta_rgbw";hechos.push(k.stl250?"STILO STL250":k.stl100?"STILO STL100":k.tkl?"TKL250":"TKL RGBW");}
   else if(k.somLed&&sis!=="somfy"){$("sisLuz").value="somfy";hechos.push("luces Somfy");}
   if(k.lamaW){ms.forEach((m,i)=>{m.lamasN=rep(k.lamaW,i);m.lamLed=reparteLamas(m.lamasN,lamT(m));});hechos.push(`${k.lamaW} lamas LED`);}
   const fk=["aries","fMiAL","fMiNG"].find(x=>k[x]);if(fk){ms.forEach((m,i)=>{m.focN=rep(k[fk],i);m.focT=fk;});hechos.push(`${k[fk]} × ${FOCOS[fk]}`);}
