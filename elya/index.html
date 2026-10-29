@@ -414,6 +414,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <label>Sistema de luces<select id="cf_sisL"><optgroup label="Cherubini Nexta"><option value="nexta_tkl">Nexta TKL250 ONE</option><option value="nexta_rgbw">Nexta TKL RGBW · tira RGB</option><option value="nexta_stl250">Nexta STILO STL250</option><option value="nexta_stl100">Nexta STILO STL100</option><option value="nexta" selected>Nexta STILO según los W</option></optgroup><optgroup label="Teleco"><option value="teleco_eu">Teleco EU · salida LED de la central</option><option value="teleco_ul">Teleco UL · Central RGB + Dynamic White</option></optgroup><optgroup label="Somfy io"><option value="somfy">Somfy io · Receptor io LED BL</option></optgroup></select></label>
     <div class="row"><label>LED perimetral<select id="cf_led"><option value="none">No</option><option value="dir">Directo</option><option value="ind">Indirecto</option><option value="ambos">Directo + indirecto</option></select></label>
     <label>Luz<select id="cf_luz"><option value="w3000">Blanco cálido 3000 K</option><option value="w4000">Blanco neutro 4000 K</option><option value="rgb">RGB</option></select></label></div>
+    <label id="cf_lLuzI" hidden>Luz del indirecto<select id="cf_luzI"><option value="">La misma que el directo</option><option value="w3000">Blanco cálido 3000 K</option><option value="w4000">Blanco neutro 4000 K</option><option value="rgb">RGB</option></select></label>
     <label>Producto<select id="cf_prod"><option value="rollo">LED ELYA (5 / 7 m)</option><option value="neon">Neón perimetral (4,50 / 6 m)</option></select></label>
     <div class="row"><label>Lamas con LED por módulo<input type="number" id="cf_lam" min="0" max="40" step="1" value="0"></label><label>Focos<select id="cf_focL"><option value="none">No</option><option value="lam">En lamas</option><option value="sup">En la viga de arriba</option><option value="inf">En la viga de abajo</option><option value="per">Repartidos por el perímetro</option></select></label></div>
     <div class="row"><label>Lamas con focos / nº de focos<input type="number" id="cf_focN" min="0" max="40" step="1" value="2"></label><label>Focos por lama<input type="number" id="cf_focPL" min="1" max="8" step="1" value="2"></label></div>
@@ -2801,7 +2802,10 @@ async function adjVer(i){const f=adjuntos[i];if(!f)return;
   }catch(e){$("zBox").querySelector(".pags").innerHTML=`<p class="hint">No se puede abrir este archivo (${esc(e.message||"error")}).</p>`;}}
 /* ---------- Configurar desde cero: monta la obra con lo que se elige (límites del manual ELYA Autoportante:
    módulo de 4,50 × 6,00 m como máximo y alto de 3,00 m; la electrónica en un pilar del lado contrario al motor) ---------- */
-function cfgAbre(){$("cf_av").textContent="";$("dCfg").showModal();}
+/* «Luz del indirecto» solo con directo + indirecto */
+const cfgLuzI=()=>{$("cf_lLuzI").hidden=$("cf_led").value!=="ambos";};
+function cfgAbre(){$("cf_av").textContent="";cfgLuzI();$("dCfg").showModal();}
+$("cf_led").addEventListener("change",cfgLuzI);
 $("cf_sis").addEventListener("change",e=>{$("cf_sisL").value=luzMotor(e.target.value);});
 function cfgCrea(){
   const v=id=>$(id).value,nv=(id,d)=>{const x=parseFloat(v(id));return isFinite(x)?x:d;},n=Math.max(1,Math.min(6,Math.round(nv("cf_n",1))));
@@ -2821,7 +2825,7 @@ function cfgCrea(){
   for(let j=1;j<=per.length;j++){const c=per[(ini+j)%per.length];if(!nodo[c])nodo[c]=sig++;}
   const mods=[...Array(n)].map((_,i)=>{const m=NUEVO(i+1);
     Object.assign(m,{A,P,motor:mot,cent:mot==="der"?"si":"sd",aloj:"pilar",pos:disp==="a"?{x:i*A,y:0}:{x:0,y:i*P},
-      luz:led==="none"?"none":v("cf_luz"),ledPos:led==="none"?"dir":led,viento:i===0&&$("cf_viento").checked&&sis==="nexta",lluvia:i===0&&$("cf_lluvia").checked&&sis!=="somfy",
+      luz:led==="none"?"none":v("cf_luz"),ledPos:led==="none"?"dir":led,luzI:led==="ambos"?v("cf_luzI"):"",viento:i===0&&$("cf_viento").checked&&sis==="nexta",lluvia:i===0&&$("cf_lluvia").checked&&sis!=="somfy",
       focT:v("cf_focT"),focPL:Math.max(1,Math.round(nv("cf_focPL",2))),aisl:$("cf_aisl").checked,
       calN:Math.max(0,Math.round(nv("cf_cal",0))),calW:2000,altN:Math.max(0,Math.round(nv("cf_alt",0))),cortN:Math.max(0,Math.round(nv("cf_cort",0)))});
     const T=lamTDef(m),nl=Math.max(0,Math.round(nv("cf_lam",0)));m.lamLed=reparteLamas(nl,T);m.lamasN=m.lamLed.length;
