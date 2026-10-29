@@ -404,7 +404,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <label>Unidos<select id="cf_disp"><option value="a">Uno al lado del otro (a lo largo de las lamas)</option><option value="p">Uno detrás de otro (en la salida)</option></select></label></div>
     <div class="row"><label>Lama A (máx. 4,50 m)<span class="unid" data-u="m"><input type="number" id="cf_A" min="1" max="4.5" step="0.01" value="4"></span></label><label>Salida P (máx. 6 m)<span class="unid" data-u="m"><input type="number" id="cf_P" min="1" max="6" step="0.01" value="5"></span></label></div>
     <div class="row"><label>Alto H (máx. 3 m)<span class="unid" data-u="m"><input type="number" id="cf_H" min="1.8" max="3.5" step="0.01" value="2.5"></span></label><label>Lado del motor / desagüe<select id="cf_mot"><option value="der">Derecho</option><option value="izq">Izquierdo</option></select></label></div>
-    <label class="chk"><input type="checkbox" id="cf_aisl"> Aislante en lamas (porexpán): no deja poner focos en lamas</label>
+    <label class="chk"><input type="checkbox" id="cf_aisl"> Aislante en lamas (porexpán): no deja poner focos</label>
   </fieldset>
   <fieldset class="cfgs"><legend>2 · Sistema motor</legend>
     <label>Centralita del motor<select id="cf_sis"><option value="nexta">Cherubini Nexta · TKM100 ONE</option><option value="teleco_eu">Teleco EU 868 · central 2 Mot + LED</option><option value="teleco_ul">Teleco UL 916 · central PLA</option><option value="somfy">Somfy io · Pergola io Louver Control</option></select></label>
@@ -416,8 +416,8 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <label>Luz<select id="cf_luz"><option value="w3000">Blanco cálido 3000 K</option><option value="w4000">Blanco neutro 4000 K</option><option value="rgb">RGB</option></select></label></div>
     <label id="cf_lLuzI" hidden>Luz del indirecto<select id="cf_luzI"><option value="">La misma que el directo</option><option value="w3000">Blanco cálido 3000 K</option><option value="w4000">Blanco neutro 4000 K</option><option value="rgb">RGB</option></select></label>
     <label>Producto<select id="cf_prod"><option value="rollo">LED ELYA (5 / 7 m)</option><option value="neon">Neón perimetral (4,50 / 6 m)</option></select></label>
-    <div class="row"><label>Lamas con LED por módulo<input type="number" id="cf_lam" min="0" max="40" step="1" value="0"></label><label>Focos<select id="cf_focL"><option value="none">No</option><option value="lam">En lamas</option><option value="sup">En la viga de arriba</option><option value="inf">En la viga de abajo</option><option value="per">Repartidos por el perímetro</option></select></label></div>
-    <div class="row"><label>Lamas con focos / nº de focos<input type="number" id="cf_focN" min="0" max="40" step="1" value="2"></label><label>Focos por lama<input type="number" id="cf_focPL" min="1" max="8" step="1" value="2"></label></div>
+    <div class="row"><label>Lamas con LED por módulo<input type="number" id="cf_lam" min="0" max="40" step="1" value="0"></label><label>Focos<select id="cf_focL"><option value="none">No</option><option value="lam">En lamas</option></select></label></div>
+    <div class="row"><label>Lamas con focos<input type="number" id="cf_focN" min="0" max="40" step="1" value="2"></label><label>Focos por lama<input type="number" id="cf_focPL" min="1" max="8" step="1" value="2"></label></div>
     <label>Tipo de foco<select id="cf_focT"><option value="aries">Foco Aries bi-emisión</option><option value="fMiAL">Foco LED mini AL</option><option value="fMiNG">Foco LED mini NG</option></select></label>
     <label class="chk"><input type="checkbox" id="cf_indep" checked> Encendidos independientes (perímetro, indirecto, lamas y focos aparte)</label>
   </fieldset>
@@ -634,7 +634,9 @@ const FOCO_K={3000:["#ffd9a1","#ffb84d"],4000:["#fff3df","#ffe3a8"]};
 const focoSvg=(x,y,r,t,k)=>{const [luz,halo]=FOCO_K[k]||FOCO_K[3000],ng=t==="fMiNG";
   return `<circle cx="${x}" cy="${y}" r="${r*1.8}" fill="${halo}" opacity=".3"/><circle cx="${x}" cy="${y}" r="${r}" fill="${ng?"#232527":"#c4c8cd"}" stroke="${ng?"#0f1011":"#8b9096"}" stroke-width="1"/><circle cx="${x}" cy="${y}" r="${r*0.68}" fill="${luz}" stroke="${ng?"#3a3d41":"#a7acb2"}" stroke-width=".6"/><circle cx="${x-r*0.18}" cy="${y-r*0.18}" r="${r*0.22}" fill="#fffaf0" opacity=".85"/>`;};
 /* Dónde van los focos: en lamas salvo que el módulo ya los tuviera en una viga (obras guardadas antes). */
-const focLDe=m=>m.focL||(m.focN?"sup":"lam"),modPleg=new Set();
+/* Los focos solo van en las lamas: los de obras antiguas en vigas o perímetro pasan a lamas repartidas. */
+const focLDe=()=>"lam",modPleg=new Set();
+const focALamas=m=>{if(m.focL==="lam")return;const pl=m.focPL||2;if(m.focN>0&&!(m.focLam||[]).length)m.focLam=reparteLamas(Math.ceil(m.focN/pl),lamT(m)).filter(k=>!(m.lamLed||[]).includes(k));m.focL="lam";m.focPL=pl;m.focN=(m.focLam||[]).length*pl;};
 const FOCO_W=3,FOCOS={aries:"Foco Aries bi-emisión",fMiAL:"Foco LED mini AL",fMiNG:"Foco LED mini NG"};
 const SALOPT={auto:"Auto",1:"OUT1",2:"OUT2",3:"OUT3",4:"OUT4"};
 /* Cables de la tira perimetral, desde la centralita, que se pueden poner a mano en cada módulo. */
@@ -717,8 +719,8 @@ function modCard(m,i){
   <div class="row"><label>Lamas con LED<input type="number" id="m${i}_lamasN" min="0" max="80" step="1" value="${lamLED(m).length}"></label><label>Nº de esas lamas<input type="text" id="m${i}_lamL" value="${esc(lamLED(m).join(", "))}" placeholder="ej. 5, 12, 19, 26"></label></div>
   <p class="hint">Lamas enteras (sin las 2 medias lamas de los extremos). Lama 1 = la primera entera del lado de apertura (135°). También se elige tocando cada lama en la planta.</p>
   <div class="focbox" id="m${i}_focbox" data-l="${focLDe(m)}"><div class="tag">Focos</div>
-  <div class="row"><label>Focos en<select id="m${i}_focL">${opt({lam:"Lamas",sup:"Viga sup.",der:"Viga der.",inf:"Viga inf.",izq:"Viga izq.",per:"Repartidos por el perímetro"},focLDe(m))}</select></label><label>Tipo de foco<select id="m${i}_focT">${opt(FOCOS,m.focT||"aries")}</select></label></div>
-  <label>Luz de los focos<select id="m${i}_focK">${opt({3000:"3000 K · cálida",4000:"4000 K · neutra"},String(m.focK||3000))}</select></label>
+  <input type="hidden" id="m${i}_focL" value="lam"><div class="row"><label>Tipo de foco<select id="m${i}_focT">${opt(FOCOS,m.focT||"aries")}</select></label>
+  <label>Luz de los focos<select id="m${i}_focK">${opt({3000:"3000 K · cálida",4000:"4000 K · neutra"},String(m.focK||3000))}</select></label></div>
   <div class="row foclam"><label>Focos por lama<input type="number" id="m${i}_focPL" min="1" max="8" step="1" value="${m.focPL||2}"></label><label>Lamas con focos<input type="number" id="m${i}_focNL" min="0" max="80" step="1" value="${(m.focLam||[]).length}"></label></div>
   <label class="foclam">Posición: nº de las lamas con focos<input type="text" id="m${i}_focLam" value="${esc((m.focLam||[]).join(", "))}" placeholder="ej. 3, 10 (se reparten solas)"></label>
   <p class="hint foclam" id="m${i}_focTot">${focLDe(m)==="lam"&&(m.focLam||[]).length?`${(m.focLam||[]).length} lamas × ${m.focPL||2} = ${(m.focLam||[]).length*(m.focPL||2)} focos. También se marcan tocando cada lama en la planta.`:"Pon cuántos focos lleva cada lama y en cuántas lamas: se reparten solas y puedes cambiar la posición."}</p>
@@ -812,6 +814,7 @@ function fillEmisores(sis,sel){
   $("emisor").value=EMISORES[sis].includes(sel)?sel:EMISORES[sis][0];
 }
 function writeMods(mods){
+  mods.forEach(focALamas);
   $("mods").innerHTML=mods.length?mods.map(modCard).join(""):`<p class="hint">Sin módulos. Carga el plano arriba o añádelos a mano.</p>`;
   $("bAdd").disabled=mods.length>=6;
 }
@@ -1133,7 +1136,7 @@ function calcular(cfg){
     }
     const focR=focosRuta(m);
     /* aislante en lamas (dato SAT): con porexpán en las lamas no hay sitio para unir los cables de los focos */
-    if(m.aisl&&m.focN&&m.focL==="lam")av.push(["bad",`${m.nombre}: lleva aislante en lamas (porexpán) y focos en lamas: con aislante no se pueden unir los cables de los focos. Quita el aislante en esas lamas o pon los focos en las vigas.`]);
+    if(m.aisl&&m.focN&&m.focL==="lam")av.push(["bad",`${m.nombre}: lleva aislante en lamas (porexpán) y focos en lamas: con aislante no se pueden unir los cables de los focos. Quita el aislante en esas lamas o quita los focos.`]);
     /* otros equipos previstos: calefactores (230 V, línea propia), altavoces y cortinas verticales */
     if(m.calN){add("calef",m.calN,`${tag} · ${w0(m.calW)} c/u · línea propia desde el cuadro`,true);
       dev.push({id:"cal"+mi,t:`${tag} · Calefactores ×${m.calN} (en pruebas)`,code:"—",model:`${w0(m.calW)} c/u · 230 V`,feed:"230",directo:true,right:[{kind:"note",W:m.calN*m.calW,t:`${m.calN} × calefactor ${w0(m.calW)}`,s:"230 V · línea y protección propias (ITC-BT-19)",wires:[["s",""]],pin:"230 V"}]});
@@ -2622,7 +2625,7 @@ function etiquetasMod(m,i,pp){
   SIDES.forEach(sd=>{const t=$(`m${i}_t_${sd}`),v=$(`m${i}_v_${sd}`);if(t)t.textContent=vigaDe(m,sd);if(v)v.placeholder=vigaAuto(m,sd);});
   for(let j=0;$(`m${i}_x${j}_loc`);j++){const se=$(`m${i}_x${j}_loc`),L=LOCS(m);[...se.options].forEach((o,n)=>{if(L[n])o.text=L[n][1];});}
   const lt=$(`m${i}_lamT`);if(lt)lt.placeholder=`${lamTDef(m)} (calculadas)`;
-  const fl=$(`m${i}_focL`);if(fl)[...fl.options].forEach(o=>{if(SIDES.includes(o.value))o.text=`Viga ${vigaDe(m,o.value)}`;});
+  const fl=$(`m${i}_focL`);if(fl&&fl.options)[...fl.options].forEach(o=>{if(SIDES.includes(o.value))o.text=`Viga ${vigaDe(m,o.value)}`;});
   CORN.forEach(k=>{const p=$(`m${i}_p_${k}`);if(p)p.placeholder=`P${pilDe(m,k)} · ${ESQ[k].toLowerCase()}`;});
   const una=gruposTira(Object.assign({},m,{ent:"auto"}),pp).some(G=>G.una);
   se.options[0].text=una?`Auto: una tira por cada dos lados, desde la centralita (${esq(m.cent)})`:`Auto: centralita (${esq(m.cent)}) + contraria (${esq(c(2))})`;
@@ -2830,7 +2833,6 @@ function cfgCrea(){
       calN:Math.max(0,Math.round(nv("cf_cal",0))),calW:2000,altN:Math.max(0,Math.round(nv("cf_alt",0))),cortN:Math.max(0,Math.round(nv("cf_cort",0)))});
     const T=lamTDef(m),nl=Math.max(0,Math.round(nv("cf_lam",0)));m.lamLed=reparteLamas(nl,T);m.lamasN=m.lamLed.length;
     if(focL==="lam"){m.focL="lam";m.focLam=reparteLamas(Math.max(0,Math.round(nv("cf_focN",2))),T).filter(k=>!m.lamLed.includes(k));m.focN=m.focLam.length*m.focPL;}
-    else if(focL!=="none"){m.focL=focL;m.focN=Math.max(0,Math.round(nv("cf_focN",2)));}
     /* pilares compartidos entre módulos con el mismo nombre (numeración de arriba) */
     m.pil=Object.fromEntries(CORN.map(k=>[k,"P"+nodo[cxy(i,k)]]));
     m.ref=m.pil[m.cent];
@@ -3018,7 +3020,7 @@ function edPinta(todo){
     body=edCopia(P+"lamasN","Lamas con LED")+edCopia(P+"lamL","Nº de las lamas con LED")+LAMCAB.map(kk=>edCopia(P+"lc_"+kk,C[kk][1])).join("")+(nexta?edCopia(P+"s_lam","Salida"):"");}
   else if(tipo==="focos"){tit="Focos";loc=SIDES.includes(m.focL)?"v:"+m.focL:"cent";
     info=pm.focos?`<span>${m.focN} focos · cadena ≈ ${m2(pm.focos.ruta.len)} m${pm.focos.al&&pm.focos.al.length?" · alargo "+pm.focos.al.map(([l])=>m2c(l)).join(" + ")+" m":""}</span>`:"";
-    body=edCopia(P+"focN","Focos")+edCopia(P+"focT","Tipo")+edCopia(P+"focK","Luz")+edCopia(P+"focL","Focos en")+edCopia(P+"focPL","Focos por lama")+edCopia(P+"focNL","Lamas con focos")+edCopia(P+"focLam","Posición: nº de las lamas con focos")+(nexta?edCopia(P+"s_foc","Salida"):"");}
+    body=edCopia(P+"focN","Focos")+edCopia(P+"focT","Tipo")+edCopia(P+"focK","Luz")+edCopia(P+"focPL","Focos por lama")+edCopia(P+"focNL","Lamas con focos")+edCopia(P+"focLam","Posición: nº de las lamas con focos")+(nexta?edCopia(P+"s_foc","Salida"):"");}
   else if(tipo==="extra"){const j=+arg,x=m.extra[j];tit=`Producto a mano ${j+1}`;loc=x&&x.loc||"cent";
     info=x&&C[x.k]?`<span>${esc(C[x.k][1])} · ${C[x.k][0]}</span>`:"";
     body=edCopia(`${P}x${j}_k`,"Producto")+edCopia(`${P}x${j}_q`,"Cantidad")+edCopia(`${P}x${j}_loc`,"Dónde")+edCopia(`${P}x${j}_d`,"A (m) desde el principio de la viga")+`<button type="button" class="mini" data-edxdel="${j}">Quitar este producto</button>`;}
