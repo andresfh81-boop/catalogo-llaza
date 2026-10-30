@@ -260,6 +260,10 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   </fieldset>
   <fieldset data-sec="motor">
     <legend>3 · Sistema motor<span class="secres"></span></legend>
+    <label>Red eléctrica del país<select id="red">
+      <option value="230">230 V ~ 50 Hz · España y Europa</option>
+      <option value="120">120 V ~ 60 Hz · EE. UU., Canadá… (solo Teleco UL)</option>
+    </select></label>
     <label>Centralita del motor<select id="sistema">
       <option value="">— Elige el sistema —</option>
       <option value="nexta">Cherubini Nexta · TKM100 ONE</option>
@@ -342,7 +346,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <section class="sheet" data-hoja="consumo">
     <div class="hd"><h2>Consumo</h2><span class="tag" id="sumW"></span></div>
     <div class="bd scroll"><table id="consumo"></table></div>
-    <div class="bd" style="padding-top:0"><p class="hint">Cargas: motor 3,6 A × 24 V, tiras según su W/m, tomas USB 15 W y sensor de lluvia MT-R 4,5 W (a 230 V). En 230 V, lo que va por fuente de 24 V se cuenta con un rendimiento del 90 %. Las pérdidas en los cables (caída de tensión × corriente en los alargos LED y en el cable del motor) se suman a las cargas y, por el lado de 24 V, al estimado en 230 V. No incluye lo que se enchufe a las tomas Schuko.</p></div>
+    <div class="bd" style="padding-top:0"><p class="hint">Cargas: motor 3,6 A × 24 V, tiras según su W/m, tomas USB 15 W y sensor de lluvia MT-R 4,5 W (a 230 V). En la red (230 V o 120 V, según el país), lo que va por fuente de 24 V se cuenta con un rendimiento del 90 %. Las pérdidas en los cables (caída de tensión × corriente en los alargos LED y en el cable del motor) se suman a las cargas y, por el lado de 24 V, al estimado en la red. No incluye lo que se enchufe a las tomas Schuko.</p></div>
   </section>
 
   <section class="sheet" data-hoja="planta">
@@ -553,7 +557,7 @@ const fnum=v=>{const n=parseFloat(v);return isFinite(n)?n:null;};
 const num=(v,d)=>{const n=parseFloat(v);return isFinite(n)&&n>0?n:d;};
 
 /* ---------- formulario ---------- */
-const FIELDS=["obra","of","alto","tipol","sistema","emisor","sisLuz","emisorL","periProd","ledCentral","indep","wm","wmRGB","schuko","usb"];
+const FIELDS=["obra","of","alto","tipol","red","sistema","emisor","sisLuz","emisorL","periProd","ledCentral","indep","wm","wmRGB","schuko","usb"];
 /* Transformadores de 24 V con un 20 % de margen (al 80 %): 150 W hasta 120 W, 200 W hasta 160 W, 250 W hasta 200 W;
    si pasa de 200 W, los de 250 W que hagan falta (200 W útiles cada uno). */
 const TR_W={tr150:150,tr200:200,tr250:250},trPara=W=>W<=120?"tr150":W<=160?"tr200":"tr250";
@@ -784,6 +788,7 @@ function readMods(){
 function readForm(){
   const o={};
   FIELDS.forEach(k=>{const el=$(k);o[k]=el.type==="checkbox"?el.checked:el.type==="number"?parseFloat(el.value):el.value;});
+  if(o.red!=="120")o.red="230";
   o.altoFalta=!(o.alto>0);o.alto=num(o.alto,2.5);o.wm=num(o.wm,10);o.wmRGB=num(o.wmRGB,12);
   ["schuko","usb"].forEach(k=>{o[k]=Math.max(0,Math.round(isFinite(o[k])?o[k]:0));});
   o.modulos=readMods();
@@ -804,9 +809,20 @@ function fillEmisorL(sel){
 }
 /* Centralitas de luces del catálogo de cada opción (se enseñan debajo del selector). */
 const LUZ_REF={nexta_tkl:["tkl"],nexta_rgbw:["tklrgbw"],nexta_stl250:["stl250"],nexta_stl100:["stl100"],nexta:["stl100","stl250"],teleco_eu:["telEU","stick"],teleco_ul:["rgbww"],somfy:["somLed","somRGB"]};
+/* Red eléctrica del país: 230 V ~ 50 Hz o 120 V ~ 60 Hz. Con 120 V solo se puede usar Teleco UL, en el motor y en las
+   luces (criterio de Andrés, 30-oct-2026): las demás opciones se bloquean. Elegir Teleco UL pone la red en 120 V. */
+const redDe=cfg=>cfg.red==="120"?{V:120,Hz:60}:{V:230,Hz:50};
+function aplicaRed(){
+  const r120=$("red").value==="120";
+  ["sistema","sisLuz"].forEach(id=>[...$(id).options].forEach(o=>{o.disabled=r120&&!!o.value&&o.value!=="teleco_ul";}));
+  if(!r120)return;
+  if($("sistema").value&&$("sistema").value!=="teleco_ul"){$("sistema").value="teleco_ul";fillEmisores("teleco_ul",$("emisor").value);}
+  if($("sisLuz").value!=="teleco_ul"){$("sisLuz").value="teleco_ul";fillEmisorL();}
+}
 /* Sistema de luces que va con la centralita del motor (se pone al elegir el motor; luego se puede cambiar). */
 const luzMotor=(sis,lc)=>sis==="nexta"?({stl250:"nexta_stl250",stl100:"nexta_stl100"}[lc]||"nexta"):(EMISORES[sis]?sis:"nexta");
 function fillEmisores(sis,sel){
+  if(sis==="teleco_ul")$("red").value="120";
   if(EMISORES[sis])$("sisLuz").value=luzMotor(sis,$("ledCentral").value);
   $("emisor").disabled=!EMISORES[sis];
   if(!EMISORES[sis]){$("emisor").innerHTML=`<option value="">— Elige primero el sistema —</option>`;return;}
@@ -823,6 +839,7 @@ function writeForm(o){
   const m=o.material||{};mat={sw:m.sw||{},q:m.q||{},del:Array.isArray(m.del)?m.del:[],extra:Array.isArray(m.extra)?m.extra.filter(x=>C[x.k]):[]};
   fillEmisores(o.sistema,o.emisor);
   FIELDS.forEach(k=>{if(k==="emisor"||k==="emisorL")return;const el=$(k);if(el.type==="checkbox")el.checked=!!o[k];else el.value=o[k]??"";});
+  if(!$("red").value)$("red").value=o.sistema==="teleco_ul"?"120":"230";
   if(!$("sisLuz").value)$("sisLuz").value=luzMotor(o.sistema,o.ledCentral);fillEmisorL(o.emisorL||"");
   writeMods(o.modulos);
   syncForm();
@@ -1289,11 +1306,18 @@ function calcular(cfg){
     add("tr150",1,"tomas USB");add("usb",cfg.usb);
   }
   dev.forEach(d=>d.W=d.Wfix!=null?d.Wfix:d.right.reduce((a,it)=>a+(it.W||0),0));
-  /* Lo que va por fuente de 24 V se divide por su rendimiento (90 %); lo que es directo a 230 V (MT-R), tal cual. */
-  /* lo que se pierde en los cables va por el lado de 24 V: cuenta en las cargas y, al 90 %, en 230 V */
+  /* Lo que va por fuente de 24 V se divide por su rendimiento (90 %); lo que es directo a la red (MT-R), tal cual. */
+  /* lo que se pierde en los cables va por el lado de 24 V: cuenta en las cargas y, al 90 %, en la red. W230 / I230 = lado
+     de red, a la tensión del país (230 V o 120 V). */
   const PW=perd.reduce((x,q)=>x+q.W,0);
-  const W24=PW+dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0),0),W230=PW/0.9+dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0)/(d.directo?1:0.9),0),I230=W230/230;
-  if(cfg.schuko)av.push(["info","Las tomas de 230 V llevan conductor de protección (verde-amarillo) y en exterior han de ser IPX4 como mínimo (ITC-BT-30). La toma Schuko del catálogo es IP54."]);
+  const W24=PW+dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0),0),W230=PW/0.9+dev.filter(d=>d.feed==="230").reduce((a,d)=>a+(d.W||0)/(d.directo?1:0.9),0),I230=W230/redDe(cfg).V;
+  if(cfg.red==="120"){
+    if(cfg.sistema&&cfg.sistema!=="teleco_ul")av.push(["bad","Red de 120 V: solo se puede usar Teleco UL en el motor. Cambia la centralita del motor."]);
+    if(sisLuzDe(cfg)!=="teleco_ul")av.push(["bad","Red de 120 V: solo se puede usar Teleco UL en las luces. Cambia el sistema de luces."]);
+    if(dev.some(d=>d.trafo))av.push(["warn","Red de 120 V ~ 60 Hz: comprueba en la etiqueta de cada transformador que admite 120 V de entrada."]);
+    if(cfg.schuko)av.push(["warn","Red de 120 V: la toma Schuko del catálogo es de 230 V; pon la toma del país."]);
+  }
+  else if(cfg.schuko)av.push(["info","Las tomas de 230 V llevan conductor de protección (verde-amarillo) y en exterior han de ser IPX4 como mínimo (ITC-BT-30). La toma Schuko del catálogo es IP54."]);
   /* ---- canales del mando: por módulo motor, perímetro, indirecto, lamas y focos; con varios módulos sigue la numeración.
      Sin encendido independiente, las luces de un módulo van en un solo canal. Se puede fijar cada uno a mano. ---- */
   const canales=[],usados={};
@@ -1347,7 +1371,7 @@ function trazos(x,y,n,ver,txt){
                 :`<text x="${x}" y="${y-10}" font-size="10" font-weight="700" text-anchor="middle" class="mono">${esc(t)}</text>`);
 }
 function dibujaUnifilar(cfg,r,cuadro){
-  const W=820,bx=110,bw=230,ix=520,iw=280,itemH=46;
+  const VR=redDe(cfg).V,W=820,bx=110,bw=230,ix=520,iw=280,itemH=46;
   const dy=cuadro?150:0;let y=78+dy,body="",branches=[],pes=[];const cajas={};
   r.dev.forEach(d=>{
     const n=Math.max(1,d.right.length),h=Math.max(d.trafo?92:76,14+n*itemH);
@@ -1357,8 +1381,8 @@ function dibujaUnifilar(cfg,r,cuadro){
     if(d.code)body+=`<text x="${bx+12}" y="${by+40}" font-size="12" class="mono mut">${esc(d.code)}</text>`;
     body+=`<text x="${bx+12}" y="${by+(d.code?56:40)}" font-size="12" class="mut">${esc(trunc(d.model+(d.W?" · "+w0(d.W):""),36))}</text>`;
     /* Fuente integrada: entra 230 V y sale 24 V DC dentro de la propia central. */
-    if(d.trafo)body+=`<text x="${bx+12}" y="${by+(d.code?74:58)}" font-size="11" class="mono" style="fill:var(--w-p)">230 V ~ → 24 V ⎓ · ${d.abajo||"al receptor"} ↓</text>`;
-    if(d.psu&&bh>=70)body+=`<text x="${bx+12}" y="${by+(d.code?74:58)}" font-size="11" class="mono" style="fill:var(--w-p)">fuente 230 V ~ → 24 V ⎓</text>`;
+    if(d.trafo)body+=`<text x="${bx+12}" y="${by+(d.code?74:58)}" font-size="11" class="mono" style="fill:var(--w-p)">${VR} V ~ → 24 V ⎓ · ${d.abajo||"al receptor"} ↓</text>`;
+    if(d.psu&&bh>=70)body+=`<text x="${bx+12}" y="${by+(d.code?74:58)}" font-size="11" class="mono" style="fill:var(--w-p)">fuente ${VR} V ~ → 24 V ⎓</text>`;
     const fy=by+18;
     if(d.feed==="230"){branches.push(fy);if(d.pe)pes.push(fy);
       body+=`<circle cx="40" cy="${fy}" r="3" fill="var(--ink)"/><line x1="40" y1="${fy}" x2="${bx}" y2="${fy}" stroke="var(--ink)" stroke-width="2"/>`;
@@ -1388,22 +1412,25 @@ function dibujaUnifilar(cfg,r,cuadro){
     });
     y+=h;
   });
-  /* El esquema empieza en las centrales: la acometida de 230 V y sus protecciones las decide el cliente. */
+  /* El esquema empieza en las centrales: la acometida y sus protecciones las decide el cliente. */
   const busEnd=branches.length?Math.max(...branches):78+dy;
   /* Opción al imprimir: desde el cuadro del cliente, con PIA, diferencial y línea (propuesta orientativa, la valida el técnico). */
   if(cuadro){const I=r.I230,L=I<=8?{In:10,s:"1,5"}:I<=13?{In:16,s:"2,5"}:null,nf=n=>n.toLocaleString("es-ES",{maximumFractionDigits:1});
     const sym=(yy,t1,t2)=>`<rect x="33" y="${yy}" width="14" height="22" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/><line x1="33" y1="${yy+22}" x2="47" y2="${yy}" stroke="var(--ink)" stroke-width="1.5"/><text x="60" y="${yy+10}" font-size="12" font-weight="600">${t1}</text><text x="60" y="${yy+24}" font-size="11" class="mut">${t2}</text>`;
     const head=`<rect x="10" y="8" width="360" height="30" rx="3" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="6 4"/>
-    <text x="22" y="28" font-size="13" font-weight="600">Cuadro del cliente · ${cfg.sistema==="teleco_ul"?"red del país (UL)":"230 V ~ 50 Hz"}</text>
+    <text x="22" y="28" font-size="13" font-weight="600">Cuadro del cliente · ${redDe(cfg).V} V ~ ${redDe(cfg).Hz} Hz</text>
     <line x1="40" y1="38" x2="40" y2="${busEnd}" stroke="var(--ink)" stroke-width="2.5"/>
-    ${sym(52,L?`PIA 2P ${L.In} A · curva C`:"PIA: más de 16 A, repartir en 2 líneas","Magnetotérmico (sobrecargas y cortocircuitos)")}
+    ${VR!==230?`<text x="60" y="66" font-size="12" font-weight="600">Protecciones y sección: según la normativa del país</text>
+    <text x="60" y="86" font-size="11" class="mono">≈${Math.round(r.W230)} W · ${nf(I)} A a ${VR} V</text>
+    <text x="60" y="104" font-size="10" class="mut">Las dimensiona el electricista local (el REBT español no se aplica)</text>
+    ${trazos(40,176,3,true,"3 · L N PE")}`:`${sym(52,L?`PIA 2P ${L.In} A · curva C`:"PIA: más de 16 A, repartir en 2 líneas","Magnetotérmico (sobrecargas y cortocircuitos)")}
     ${sym(92,"ID 2P 40 A · 30 mA","Diferencial (ITC-BT-24 / ITC-BT-25)")}
     <text x="60" y="140" font-size="11" class="mono">${L?`Línea 3G${L.s} mm² (L + N + PE)`:"Repartir en 2 líneas"} · ≈${Math.round(r.W230)} W · ${nf(I)} A</text>
     <text x="60" y="154" font-size="10" class="mut">Propuesta orientativa según el consumo; la valida el técnico (ITC-BT-19 / 25)</text>
     ${trazos(40,176,3,true,"3 · L N PE")}
-    <text x="60" y="${210}" font-size="11" class="mono mut">Caja estanca IPX4 en la pérgola (ITC-BT-30) · una derivación por central</text>`;
+    <text x="60" y="${210}" font-size="11" class="mono mut">Caja estanca IPX4 en la pérgola (ITC-BT-30) · una derivación por central</text>`}`;
     return `<svg viewBox="0 0 ${W} ${y+10}" width="${W}" role="img" aria-label="Esquema unifilar de la pérgola">${head}${body}</svg>`;}
-  const head=`<text x="22" y="22" font-size="13" font-weight="600">230 V ~ a cada central</text>
+  const head=`<text x="22" y="22" font-size="13" font-weight="600">${VR} V ~ a cada central</text>
   <text x="22" y="38" font-size="11" class="mut">La acometida y sus protecciones las pone el cliente; aquí se parte de las centrales.</text>
   <circle cx="40" cy="56" r="3.5" fill="var(--ink)"/><line x1="40" y1="56" x2="40" y2="${busEnd}" stroke="var(--ink)" stroke-width="2.5"/>
   ${trazos(40,66,pes.length?3:2,true,pes.length?"3 · L N PE":"2 · L N")}`;
@@ -1412,7 +1439,7 @@ function dibujaUnifilar(cfg,r,cuadro){
 /* Unifilar vertical por columnas (UNE-EN 61082-1, hoja apaisada): la línea general (L N PE) va arriba en horizontal y de
    ella baja una columna por central; debajo de cada central, sus circuitos uno bajo otro. Mismo contenido que el horizontal. */
 function dibujaUnifilarV(cfg,r,cuadro){
-  const CW=280,BW=230,itemH=44,top=cuadro?190:96,busY=top-26,cols=[];
+  const VR=redDe(cfg).V,CW=280,BW=230,itemH=44,top=cuadro?190:96,busY=top-26,cols=[];
   r.dev.forEach(d=>{if(d.feed==="24"&&d.from){const c=cols.find(c=>c.some(x=>x.id===d.from));if(c){c.push(d);return;}}cols.push([d]);});
   let body="",maxY=top;const x0=60;
   cols.forEach((col,ci)=>{const cx=x0+ci*CW;let y=top;
@@ -1426,7 +1453,7 @@ function dibujaUnifilarV(cfg,r,cuadro){
       body+=`<text x="${cx+10}" y="${y+18}" font-size="12" font-weight="600">${esc(trunc(d.t,30))}</text>`;
       if(d.code)body+=`<text x="${cx+10}" y="${y+34}" font-size="11" class="mono mut">${esc(d.code)}</text>`;
       body+=`<text x="${cx+10}" y="${y+(d.code?49:34)}" font-size="11" class="mut">${esc(trunc(d.model+(d.W?" · "+w0(d.W):""),32))}</text>`;
-      if(d.trafo||d.psu)body+=`<text x="${cx+10}" y="${y+(d.code?64:49)}" font-size="10" class="mono" style="fill:var(--w-p)">${d.trafo?"230 V ~ → 24 V ⎓ ↓":"fuente 230 V ~ → 24 V ⎓"}</text>`;
+      if(d.trafo||d.psu)body+=`<text x="${cx+10}" y="${y+(d.code?64:49)}" font-size="10" class="mono" style="fill:var(--w-p)">${d.trafo?`${VR} V ~ → 24 V ⎓ ↓`:`fuente ${VR} V ~ → 24 V ⎓`}</text>`;
       y+=bh;
       if(n){/* circuitos: bajan por la columna, cada uno con su número de conductores y su sección */
         const sx=cx+18,yEnd=y+14+(n-1)*itemH+itemH/2;
@@ -1445,14 +1472,17 @@ function dibujaUnifilarV(cfg,r,cuadro){
   if(cuadro){const I=r.I230,L=I<=8?{In:10,s:"1,5"}:I<=13?{In:16,s:"2,5"}:null,nf=n=>n.toLocaleString("es-ES",{maximumFractionDigits:1});
     const sym=(xx,yy,t1,t2)=>`<rect x="${xx-7}" y="${yy}" width="14" height="22" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/><line x1="${xx-7}" y1="${yy+22}" x2="${xx+7}" y2="${yy}" stroke="var(--ink)" stroke-width="1.5"/><text x="${xx+16}" y="${yy+10}" font-size="12" font-weight="600">${esc(t1)}</text><text x="${xx+16}" y="${yy+23}" font-size="10" class="mut">${esc(t2)}</text>`;
     head=`<rect x="10" y="8" width="360" height="30" rx="3" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="6 4"/>
-    <text x="22" y="28" font-size="13" font-weight="600">Cuadro del cliente · ${cfg.sistema==="teleco_ul"?"red del país (UL)":"230 V ~ 50 Hz"}</text>
+    <text x="22" y="28" font-size="13" font-weight="600">Cuadro del cliente · ${redDe(cfg).V} V ~ ${redDe(cfg).Hz} Hz</text>
     <line x1="30" y1="38" x2="30" y2="${busY}" stroke="var(--ink)" stroke-width="2.5"/>
-    ${sym(30,50,L?`PIA 2P ${L.In} A · curva C`:"PIA: más de 16 A, repartir en 2 líneas","Magnetotérmico")}
+    ${VR!==230?`<text x="46" y="64" font-size="12" font-weight="600">Protecciones y sección: según la normativa del país</text>
+    <text x="46" y="84" font-size="11" class="mono">≈${Math.round(r.W230)} W · ${nf(I)} A a ${VR} V</text>
+    <text x="46" y="102" font-size="10" class="mut">Las dimensiona el electricista local (el REBT español no se aplica)</text>
+    `:`${sym(30,50,L?`PIA 2P ${L.In} A · curva C`:"PIA: más de 16 A, repartir en 2 líneas","Magnetotérmico")}
     ${sym(30,88,"ID 2P 40 A · 30 mA","Diferencial (ITC-BT-24 / 25)")}
     <text x="46" y="132" font-size="11" class="mono">${L?`Línea 3G${L.s} mm² (L + N + PE)`:"Repartir en 2 líneas"} · ≈${Math.round(r.W230)} W · ${nf(I)} A</text>
     <text x="46" y="146" font-size="10" class="mut">Propuesta orientativa; la valida el técnico (ITC-BT-19 / 25) · caja estanca IPX4 en la pérgola (ITC-BT-30)</text>
-    `+trazos(30,busY-14,3,true,"L N PE")+head;}
-  else head=`<text x="20" y="22" font-size="13" font-weight="600">230 V ~ a cada central</text><text x="20" y="38" font-size="11" class="mut">La acometida y sus protecciones las pone el cliente; aquí se parte de las centrales.</text>`+head;
+    `}`+trazos(30,busY-14,3,true,"L N PE")+head;}
+  else head=`<text x="20" y="22" font-size="13" font-weight="600">${VR} V ~ a cada central</text><text x="20" y="38" font-size="11" class="mut">La acometida y sus protecciones las pone el cliente; aquí se parte de las centrales.</text>`+head;
   return `<svg viewBox="0 0 ${W} ${maxY+10}" width="${W}" role="img" aria-label="Esquema unifilar de la pérgola, vertical por columnas">${head}${body}</svg>`;
 }
 const trunc=(s,n)=>{s=String(s);return s.length>n?s.slice(0,n-1)+"…":s;};
@@ -2643,7 +2673,7 @@ function pintaSecs(){
   const ms=readMods(),res={
     plano:nDif?[`⚠ ${nDif} contraste(s) con diferencias`,1]:[nAdj?`${nAdj} plano(s)`:""],
     obra:[[v("obra"),v("of"),parseFloat(v("alto"))>0?"H "+m2(+v("alto"))+" m":""].filter(Boolean).join(" · ")],
-    motor:[[tx("sistema"),tx("emisor")].filter(Boolean).join(" · ")||"sin elegir",!v("sistema")],
+    motor:[[v("red")==="120"?"120 V":"",tx("sistema"),tx("emisor")].filter(Boolean).join(" · ")||"sin elegir",!v("sistema")],
     luces:[tx("sisLuz")],
     mods:[ms.length?`${ms.length} módulo(s)`:"sin módulos"],
     tomas:[[+v("schuko")?v("schuko")+" Schuko":"",+v("usb")?v("usb")+" USB":""].filter(Boolean).join(" · ")||"ninguna"]};
@@ -2660,6 +2690,7 @@ $("f").addEventListener("click",e=>{
 /* los cuadros de contraste llegan después de render(): el resumen del apartado se repinta al cambiar */
 ["impRes","matRes"].forEach(id=>new MutationObserver(()=>pintaSecs()).observe($(id),{childList:true,subtree:true}));
 function render(){
+  aplicaRed();
   pintaSecs();
   const sis=$("sistema").value;if(EMISORES[sis]&&!EMISORES[sis].includes($("emisor").value))fillEmisores(sis,$("emisor").value);
   syncForm();
@@ -2693,14 +2724,14 @@ function render(){
   $("tiras").innerHTML=filas.length?`<table><thead><tr><th>Mód.</th><th>Viga</th><th>Sale de</th><th>Largo</th><th>Consumo</th><th>Producto</th></tr></thead><tbody>${filas.join("")}</tbody></table>`:`<p class="hint">Sin iluminación.</p>`;
   $("conx").innerHTML=conexiones(cfg,r);
   {const h=esquemaSomfy(r);$("somfyRx").innerHTML=h;$("somfySheet").hidden=!h;}
-  /* Consumo: centrales alimentadas a 230 V (un receptor de 24 V ya cuenta en su transformador). */
+  /* Consumo: centrales alimentadas a la red (un receptor de 24 V ya cuenta en su transformador). */
   const cw=r.dev.filter(d=>d.feed==="230"&&d.W>0),PW=r.PW||0,TW=cw.reduce((a,d)=>a+d.W,0)+PW,W230=r.W230;
   /* pérdidas en los cables (ΔU × I): una línea con el detalle por módulo */
   const perdTxt=(r.perd||[]).filter(q=>q.W>=0.05).map(q=>`${q.tag} ${q.t} ${w0(q.W)}`).join(" · ");
   $("sumW").textContent=`Total ${w0(TW)}`;
   $("consumo").innerHTML=`<thead><tr><th>Central</th><th>Alimenta</th><th style="text-align:right">W</th></tr></thead><tbody>${
     cw.map(d=>`<tr><td>${esc(d.t)}<div class="hint">${esc(d.code)}</div></td><td>${esc(d.alimenta||d.right.filter(it=>it.W).map(it=>it.t).join(" · "))}</td><td class="qty">${w0(d.W)}</td></tr>`).join("")
-  }${PW>=0.05?`<tr><td>Pérdidas en los cables<div class="hint">caída de tensión × corriente, a 24 V</div></td><td>${esc(perdTxt)}</td><td class="qty">${w0(PW)}</td></tr>`:""}</tbody><tfoot><tr><th colspan="2">Total de las cargas</th><th style="text-align:right" class="mono">${w0(TW)}</th></tr><tr><th colspan="2">Estimado en 230 V (fuentes de 24 V al 90 %)</th><th style="text-align:right" class="mono">${w0(W230)} · ${(W230/230).toLocaleString("es-ES",{maximumFractionDigits:1})} A</th></tr></tfoot>`;
+  }${PW>=0.05?`<tr><td>Pérdidas en los cables<div class="hint">caída de tensión × corriente, a 24 V</div></td><td>${esc(perdTxt)}</td><td class="qty">${w0(PW)}</td></tr>`:""}</tbody><tfoot><tr><th colspan="2">Total de las cargas</th><th style="text-align:right" class="mono">${w0(TW)}</th></tr><tr><th colspan="2">Estimado en ${redDe(cfg).V} V (fuentes de 24 V al 90 %)</th><th style="text-align:right" class="mono">${w0(W230)} · ${(W230/redDe(cfg).V).toLocaleString("es-ES",{maximumFractionDigits:1})} A</th></tr></tfoot>`;
   pintaMaterial(r);pintaOT(r);
   pintaAprendido();
   pintaCliente(cfg,r,cj);
