@@ -154,6 +154,9 @@ $("#secs").addEventListener("click",e=>{const b=e.target.closest("button[data-s]
   try{localStorage.setItem("cl_apartado",sec);}catch(_){}notFound=null;recog=null;confirmCode=null;$("#q").value="";chips();render();});
 $("#chips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;cur=b.dataset.c;marca="Todas";confirmCode=null;recog=null;chips();render();});
 $("#mchips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;marca=b.dataset.m;chips();render();});
+/* En el ordenador, la rueda del ratón mueve en horizontal la fila de categorías o marcas. */
+["#chips","#mchips"].forEach(id=>$(id).addEventListener("wheel",e=>{const r=e.currentTarget;if(r.scrollWidth<=r.clientWidth||Math.abs(e.deltaX)>Math.abs(e.deltaY))return;
+  const max=r.scrollWidth-r.clientWidth;if((e.deltaY<0&&r.scrollLeft<=0)||(e.deltaY>0&&r.scrollLeft>=max))return;e.preventDefault();r.scrollLeft+=e.deltaY;},{passive:false}));
 $("#q").addEventListener("input",()=>{notFound=null;recog=null;fuzzyQ=false;render();});
 /* ---------- búsqueda aproximada ----------
    Con la voz (y al escribir, si no hay ninguna coincidencia exacta) se busca por parecido: palabras sueltas en
