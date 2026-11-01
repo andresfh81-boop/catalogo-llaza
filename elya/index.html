@@ -138,7 +138,8 @@ button.del{padding:7px 10px;font-size:13px;color:var(--bad)}
 .plantas{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
 .plantas figure{margin:0;border:1px solid var(--soft);border-radius:4px;padding:8px;min-width:0}
 .plantas figcaption{font:600 13px/1.3 var(--f-body);margin-bottom:4px}
-.plantas svg{width:100%;height:auto;cursor:zoom-in}
+/* el dibujo cabe en la pantalla: un módulo alto (p. ej. 3,50 × 7 m) no pasa del alto de la ventana */
+.plantas svg{width:100%;height:auto;max-height:max(420px,calc(100vh - 120px));cursor:zoom-in}
 .plantas figure.todo{grid-column:1/-1}
 .plantas figcaption{display:flex;gap:8px;align-items:center;justify-content:space-between}
 .plantas figcaption button{font-size:12px;padding:3px 10px}
@@ -158,7 +159,7 @@ button.del{padding:7px 10px;font-size:13px;color:var(--bad)}
 .cli-can{border-collapse:collapse;margin:0 0 14px;font-size:15px}.cli-can td,.cli-can th{border:1px solid var(--line);padding:8px 12px;text-align:left}.cli-can td:first-child{font-weight:700;font-size:18px;text-align:center}
 .cli-pl{display:grid;gap:12px}.cli-pl svg{width:100%;height:auto;max-width:720px}
 .adjbox{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:8px;font-size:13px}.adjbox span{display:flex;flex-wrap:wrap;gap:6px}
-@media print{.zoom{display:none!important}.plantas figcaption button{display:none}}
+@media print{.zoom{display:none!important}.plantas figcaption button{display:none}.plantas svg{max-height:none}}
 main{display:grid;gap:20px;min-width:0}
 .sheet{background:var(--paper);border:1px solid var(--line);border-radius:6px;min-width:0}
 .sheet>.hd{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line)}
