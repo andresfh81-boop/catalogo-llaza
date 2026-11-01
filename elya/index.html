@@ -9,7 +9,6 @@
 <link rel="icon" href="icon/icon-32.png">
 <link rel="apple-touch-icon" href="icon/icon-180.png">
 <script>window.ELYA_API={url:"https://script.google.com/macros/s/AKfycbx6O4pyMDoRBnUyWfemQf4kDcG2AqS0yCgYnO4BsExkOi5_Bg_v3t2QshV18qqMT3RH/exec",clientId:"262401648003-agcod92m3lne93rpgf3ulc54p0695p1q.apps.googleusercontent.com"};</script>
-<script src="https://accounts.google.com/gsi/client" async></script>
 <title>Esquema eléctrico ELYA</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
@@ -230,6 +229,8 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <div class="btns">
     <button type="button" class="pri" id="bSave" hidden>Guardar en Drive</button>
     <button type="button" id="bOpen" hidden>Abrir de Drive</button>
+    <button type="button" id="bGuardaL" hidden>Guardar en el dispositivo</button>
+    <button type="button" id="bAbreL" hidden>Abrir del dispositivo</button>
     <button type="button" id="bCopy">Copiar material</button>
     <button type="button" id="bPrint" hidden>Imprimir / PDF</button>
     <button type="button" id="bCfg">Configurar desde cero</button>
@@ -448,7 +449,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
 
 <script>
 (function(){"use strict";
-/* Catálogo ELYA: códigos y modelos de la hoja «REFERENCIAS ELÉCTRICAS UMARA.» */
+/* Catálogo ELYA: códigos y modelos de la hoja de referencias eléctricas */
 const C={
   motor:["42000100000","Motor lineal C-100 TM","JP-4L89-001 · 24 V DC"],
   tkm:["48070012000","Ctral. Mot. 24VDC 100W","TKM100M4/1C/WRT"],
@@ -598,7 +599,7 @@ const LUZ={none:"Sin tira",w3000:"Blanco cálido 3000 K",w4000:"Blanco neutro 40
 const luzNiv=(m,nv)=>nv==="i"&&m.ledPos==="ambos"&&m.luzI&&LUZ[m.luzI]&&m.luzI!=="none"?m.luzI:m.luz;
 const lucesDe=m=>[...new Set(NIV(m).map(nv=>luzNiv(m,nv)))];
 /* Medidas de tira que hay en catálogo según la luz y el producto (rollo o neón). */
-/* Cables para las lamas con LED que se pueden poner a mano en cada módulo (catálogo «REFERENCIAS ELÉCTRICAS UMARA.»). */
+/* Cables para las lamas con LED que se pueden poner a mano en cada módulo (catálogo de referencias eléctricas). */
 const LAMCAB=["cabEje","cabT","sp4Mi","ext05","conMM","c1m","y3","sp4W","conEje","conRGBW"];
 /* Los conectores no cuentan como «cables a mano»: con solo conectores, los cables en T siguen saliendo solos. */
 const LAMCON=["conEje","conRGBW"];
@@ -812,7 +813,7 @@ function fillEmisorL(sel){
 /* Centralitas de luces del catálogo de cada opción (se enseñan debajo del selector). */
 const LUZ_REF={nexta_tkl:["tkl"],nexta_rgbw:["tklrgbw"],nexta_stl250:["stl250"],nexta_stl100:["stl100"],nexta:["stl100","stl250"],teleco_eu:["telEU","stick"],teleco_ul:["rgbww"],somfy:["somLed","somRGB"]};
 /* Red eléctrica del país: 230 V ~ 50 Hz o 120 V ~ 60 Hz. Con 120 V solo se puede usar Teleco UL, en el motor y en las
-   luces (criterio de Andrés, 30-oct-2026): las demás opciones se bloquean. Elegir Teleco UL pone la red en 120 V. */
+   luces (fijado el 30-oct-2026): las demás opciones se bloquean. Elegir Teleco UL pone la red en 120 V. */
 const redDe=cfg=>cfg.red==="120"?{V:120,Hz:60}:{V:230,Hz:50};
 function aplicaRed(){
   const r120=$("red").value==="120";
@@ -2102,7 +2103,7 @@ function pintaImport(){
    solo en el enlace de Claude) y devuelve los datos en JSON. En la app instalable no hay Claude: se avisa. */
 let samplePr=null;
 const claudeSample=()=>samplePr||(samplePr=(window.claude&&window.claude.use?window.claude.use("sample").catch(()=>null):Promise.resolve(null)));
-const PROMPT_PLANO=`Son las páginas de un plano de una pérgola bioclimática ELYA (Llaza / Umara), escaneadas o fotografiadas y quizá giradas.
+const PROMPT_PLANO=`Son las páginas de un plano de una pérgola bioclimática ELYA (Llaza), escaneadas o fotografiadas y quizá giradas.
 Léelas con cuidado y devuelve SOLO un objeto JSON con esta forma (null si un dato no aparece; no inventes):
 {"obra": "referencia u obra del cajetín", "oferta": "nº de oferta u OF", "cliente": "cliente",
  "modelo": "texto del modelo", "montaje": "autoportante" | "pared" | "pared_porteria" | null,
@@ -2112,7 +2113,7 @@ Léelas con cuidado y devuelve SOLO un objeto JSON con esta forma (null si un da
  "viento": true | false (según accesorios: anemómetro o sensor de viento), "lluvia": true | false (sensor de lluvia),
  "modulos": [{"n": 1,
    "ancho_mm": medida del módulo paralela a las lamas (las lamas se ven como líneas finas paralelas dentro del módulo),
-   "proyeccion_mm": medida del módulo perpendicular a las lamas (ojo: en los planos Umara la cota «(Proyección)» suele ser la de las lamas y «(Ancho)» la otra; fíjate en el dibujo de las lamas, y ninguna lama pasa de 4500 mm),
+   "proyeccion_mm": medida del módulo perpendicular a las lamas (ojo: en los planos la cota «(Proyección)» suele ser la de las lamas y «(Ancho)» la otra; fíjate en el dibujo de las lamas, y ninguna lama pasa de 4500 mm),
    "lamas_led_num": [números de las lamas con LED de ese módulo, p. ej. [5,12,19,26]] | [],
    "lamas_led": número de lamas con LED de ese módulo (0 si no lleva; el cajetín puede decir p. ej. «LAMAS LED: 8 · Modulo 1 (5,12,19,26) · Modulo 2/3 (4,9)», que son 4 en el módulo 1 y 2 en cada uno de los módulos 2 y 3),
    "motor": "izq" | "der",
@@ -2138,7 +2139,7 @@ async function paginasComoImagen(buf,max){
 let leerCtl=null;
 async function leePlanoConClaude(file,buf,texto){
   const sample=await claudeSample(),lim=sample&&await sample.limits().catch(()=>null);
-  if(!sample||!lim||!lim.images)throw new Error("Este plano es una imagen escaneada. Para leerlo, abre la app desde el enlace de Claude: allí lo lee Claude.");
+  if(!sample||!lim||!lim.images)throw new Error(API_CFG?"Este plano es una imagen escaneada. Para leerlo, abre la app desde el enlace de Claude: allí lo lee Claude.":"Este plano es una imagen escaneada y aquí no se puede leer: mete los módulos a mano.");
   const box=$("impRes");box.hidden=false;
   box.innerHTML=`<div><b>Leyendo el plano con Claude…</b> Puede tardar hasta un minuto. La primera vez te pide permiso.</div><div><button type="button" id="impStop">Parar</button></div>`;
   leerCtl=new AbortController();$("impStop").onclick=()=>leerCtl&&leerCtl.abort();
@@ -2152,7 +2153,7 @@ async function leePlanoConClaude(file,buf,texto){
   }finally{leerCtl=null;}
 }
 const SIS={cherubini:"nexta",teleco:"teleco_eu",somfy:"somfy"};
-/* Plano Umara digital (PDF con texto): el cajetín se lee directamente. Con un módulo, también pilares, motor y centralita
+/* Plano digital (PDF con texto): el cajetín se lee directamente. Con un módulo, también pilares, motor y centralita
    (el Ancho va en horizontal y las lamas en ese sentido). Devuelve los datos con la misma forma que la respuesta de Claude. */
 function datosCajetin(T){
   const J=T.map(t=>t.s).join("\n"),g=(re,i=1)=>{const m=J.match(re);return m?m[i]:null;},num=v=>v==null?null:parseInt(v,10);
@@ -2179,7 +2180,7 @@ function datosCajetin(T){
     if(cen&&P.length){const near=[...P].sort((a,b)=>Math.hypot(a.x-cen.x,a.y-cen.y)-Math.hypot(b.x-cen.x,b.y-cen.y))[0];
       const k=Object.keys(pil).find(k=>pil[k]===near.s);centralita={esquina:k,alojada:"pilar",ref:near.s};
       d.dudas.push(`Centralita: la flecha apunta cerca de ${near.s}. Comprueba que va en ese pilar.`);}
-    /* En el cajetín Umara «4900x3000» es Ancho × Proyección, y la Proyección es el largo de la lama (A de la app);
+    /* En el cajetín «4900x3000» es Ancho × Proyección, y la Proyección es el largo de la lama (A de la app);
        comprobado con el nº de lamas de la ficha (23 lamas ≈ 4,9 m → lamas de 3,0 m). */
     const dims=J.match(/(\d{3,5})\s*x\s*(\d{3,5})/i);
     d.modulos.push({n:1,ancho_mm:proy||(dims?+dims[2]:null),proyeccion_mm:ancho||(dims?+dims[1]:null),motor:motorT&&/izq/i.test(motorT.s)?"izq":"der",
@@ -2194,7 +2195,7 @@ function datosCajetin(T){
 }
 let montajeCliente=null;
 /* Lo que se pueda sacar de un plano que no se reconoce entero (otro formato, texto suelto, o escaneado sin Claude):
-   del texto, palabras clave; del nombre del archivo «54007592_4000x5500_TESTA» = nº de obra, largo de lama × la otra medida, tipo. */
+   del texto, palabras clave; del nombre del archivo «12345678_4000x5500_TESTA» = nº de obra, largo de lama × la otra medida, tipo. */
 function datosSueltos(T,nombre){
   const J=T.map(t=>t.s).join("\n"),N=String(nombre||""),num=v=>v==null?null:parseInt(String(v).replace(/\./g,""),10)||null;
   const elec=/CHERUBINI|NEXTA|TKM/i.test(J)?"cherubini":/SOMFY/i.test(J)?"somfy":/TELECO/i.test(J)?"teleco":null;
@@ -2479,7 +2480,7 @@ async function importaPlano(file){
     const r=interpretaPlano(T);
     if(!r.mods.length){
       /* Plano del cliente: se rellena con lo que tenga, aunque no se reconozca entero.
-         Cajetín Umara con texto → sus datos; con Claude (enlace de Claude) se lee además el dibujo; sin Claude, el texto y el nombre del archivo. */
+         Cajetín con texto → sus datos; con Claude (enlace de Claude) se lee además el dibujo; sin Claude, el texto y el nombre del archivo. */
       const nom=file.name.replace(/\.[^.]+$/,""),suelto=datosSueltos(T,file.name),hayCaj=T.some(t=>/^MODELO\b/i.test(t.s));
       const caj=hayCaj?juntaDatos(datosCajetin(T),suelto):suelto;
       const sample=await claudeSample(),lim=sample&&await sample.limits().catch(()=>null),conClaude=!!(lim&&lim.images);
@@ -2507,9 +2508,9 @@ async function importaPlano(file){
 }
 
 /* ---------- guardar y abrir obras en Google Drive (solo en el enlace de Claude: conector «Google Drive») ----------
-   Carpeta «PLANOS ELÉCTRICOS UMARA» y dentro una subcarpeta por pérgola con: la obra (JSON para volver a abrirla),
+   Carpeta raíz (RAIZ) y dentro una subcarpeta por pérgola con: la obra (JSON para volver a abrirla),
    el esquema (HTML para ver e imprimir) y el plano que se importó. */
-const GD="Google Drive",RAIZ="PLANOS ELÉCTRICOS UMARA",RAIZ_ID="1lqgK_tl83YrlnLi-QN5tWhuHpIhwpGQu",FOLDER="application/vnd.google-apps.folder";
+const GD="Google Drive",RAIZ="PLANOS ELÉCTRICOS",RAIZ_ID="",FOLDER="application/vnd.google-apps.folder";
 let mcpPr=null,planoFile=null;
 const mcp=()=>mcpPr||(mcpPr=(window.claude&&window.claude.use?window.claude.use("mcp").catch(()=>null):Promise.resolve(null)));
 const q=v=>String(v).replace(/\\/g,"\\\\").replace(/'/g,"\\'");
@@ -2540,7 +2541,17 @@ function snapshotHTML(cfg){
 const sello=()=>{const d=new Date(),z=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}${z(d.getMinutes())}`;};
 /* App instalable (sin Claude): Drive a través de la API del catálogo con «Iniciar sesión con Google».
    La sesión es la misma que la del catálogo (mismo sitio, clave «cl_tok»). window.ELYA_API lo pone build_elya.py. */
-const API_CFG=window.ELYA_API||null;
+/* La app se puede compartir: Drive solo sale en los dispositivos del dueño, que son los que tienen sesión del catálogo
+   (o se han abierto una vez con «?drive»); se recuerda. A los demás no les sale nada de Drive ni se carga el inicio de
+   sesión de Google. Esto solo oculta los botones: quien protege los datos es la API, que comprueba el correo. */
+const API_CFG=(()=>{
+  const c=window.ELYA_API;if(!c)return null;
+  let ok=/[?&]drive\b/.test(location.search);
+  try{ok=ok||!!localStorage.getItem("cl_tok")||localStorage.getItem("elya-drive")==="1";if(ok)localStorage.setItem("elya-drive","1");}catch(e){}
+  if(!ok)return null;
+  const s=document.createElement("script");s.src="https://accounts.google.com/gsi/client";s.async=true;document.head.appendChild(s);
+  return c;
+})();
 let gTok=null,gisIni=false;try{gTok=JSON.parse(localStorage.getItem("cl_tok")||"null");}catch(e){}
 const tokOk=()=>gTok&&gTok.exp*1000>Date.now()+60000;
 function tokenGoogle(box){
@@ -2574,6 +2585,7 @@ async function guardarPorApi(){
     const plano=planoFile&&!planoFile._subido&&planoFile.size<15e6?{name:planoFile.name,mime:planoFile.type||"application/pdf",b64:await fileB64(planoFile)}:null;
     const r=await api("elyaGuardar",[{nombre:nombreObra(cfg),obra:JSON.stringify({app:"esquema-elya",v:2,guardado:new Date().toISOString(),cfg},null,1),html:snapshotHTML(cfg),plano}],box,"Guardando en Google Drive…");
     if(planoFile&&r.hechos.includes("el plano"))planoFile._subido=true;
+    obTx("readwrite",s=>{const q=s.get(nombreObra(cfg));q.onsuccess=()=>{if(q.result)s.put(Object.assign(q.result,{pendiente:false}));};return q;}).catch(()=>{});
     box.innerHTML=`<div><span class="ok">Guardado</span> en ${esc(RAIZ)} / <b>${esc(r.nombre)}</b>: ${esc(r.hechos.join(", "))}.</div><div><a href="${esc(r.url)}" target="_blank" rel="noopener">Abrir la carpeta en Drive</a></div>`;
     toast("Guardado en Drive");
   }catch(e){console.warn(e);box.innerHTML=`<div class="ko">${esc(e.msg||e.message||"No se pudo guardar.")}</div>`;}
@@ -2641,6 +2653,63 @@ async function abrirDeDrive(){
       }catch(e){console.warn(e);box.innerHTML=`<div class="ko">${esc(e.msg||gdMsg(e))}</div>`;}
     };
   }catch(e){console.warn(e);box.innerHTML=`<div class="ko">${esc(gdMsg(e))}</div>`;}
+}
+
+/* ---------- Obras en este dispositivo: para trabajar sin internet (app instalable y navegador; en el enlace de Claude no sale).
+   Van en IndexedDB con su esquema y sus planos. En la app instalable quedan «pendientes» y se suben a Drive al volver la
+   conexión: solas si la sesión de Google sigue valiendo; si no, con un botón, porque hay que iniciar sesión. ---------- */
+const obDB=()=>new Promise((ok,ko)=>{const r=indexedDB.open("elya-obras",1);r.onupgradeneeded=()=>r.result.createObjectStore("obras",{keyPath:"nombre"});r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error);});
+const obTx=(modo,fn)=>obDB().then(db=>new Promise((ok,ko)=>{const t=db.transaction("obras",modo),q=fn(t.objectStore("obras"));t.oncomplete=()=>{db.close();ok(q.result);};t.onerror=t.onabort=()=>{db.close();ko(t.error);};}));
+const obLista=()=>obTx("readonly",s=>s.getAll()).then(L=>L.sort((a,b)=>String(b.guardado).localeCompare(String(a.guardado))));
+let obraLocal=null,subiendo=false;
+async function guardarLocal(){
+  const box=$("drive"),cfg=readForm(),nombre=nombreObra(cfg);box.hidden=false;
+  try{
+    const ya=await obTx("readonly",s=>s.get(nombre));
+    if(ya&&obraLocal!==nombre&&!confirm(`Ya hay una obra «${nombre}» en este dispositivo. ¿La sustituyo?`)){box.hidden=true;return;}
+    const o={nombre,guardado:new Date().toISOString(),cfg:JSON.parse(JSON.stringify(cfg)),html:snapshotHTML(cfg),plano:planoFile||null,planoSubido:!!(planoFile&&planoFile._subido),adjuntos:adjuntos.slice(),pendiente:!!API_CFG};
+    await obTx("readwrite",s=>s.put(o));obraLocal=nombre;
+    if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+    box.innerHTML=`<div><span class="ok">Guardada</span> en este dispositivo: <b>${esc(nombre)}</b>.${API_CFG?" Se sube a Drive cuando haya conexión.":""}</div>`;
+    toast("Guardada en este dispositivo");subePendientes(false);
+  }catch(e){console.warn(e);box.innerHTML=`<div class="ko">No se ha podido guardar en este dispositivo${e&&e.name==="QuotaExceededError"?": no queda espacio":""}. La obra sigue abierta: no cierres la app.</div>`;}
+}
+async function abrirLocal(){
+  const box=$("drive");box.hidden=false;
+  try{
+    const L=await obLista();
+    if(!L.length){box.innerHTML=`<div>No hay obras guardadas en este dispositivo.</div>`;return;}
+    const f=o=>new Date(o.guardado).toLocaleString("es-ES",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+    box.innerHTML=`<div class="row2"><label for="obSel">Obra</label><select id="obSel">${L.map(o=>`<option value="${esc(o.nombre)}">${esc(o.nombre)} · ${f(o)}${o.pendiente?" · sin subir":""}</option>`).join("")}</select><button type="button" class="pri" id="obGo">Abrir</button><button type="button" id="obDel">Borrar</button><button type="button" id="obX">Cerrar</button></div>`;
+    $("obX").onclick=()=>{box.hidden=true;};
+    $("obDel").onclick=async()=>{const n=$("obSel").value,o=L.find(x=>x.nombre===n);
+      if(!confirm(`¿Borro «${n}» de este dispositivo?${o&&o.pendiente?" Todavía no está subida a Drive: se perdería.":""}`))return;
+      await obTx("readwrite",s=>s.delete(n));if(obraLocal===n)obraLocal=null;abrirLocal();};
+    $("obGo").onclick=()=>{const o=L.find(x=>x.nombre===$("obSel").value);
+      plano=null;planoFile=o.plano||null;if(planoFile&&o.planoSubido)planoFile._subido=true;$("impRes").hidden=true;
+      adjuntos=o.adjuntos||[];adjPinta();writeForm(Object.assign(clone(BASE),o.cfg));render();obraLocal=o.nombre;
+      box.innerHTML=`<div><span class="ok">Abierta</span> ${esc(o.nombre)} (guardada el ${esc(new Date(o.guardado).toLocaleString("es-ES"))}).</div>`;};
+  }catch(e){console.warn(e);box.innerHTML=`<div class="ko">No se han podido leer las obras de este dispositivo.</div>`;}
+}
+async function subePendientes(manual){
+  if(!API_CFG||subiendo||!navigator.onLine)return;
+  let L;try{L=(await obLista()).filter(o=>o.pendiente);}catch(e){return;}
+  if(!L.length)return;
+  const box=$("drive");box.hidden=false;
+  if(!manual&&!tokOk()){box.innerHTML=`<div>${L.length===1?"Hay 1 obra":`Hay ${L.length} obras`} de este dispositivo sin subir a Drive.</div><div><button type="button" class="pri" id="obSube">Subir a Drive</button></div>`;$("obSube").onclick=()=>subePendientes(true);return;}
+  subiendo=true;let n=0;
+  try{
+    for(const o of L){
+      const pl=o.plano&&!o.planoSubido&&o.plano.size<15e6?{name:o.plano.name,mime:o.plano.type||"application/pdf",b64:await fileB64(o.plano)}:null;
+      const r=await api("elyaGuardar",[{nombre:o.nombre,obra:JSON.stringify({app:"esquema-elya",v:2,guardado:o.guardado,cfg:o.cfg},null,1),html:o.html,plano:pl}],box,`Subiendo a Drive: ${esc(o.nombre)}…`);
+      /* si mientras subía se ha vuelto a guardar, la obra sigue pendiente */
+      const cur=await obTx("readonly",s=>s.get(o.nombre));
+      if(cur&&cur.guardado===o.guardado)await obTx("readwrite",s=>s.put(Object.assign(cur,{pendiente:false,planoSubido:o.planoSubido||!!(pl&&r.hechos.includes("el plano"))})));
+      n++;
+    }
+    box.innerHTML=`<div><span class="ok">Subido a Drive</span>: ${n===1?"1 obra":n+" obras"} de este dispositivo.</div>`;toast("Subido a Drive");
+  }catch(e){console.warn(e);box.innerHTML=`<div class="ko">${esc(e.msg||e.message||"No se ha podido subir a Drive.")}</div><div class="hint">Lo que falta sigue guardado en este dispositivo.</div>`;}
+  finally{subiendo=false;}
 }
 
 /* ---------- pintar ---------- */
@@ -2896,7 +2965,7 @@ function codigosDeLineas(lines){
       out[c]=Math.round(((out[c]||0)+(q||1))*100)/100;});});
   return out;
 }
-const PROMPT_MAT=`Es una hoja (o foto) de material de una pérgola ELYA (Llaza / Umara). Devuelve SOLO un JSON {"items":[{"codigo":"11 cifras","cantidad":número,"descripcion":"texto"}]} con cada línea que tenga un código de producto de 11 cifras y su cantidad (unidades; si no se ve, 1). No inventes códigos.`;
+const PROMPT_MAT=`Es una hoja (o foto) de material de una pérgola ELYA (Llaza). Devuelve SOLO un JSON {"items":[{"codigo":"11 cifras","cantidad":número,"descripcion":"texto"}]} con cada línea que tenga un código de producto de 11 cifras y su cantidad (unidades; si no se ve, 1). No inventes códigos.`;
 /* texto de un PDF (todas las páginas) → filas «a | b | c» → códigos y cantidades */
 function codigosDeTexto(T){
   const filas={};T.forEach(t=>{const k=Math.round(t.y/4);(filas[k]=filas[k]||[]).push(t);});
@@ -3226,6 +3295,8 @@ if(!top){$("pGo").hidden=true;$("pPrintHint").hidden=true;$("pSave").classList.a
 render();
 eventosMaterial();
 $("bSave").onclick=guardarEnDrive;$("bOpen").onclick=abrirDeDrive;
+if(!window.claude&&window.indexedDB){$("bGuardaL").hidden=false;$("bAbreL").hidden=false;$("bGuardaL").onclick=guardarLocal;$("bAbreL").onclick=abrirLocal;
+  window.addEventListener("online",()=>subePendientes(false));subePendientes(false);}
 mcp().then(m=>{if(m||API_CFG){$("bSave").hidden=false;$("bOpen").hidden=false;}});
 })();
 </script>
