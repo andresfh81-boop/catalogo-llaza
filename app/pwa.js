@@ -109,10 +109,89 @@
   window.google = window.google || {};
   google.script = { run: runner(null, null) };
 
+  /* ---------- descargar todo para usar sin conexión: fotos grandes y PDF de los manuales ----------
+     Va en la misma caché que las fotos ya vistas («full/<fileId>»), así que client.js las encuentra solas. Se puede parar:
+     al volver a pulsar sigue por donde iba. Los vídeos y las webs no se pueden guardar. */
+  var dlActivo = false, dlParar = false;
+  function dlBar(html) {
+    var b = document.getElementById("pwaDlBar");
+    if (!b) { document.body.insertAdjacentHTML("afterbegin", '<div id="pwaDlBar"></div>'); b = document.getElementById("pwaDlBar"); }
+    b.hidden = !html; b.innerHTML = html || "";
+  }
+  function pdfId(m) {
+    var x = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:[^#]*&)?id=)([\w-]{20,})/.exec(m.url || "");
+    return x ? x[1] : "";
+  }
+  function dlLista() {
+    return readC("boot").then(function (c) {
+      if (!c || !c.d) return [];
+      var vistos = {}, L = [];
+      function pon(id, tipo) { if (id && !vistos[id]) { vistos[id] = 1; L.push({ id: id, tipo: tipo }); } }
+      (c.d.fotos || []).forEach(function (f) { pon(f.fileId, "foto"); });
+      (c.d.manuales || []).forEach(function (m) { pon(m.fileId || pdfId(m), "pdf"); });
+      return L;
+    }).then(function (L) {
+      return caches.open(DATA).then(function (c) {
+        return Promise.all(L.map(function (x) { return c.match("/d/full/" + x.id).then(function (r) { return r ? null : x; }); }));
+      }).then(function (R) { return { total: L.length, faltan: R.filter(Boolean) }; });
+    });
+  }
+  function dlOcupa() {
+    if (!navigator.storage || !navigator.storage.estimate) return Promise.resolve("");
+    return navigator.storage.estimate().then(function (e) { return " Ocupa " + Math.round((e.usage || 0) / 1048576) + " MB en este dispositivo."; }).catch(function () { return ""; });
+  }
+  function dlEmpieza() {
+    if (dlActivo) return;
+    if (!navigator.onLine) { dlBar('<span>Sin conexión: conéctate para descargar.</span><button type="button" class="btn-s" data-dl="x">Cerrar</button>'); return; }
+    dlLista().then(function (r) {
+      var F = r.faltan, nf = F.filter(function (x) { return x.tipo === "foto"; }).length;
+      if (!r.total) { dlBar('<span>Primero tiene que cargar el catálogo.</span><button type="button" class="btn-s" data-dl="x">Cerrar</button>'); return; }
+      if (!F.length) { return dlOcupa().then(function (o) { dlBar("<span>Ya está todo descargado." + o + '</span><button type="button" class="btn-s" data-dl="x">Cerrar</button>'); }); }
+      if (!confirm("Faltan " + nf + (nf === 1 ? " foto" : " fotos") + " y " + (F.length - nf) + (F.length - nf === 1 ? " PDF" : " PDF") + " por descargar. Puede ocupar bastante y tardar: mejor con WiFi. ¿Empiezo?")) return;
+      dlActivo = true; dlParar = false;
+      var i = 0, hechos = 0, fallos = 0, lleno = false;
+      function pinta() { dlBar("<span>Descargando " + (hechos + fallos) + " de " + F.length + "…</span>" + '<button type="button" class="btn-s" data-dl="parar">Parar</button>'); }
+      function uno() {
+        if (dlParar || lleno || i >= F.length) return Promise.resolve();
+        var x = F[i++];
+        return rpc("getFull", [x.id]).then(function (d) {
+          return caches.open(DATA).then(function (c) { return c.put("/d/full/" + x.id, new Response(JSON.stringify(d), { headers: { "Content-Type": "application/json" } })); });
+        }).then(function () { hechos++; }, function (e) { fallos++; if (e && e.name === "QuotaExceededError") lleno = true; }).then(function () { pinta(); return uno(); });
+      }
+      pinta();
+      /* tres a la vez: de uno en uno tardaría demasiado y más le cuesta a la API */
+      Promise.all([uno(), uno(), uno()]).then(dlOcupa).then(function (o) {
+        dlActivo = false;
+        var t = lleno ? "No queda espacio en este dispositivo: " + hechos + " descargados." : dlParar ? "Parado: " + hechos + " descargados. Vuelve a pulsar «Descargar todo» para seguir." : fallos ? hechos + " descargados y " + fallos + " sin poder bajar. Vuelve a pulsar «Descargar todo» para reintentarlos." : "Listo: todo descargado para usar sin conexión.";
+        dlBar("<span>" + t + o + '</span><button type="button" class="btn-s" data-dl="x">Cerrar</button>');
+      });
+    });
+  }
+  /* Sin conexión, los enlaces a un PDF de Drive abren la copia descargada (en el móvil, como descarga: no abre PDF en una pestaña). */
+  function abrePdf(id, nombre) {
+    return readC("full/" + id).then(function (d) {
+      if (!d) { dlBar('<span>Este documento no está descargado. Con conexión, pulsa «Descargar todo».</span><button type="button" class="btn-s" data-dl="x">Cerrar</button>'); return; }
+      var bin = atob(d.b64), u8 = new Uint8Array(bin.length);
+      for (var k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+      var url = URL.createObjectURL(new Blob([u8], { type: d.mime || "application/pdf" }));
+      if (/android|iphone|ipad|ipod/i.test(navigator.userAgent)) {
+        var a = document.createElement("a"); a.href = url; a.download = (nombre || "documento").replace(/[\\/:*?"<>|]+/g, " ") + ".pdf"; document.body.appendChild(a); a.click(); a.remove();
+      } else window.open(url, "_blank");
+    });
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-dl]");
+    if (b) { if (b.dataset.dl === "parar") { dlParar = true; b.disabled = true; b.textContent = "Parando…"; } else dlBar(""); return; }
+    if (navigator.onLine) return;
+    var a = e.target.closest && e.target.closest("a[href]"), id = a && pdfId({ url: a.href });
+    if (id) { e.preventDefault(); abrePdf(id, a.textContent.trim()); }
+  });
+
   /* ---------- botones propios: app completa (para editar) e instalar ---------- */
   document.addEventListener("DOMContentLoaded", function () {
     var h = document.querySelector(".hdr-btns");
     if (h) h.insertAdjacentHTML("afterbegin", '<a class="btn-s" id="pwaFull" href="' + FULL_APP + '" target="_blank" rel="noopener" title="Para editar, añadir, revisar hojas y exportar">✏ App completa</a>');
+    if (h) { h.insertAdjacentHTML("afterbegin", '<button type="button" class="btn-s" id="pwaDl" title="Baja las fotos grandes y los PDF de los manuales para usarlos sin internet">⬇ Descargar todo</button>'); document.getElementById("pwaDl").onclick = dlEmpieza; }
     var instalada = matchMedia("(display-mode: standalone)").matches || navigator.standalone, aviso = null;
     var oculta = false; try { oculta = localStorage.getItem("catalogoLlazaNoInstalar") === "1"; } catch (e) {}
     document.body.insertAdjacentHTML("afterbegin", '<div class="pwaInst" id="pwaInst" hidden><img src="icon/icon-192.png" alt=""><span id="pwaInstTxt">Instala el Catálogo como una app</span><button type="button" id="pwaInstBtn">📲 Instalar</button><button type="button" id="pwaInstNo" aria-label="Ahora no">✕</button></div>');
