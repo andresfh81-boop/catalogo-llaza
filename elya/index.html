@@ -148,12 +148,13 @@ button.del{padding:7px 10px;font-size:13px;color:var(--bad)}
 .ley i{display:inline-block;width:22px;height:5px;border-radius:2px}
 .ley b{display:inline-grid;place-items:center;width:16px;height:16px;font-size:10px}
 .ley .lc{background:var(--ink);color:var(--paper)}.ley .ll{border:2px solid var(--ink);border-radius:3px;padding:0 3px}.ley .lm{border:2px solid var(--c-mot);border-radius:50%;color:var(--c-mot);width:13px;height:13px}
-.zoom{position:fixed;inset:0;z-index:60;background:var(--paper);display:grid;grid-template-rows:auto 1fr}
+.zoom{position:fixed;inset:0;z-index:60;background:var(--paper);display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
 .zbar{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
 .zbar b{flex:1;font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .zbar button{min-width:40px}
 .zbox{overflow:auto;padding:12px;touch-action:pan-x pan-y pinch-zoom}
 .zbox svg{display:block;margin:0 auto;height:auto}
+.zbox iframe{display:block;width:100%;height:100%;border:0;background:#8a8f94}
 .zbox .pags{margin:0 auto;display:grid;gap:12px}.zbox .pags img{width:100%;display:block;border:1px solid var(--line);background:#fff}
 .unides{display:flex;gap:6px;align-items:center;font-size:13px;margin-left:auto}.unides select{width:auto;padding:3px 6px}
 .cli-can{border-collapse:collapse;margin:0 0 14px;font-size:15px}.cli-can td,.cli-can th{border:1px solid var(--line);padding:8px 12px;text-align:left}.cli-can td:first-child{font-weight:700;font-size:18px;text-align:center}
@@ -395,7 +396,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <label class="chk"><input type="radio" name="pDisp" value="v" id="pDispV"> Vertical por columnas (hoja apaisada)</label>
   <p class="hint" id="pPrintHint">En la ventana de imprimir, elige «Guardar como PDF» para tener el archivo.</p>
   <label>Nombre del archivo<input type="text" id="pNombre" autocomplete="off"></label>
-  <div class="btns"><button type="button" id="pSave">Guardar para imprimir</button><button type="button" id="pGo" class="pri">Imprimir</button><button value="cancel">Cancelar</button></div>
+  <div class="btns"><button type="button" id="pPrev">Vista previa</button><button type="button" id="pSave">Guardar para imprimir</button><button type="button" id="pGo" class="pri">Imprimir</button><button value="cancel">Cancelar</button></div>
   <p class="hint" id="pSaveHint">«Guardar para imprimir» deja en el móvil o el ordenador una página con estas hojas: ábrela con el navegador y pulsa «Imprimir / Guardar PDF».</p>
 </form></dialog>
 <dialog id="dCfg" class="dprint dcfg"><form method="dialog">
@@ -2819,8 +2820,10 @@ $("f").addEventListener("input",e=>{const mm=e.target.id&&e.target.id.match(/^m(
   if(mm[2]==="lamL")g("lamasN").value=numLista(g("lamL").value).length;
   if(mm[2]==="focLam"&&numLista(g("focLam").value).length&&g("focL").value!=="lam"){g("focL").value="lam";g("focbox").dataset.l="lam";g("focN").value=numLista(g("focLam").value).length*(parseInt(g("focPL").value)||2);}},true);
 /* Ampliar un dibujo de la planta: se copia a una capa a pantalla completa, con + / − y «Ajustar» (cabe entero). */
-let zW=0,zK=1;
-function zoomA(k){zK=Math.min(8,Math.max(0.5,k));const sv=$("zBox").querySelector("svg,.pags");if(sv)sv.style.width=Math.round(zW*zK)+"px";}
+let zW=0,zK=1,zVolver=false;
+function zoomA(k){zK=Math.min(8,Math.max(0.5,k));
+  const fr=$("zBox").querySelector("iframe");if(fr){try{fr.contentDocument.documentElement.style.zoom=zK;}catch(e){}return;}
+  const sv=$("zBox").querySelector("svg,.pags");if(sv)sv.style.width=Math.round(zW*zK)+"px";}
 /* ---------- Planos adjuntos: los PDF o fotos que se sueltan en la app se pueden ver aquí (no se guardan en el navegador) ---------- */
 let adjuntos=[];
 try{indexedDB.deleteDatabase("elya-adjuntos");}catch(e){}
@@ -2992,7 +2995,7 @@ $("planta").addEventListener("click",e=>{if(edClick(e))return;const f=e.target.c
   const vb=sv.viewBox.baseVal,bx=$("zBox"),aw=bx.clientWidth-24,ah=bx.clientHeight-24;
   zW=Math.max(200,Math.min(aw,ah*vb.width/vb.height));zoomA(1);});
 $("zoom").addEventListener("click",e=>{if(edClick(e))return;const z=e.target.dataset&&e.target.dataset.z;if(!z)return;
-  if(z==="x"){$("zoom").hidden=true;$("zBox").innerHTML="";document.body.style.overflow="";}
+  if(z==="x"){$("zoom").hidden=true;$("zBox").innerHTML="";document.body.style.overflow="";if(zVolver){zVolver=false;$("dPrint").showModal();}}
   else zoomA(z==="0"?1:zK*(z==="+"?1.4:1/1.4));});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("zoom").hidden)$("zoom").querySelector('[data-z="x"]').click();});
 /* ---------- Plano interactivo: tocar un elemento de la planta de un módulo abre su editor ----------
@@ -3189,6 +3192,19 @@ async function guardarParaImprimir(){
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([html],{type:"text/html"}));a.download=nombre;document.body.appendChild(a);a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);toast("Guardado en Descargas");
 }
+/* Vista previa: la misma página que se guarda, con los estilos de impresión aplicados y al ancho de un A4, en la capa de
+   ampliar. No guarda ni imprime nada; al cerrarla se vuelve a las opciones. */
+function vistaPrevia(){
+  leePrefImp();
+  const tit=nombreImp(),mm=impPref.vert?297:210,px=impPref.vert?1123:794;
+  const html=documentoImprimir(tit).replace(/@media print/g,"@media all").replace("</head>",`<style>html{background:#8a8f94}body{box-sizing:border-box;width:${mm}mm;max-width:none;min-height:100vh;margin:0 auto;padding:10mm;background:#fff}</style></head>`);
+  $("dPrint").close();zVolver=true;
+  $("zTit").textContent="Vista previa · "+tit;$("zBox").innerHTML=`<iframe title="Vista previa"></iframe>`;$("zoom").hidden=false;document.body.style.overflow="hidden";
+  const fr=$("zBox").querySelector("iframe"),ancho=$("zBox").clientWidth-24;
+  fr.addEventListener("load",()=>zoomA(Math.min(1,ancho/px)),{once:true});
+  fr.srcdoc=html;
+}
+$("pPrev").addEventListener("click",vistaPrevia);
 $("pSave").addEventListener("click",guardarParaImprimir);
 $("pGo").addEventListener("click",()=>{
   leePrefImp();
