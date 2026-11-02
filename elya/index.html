@@ -3236,10 +3236,41 @@ function leePrefImp(){
   try{localStorage.setItem("elya-imp",JSON.stringify(impPref));}catch(e){}
 }
 /* Página suelta para imprimir o guardar como PDF: las hojas elegidas, con el unifilar desde el cuadro si se pidió. */
-function documentoImprimir(tit){
+/* Una hoja por página: se mide cada hoja en un marco oculto al ancho del A4 y se reduce la que no quepa. El ancho no cambia
+   al medir (zoom + width), así que la altura reducida es exacta. Si habría que bajar de ESC_MIN para que quepa (más pequeño no se lee),
+   se queda en ESC_LARGA y sigue en otra página, sin partir dibujos ni filas. */
+const ESC_MIN=.5,ESC_LARGA=.7;
+async function encajaHojas(html,vert){
+  /* A4 a 96 ppp, con márgenes de 10 mm. Con el unifilar vertical solo esa hoja va apaisada. */
+  const medida=k=>vert&&k==="unifilar"?[1047,718]:[718,1047],fr=document.createElement("iframe");
+  fr.style.cssText="position:fixed;left:-20000px;top:0;width:718px;height:1047px;border:0;visibility:hidden";
+  const carga=new Promise(r=>{fr.addEventListener("load",r,{once:true});});
+  fr.srcdoc=html.replace(/@media print/g,"@media all").replace("</head>","<style>html{scrollbar-width:none}main{display:block}.sheet{margin:0}</style></head>");
+  document.body.appendChild(fr);await carga;
+  const d=fr.contentDocument;
+  await Promise.race([d.fonts?d.fonts.ready:null,new Promise(r=>setTimeout(r,1500))]);
+  const secs=[...d.querySelectorAll("[data-hoja]")].filter(x=>x.offsetHeight>0);
+  const esc={},largas=[],anc={};
+  secs.forEach((x,i)=>{
+    const [W,H]=medida(x.dataset.hoja);anc[x.dataset.hoja]=W;fr.style.width=W+"px";
+    const disp=i===0?H-(x.getBoundingClientRect().top-d.body.getBoundingClientRect().top):H;
+    const z=Math.min(1,disp*.98/x.offsetHeight,W/Math.max(W,x.scrollWidth));
+    if(z<ESC_MIN)largas.push(x.dataset.hoja);
+    if(z<1)esc[x.dataset.hoja]=z<ESC_MIN?ESC_LARGA:z;
+  });
+  const prim=secs.length?secs[0].dataset.hoja:"";
+  fr.remove();
+  return {css:`@page{size:A4;margin:10mm}@page apaisada{size:A4 landscape;margin:10mm}
+@media print{main{display:block;max-width:none}.sheet{margin:0}
+${vert?`[data-hoja="unifilar"]{page:apaisada}[data-hoja]:not([data-hoja="unifilar"]){max-width:718px;margin-inline:auto}`:""}
+[data-hoja]{break-before:page}[data-hoja="${prim}"]{break-before:auto}
+.sheet>.hd{break-after:avoid}svg,figure,tr,li,.conx section{break-inside:avoid}
+${Object.entries(esc).map(([k,z])=>`[data-hoja="${k}"]{zoom:${z.toFixed(3)};width:${anc[k]}px;max-width:none;margin-inline:auto}`).join("")}
+${largas.map(k=>`[data-hoja="${k}"]{break-inside:auto;border-bottom:0}[data-hoja="${k}"] .bd{padding-bottom:0}`).join("")}}`,largas};
+}
+async function documentoImprimir(tit){
   impCuadro=!!impPref.cuadro;impVert=!!impPref.vert;render();
   const cfg=last?last.cfg:readForm();let html=snapshotHTML(cfg);
-  if(impVert)html=html.replace("</head>","<style>@page{size:A4 landscape}</style></head>");
   impCuadro=null;impVert=null;render();
   const d=new DOMParser().parseFromString(html,"text/html");if(tit)d.title=tit;
   d.querySelectorAll("[data-hoja]").forEach(sec=>{if(impPref.hojas[sec.dataset.hoja]===false)sec.remove();});
@@ -3249,13 +3280,19 @@ function documentoImprimir(tit){
   d.body.prepend(bar);
   const st=d.createElement("style");st.textContent=`.barimp{display:flex;gap:12px;align-items:center;flex-wrap:wrap;max-width:1100px;margin:12px auto;padding:10px 12px;border:1px solid #c4561d;border-radius:6px;font:14px system-ui}.barimp button{font:600 15px system-ui;padding:8px 14px;background:#c4561d;color:#fff;border:0;border-radius:4px;cursor:pointer}@media print{.barimp{display:none}}`;
   d.head.appendChild(st);
-  return "<!DOCTYPE html>\n"+d.documentElement.outerHTML;
+  const base="<!DOCTYPE html>\n"+d.documentElement.outerHTML;
+  let enc={css:`@media print{main{display:block}.sheet{margin:0}}`,largas:[]};
+  try{enc=await encajaHojas(base,!!impPref.vert);}catch(e){console.warn(e);}
+  hojasLargas=enc.largas;
+  return base.replace("</head>",`<style>${enc.css}</style></head>`);
 }
+let hojasLargas=[];
+const avisoLargas=()=>{if(hojasLargas.length)toast(`${hojasLargas.map(k=>(HOJAS.find(h=>h[0]===k)||[,k])[1]).join(", ")}: no cabe en una página y sigue en otra, sin cortar dibujos ni filas.`);};
 let dlPr=null;
 const descargas=()=>dlPr||(dlPr=(window.claude&&window.claude.use?window.claude.use("downloads").catch(()=>null):Promise.resolve(null)));
 async function guardarParaImprimir(){
-  leePrefImp();const tit=nombreImp(),html=documentoImprimir(tit),nombre=tit+".html";
-  $("dPrint").close();
+  leePrefImp();const tit=nombreImp(),html=await documentoImprimir(tit),nombre=tit+".html";
+  $("dPrint").close();avisoLargas();
   const dl=await descargas();
   if(dl){try{await dl.save({filename:nombre,data:html});toast("Guardado: ábrelo con el navegador para imprimir");}
     catch(e){toast(e&&e.code==="declined"?"No se ha guardado":"No se pudo guardar aquí");}return;}
@@ -3265,10 +3302,10 @@ async function guardarParaImprimir(){
 }
 /* Vista previa: la misma página que se guarda, con los estilos de impresión aplicados y al ancho de un A4, en la capa de
    ampliar. No guarda ni imprime nada; al cerrarla se vuelve a las opciones. */
-function vistaPrevia(){
+async function vistaPrevia(){
   leePrefImp();
   const tit=nombreImp(),mm=impPref.vert?297:210,px=impPref.vert?1123:794;
-  const html=documentoImprimir(tit).replace(/@media print/g,"@media all").replace("</head>",`<style>html{background:#8a8f94}body{box-sizing:border-box;width:${mm}mm;max-width:none;min-height:100vh;margin:0 auto;padding:10mm;background:#fff}</style></head>`);
+  const html=(await documentoImprimir(tit)).replace(/@media print/g,"@media all").replace("</head>",`<style>[data-hoja]{margin-bottom:10mm!important}html{background:#8a8f94}body{box-sizing:border-box;width:${mm}mm;max-width:none;min-height:100vh;margin:0 auto;padding:10mm;background:#fff}</style></head>`);
   $("dPrint").close();zVolver=true;
   $("zTit").textContent="Vista previa · "+tit;$("zBox").innerHTML=`<iframe title="Vista previa"></iframe>`;$("zoom").hidden=false;document.body.style.overflow="hidden";
   const fr=$("zBox").querySelector("iframe"),ancho=$("zBox").clientWidth-24;
@@ -3277,11 +3314,18 @@ function vistaPrevia(){
 }
 $("pPrev").addEventListener("click",vistaPrevia);
 $("pSave").addEventListener("click",guardarParaImprimir);
-$("pGo").addEventListener("click",()=>{
+$("pGo").addEventListener("click",async()=>{
   leePrefImp();
-  HOJAS.forEach(([k])=>document.body.classList.toggle("noimp-"+k,!impPref.hojas[k]));
-  tituloApp=document.title;document.title=nombreImp();
-  impCuadro=!!impPref.cuadro;impVert=!!impPref.vert;render();$("dPrint").close();setTimeout(()=>window.print(),80);
+  const tit=nombreImp(),html=await documentoImprimir(tit);avisoLargas();
+  tituloApp=document.title;document.title=tit;$("dPrint").close();
+  /* se imprime la misma página que se guarda: así lo medido es lo que sale en el papel */
+  const fr=document.createElement("iframe");fr.style.cssText="position:fixed;left:-20000px;top:0;width:794px;height:1123px;border:0";
+  fr.addEventListener("load",()=>{
+    const w=fr.contentWindow,fin=()=>{if(tituloApp){document.title=tituloApp;tituloApp=null;}setTimeout(()=>fr.remove(),500);};
+    w.addEventListener("afterprint",fin,{once:true});
+    setTimeout(()=>{w.focus();w.print();},200);
+  },{once:true});
+  fr.srcdoc=html;document.body.appendChild(fr);
 });
 let tituloApp=null;
 window.addEventListener("afterprint",()=>{if(tituloApp){document.title=tituloApp;tituloApp=null;}if(impCuadro===null&&impVert===null&&!document.body.className.includes("noimp-"))return;impCuadro=null;impVert=null;HOJAS.forEach(([k])=>document.body.classList.remove("noimp-"+k));render();});
