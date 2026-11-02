@@ -191,7 +191,7 @@ button.pri{background:var(--accent);border-color:var(--accent);color:var(--accen
 .conx section{border:1px solid var(--soft);border-radius:4px;padding:12px;min-width:0}
 .conx ul{margin:8px 0 0;padding-left:18px;font-size:14px}
 .conx li{margin:2px 0}
-.src{font-size:12px;color:var(--muted);margin:8px 0 0}
+.src{font-size:12px;color:var(--muted);margin:8px 0 0}.src a{color:var(--accent);font-weight:600}
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted);margin-top:10px}
 .legend i{display:inline-block;width:22px;height:3px;vertical-align:middle;margin-right:6px;border-radius:2px}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:4px;font-size:14px}
@@ -1981,13 +1981,26 @@ function conexiones(cfg,r){
     "Caída de tensión máxima (ITC-BT-19): 3 % en alumbrado y 5 % en el resto; en viviendas, 3 %. La app la calcula en el cable del motor (aviso del 5 %) y en cada alargo y tira LED (aviso del 3 %; la de dentro de la tira es estimada, ≈ 0,04 Ω/m).",
     "24 V DC (ITC-BT-36): muy baja tensión, hasta 75 V en continua. Sin puesta a tierra si es MBTS.",
   ],src:"REBT: ITC-BT-19, 30 y 36 (copias no oficiales; contrastar con el BOE vigente)"});
-  return out.map(c=>`<section><h3>${esc(c.t)}</h3>${c.code?`<div class="tag" style="margin-top:4px">${esc(c.code)}</div>`:""}<ul>${c.li.map(l=>`<li>${esc(l)}</li>`).join("")}</ul><p class="src">Fuente: ${esc(c.src)}</p></section>`).join("");
+  return out.map(c=>{const mo=MAN_OFICIAL[c.code];return `<section><h3>${esc(c.t)}</h3>${c.code?`<div class="tag" style="margin-top:4px">${esc(c.code)}</div>`:""}<ul>${c.li.map(l=>`<li>${esc(l)}</li>`).join("")}</ul><p class="src">Fuente: ${esc(c.src)}</p>${mo?`<p class="src"><a href="${mo[1]}" target="_blank" rel="noopener">${esc(mo[0])}</a></p>`:""}</section>`;}).join("");
 }
 
 /* ---------- importar el plano (PDF de la ficha de fabricación) ----------
    Del texto del PDF se leen: «MÓDULO n», los números de pilar (letra grande), las vigas «Va-b», «CENTRALITA» y «TIRAS LED».
    Las cotas y el motor van dibujados (no son texto): la escala sale de una cota que escribe el usuario. */
 const PDFJS="lib/pdfjs/";
+/* Manuales en la web del fabricante, por código (los mismos que enlaza el catálogo; nunca enlaces al Drive).
+   Teleco no publica los de estos modelos: se pidieron por correo. */
+const NEXTA_MAN="https://www.nexta-tech.com/wp-content/uploads/2025/02/",MAN_OFICIAL={
+  "48070012000":["Manual oficial Nexta TKM-ONE (EN)",NEXTA_MAN+"TKM_ONE-series_MANUALE_EN.pdf"],
+  "48070016000":["Manual oficial Nexta TKL-ONE/4 (EN)",NEXTA_MAN+"TKL-ONE4_MANUALE_EN.pdf"],
+  "48070018000":["Manual oficial Nexta TKL RGBW (EN)",NEXTA_MAN+"TKL-RGBW_MANUALE_EN.pdf"],
+  "48070019000":["Manual oficial Nexta STILO LED (EN)",NEXTA_MAN+"STILO-LED-SERIES_MANUALE_EN.pdf"],
+  "48070020000":["Manual oficial Nexta STILO LED (EN)",NEXTA_MAN+"STILO-LED-SERIES_MANUALE_EN.pdf"],
+  "48070029000":["Manual oficial Nexta MT-R (EN)",NEXTA_MAN+"MT-R_MANUALE_EN.pdf"],
+  "48070030000":["Manual oficial Nexta MT-W (EN)",NEXTA_MAN+"MT-W_MANUALE_EN.pdf"],
+  "48045024000":["Guía oficial Somfy Pergola io Louver Control (ES y otros)","https://asset.somfy.com/Document/768f4e16-08d9-4ae8-a261-e6140f78a69e_Pergola%20io%20LOVER%20CONTROL_5156195A%20EN-FR-DE-NL-IT-ES-PT.pdf"],
+  "48045023001":["Guía oficial Somfy White LED Receiver io (14 idiomas)","https://asset.somfy.com/Document/5d6dadd8-0bf5-4ed3-8bb3-f4c0fe406304_5138391A_White_LED_REC%20io_14Lgs.pdf"]
+};
 const loadScript=src=>new Promise((ok,ko)=>{const e=document.createElement("script");e.src=src;e.onload=ok;e.onerror=()=>ko(new Error("No se pudo cargar el lector de PDF. La primera vez hace falta conexión."));document.head.appendChild(e);});
 let pdfReady=null;
 /* El «worker» de pdf.js se carga en la página (pdfjsWorker): así no hace falta un Worker de otro origen. */
