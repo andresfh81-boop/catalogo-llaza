@@ -390,6 +390,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
 <dialog id="dPrint" class="dprint"><form method="dialog">
   <h3>Imprimir los planos eléctricos</h3>
   <div class="btns" style="justify-content:flex-start"><button type="button" class="pri" id="pCliente">Cliente</button><button type="button" id="pTaller">Taller</button></div>
+  <label id="lIdiCli">Idioma de la copia del cliente<select id="pIdioma"><option value="es">Español</option><option value="en">English</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="it">Italiano</option><option value="pt">Português</option></select></label>
   <p class="hint" id="pModo">Cliente: solo el plano y los canales del mando. Taller: todas las hojas.</p>
   <p class="hint">Hojas que salen en el papel o en el PDF:</p>
   <div id="pHojas" class="phojas"></div>
@@ -3263,7 +3264,7 @@ try{impPref=Object.assign(impPref,JSON.parse(localStorage.getItem("elya-imp")||"
 /* La hoja del receptor io LED de Somfy solo se ofrece si la obra lleva ese receptor. */
 let impCli=false;
 /* en la copia del cliente no se ofrece la hoja de avisos */
-const pintaCli=()=>{const a=$("pHojas").querySelector('[data-h="avisos"]');if(a)a.closest("label").hidden=impCli;};
+const pintaCli=()=>{const a=$("pHojas").querySelector('[data-h="avisos"]');if(a)a.closest("label").hidden=impCli;$("lIdiCli").hidden=!impCli;$("pIdioma").value=impPref.idi||"es";};
 const hojasVis=()=>HOJAS.filter(([k])=>{const h=document.querySelector(`[data-hoja="${k}"]`);return !h||!h.hidden;});
 function abrirImprimir(){
   $("pHojas").innerHTML=hojasVis().map(([k,t])=>`<label class="chk"><input type="checkbox" data-h="${k}"${impPref.hojas[k]!==false?" checked":""}> ${t}</label>`).join("");
@@ -3277,7 +3278,7 @@ const limpiaNom=t=>String(t||"").replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," 
 function nombreDef(cli){const cfg=last?last.cfg:readForm();return limpiaNom(`Esquema ELYA ${nombreObra(cfg)} ${cli?"cliente":"taller"}`);}
 const nombreImp=()=>limpiaNom($("pNombre").value)||nombreDef(false);
 function leePrefImp(){
-  impPref={hojas:Object.assign({},impPref.hojas,Object.fromEntries([...$("pHojas").querySelectorAll("[data-h]")].map(c=>[c.dataset.h,c.checked]))),cli:impCli,cuadro:$("pCuadro").checked,vert:$("pDispV").checked};
+  impPref={hojas:Object.assign({},impPref.hojas,Object.fromEntries([...$("pHojas").querySelectorAll("[data-h]")].map(c=>[c.dataset.h,c.checked]))),cli:impCli,idi:$("pIdioma").value,cuadro:$("pCuadro").checked,vert:$("pDispV").checked};
   try{localStorage.setItem("elya-imp",JSON.stringify(impPref));}catch(e){}
 }
 /* Página suelta para imprimir o guardar como PDF: las hojas elegidas, con el unifilar desde el cuadro si se pidió. */
@@ -3329,18 +3330,65 @@ function limpiaCliente(d){
   d.querySelectorAll('[data-hoja="avisos"]').forEach(e=>e.remove());
   d.querySelectorAll(".conx section").forEach(e=>{if(/Normativa \(REBT/.test(e.textContent))e.remove();});
   d.querySelectorAll("li,p,td,text,.src").forEach(e=>{if(RE.test(e.textContent))e.remove();});
+  /* la caída de tensión es un dato de los avisos: tampoco en los rótulos del plano */
+  d.querySelectorAll("text").forEach(e=>{e.textContent=e.textContent.replace(/\s*·\s*caída\s+[\d.,]+\s*%/,"");});
+}
+/* Idiomas de la copia del cliente: los mismos que los configuradores. Orden de las filas: es, en, fr, de, it, pt. */
+const IDIOMAS=["es","en","fr","de","it","pt"],idiTxt=(idi,fila)=>fila[Math.max(0,IDIOMAS.indexOf(idi))];
+const TXT_PORT={tit:["Elya instalación eléctrica","Elya electrical installation","Elya installation électrique","Elya Elektroinstallation","Elya impianto elettrico","Elya instalação elétrica"],
+  ind:["Índice","Contents","Sommaire","Inhalt","Indice","Índice"],pag:["Pág.","Page","Page","Seite","Pag.","Pág."],
+  avisos:["Avisos","Warnings","Avertissements","Hinweise","Avvisi","Avisos"],unifilar:["Esquema unifilar","Single-line diagram","Schéma unifilaire","Einpoliges Schaltbild","Schema unifilare","Esquema unifilar"],
+  consumo:["Consumo","Consumption","Consommation","Verbrauch","Consumo","Consumo"],planta:["Planta y tiras LED","Plan and LED strips","Plan et rubans LED","Grundriss und LED-Streifen","Pianta e strisce LED","Planta e fitas LED"],
+  cliente:["Mando y plano","Remote control and plan","Télécommande et plan","Fernbedienung und Plan","Telecomando e pianta","Comando e planta"],conexiones:["Conexiones por central","Connections by control unit","Connexions par centrale","Anschlüsse je Steuerung","Collegamenti per centralina","Ligações por central"],
+  manuales:["Manuales oficiales","Official manuals","Manuels officiels","Offizielle Anleitungen","Manuali ufficiali","Manuais oficiais"],somfy:["Receptor io LED de Somfy","Somfy io LED receiver","Récepteur io LED Somfy","Somfy io-LED-Empfänger","Ricevitore io LED Somfy","Recetor io LED Somfy"],
+  material:["Material","Materials","Matériel","Material","Materiale","Material"]};
+/* Textos de la hoja del cliente y de su plano, de la frase más larga a la más corta */
+const TXT_CLI=[
+  ["En el mando Pop Plus, el canal 0 es el común: mueve y enciende todo a la vez.","On the Pop Plus remote control, channel 0 is the common one: it moves and switches on everything at once.","Sur la télécommande Pop Plus, le canal 0 est le canal commun : il actionne et allume tout en même temps.","Auf der Fernbedienung Pop Plus ist Kanal 0 der gemeinsame Kanal: Er bewegt und schaltet alles gleichzeitig.","Sul telecomando Pop Plus, il canale 0 è quello comune: muove e accende tutto insieme.","No comando Pop Plus, o canal 0 é o comum: move e liga tudo ao mesmo tempo."],
+  ["Para el cliente: el mando y el plano","For the customer: remote control and plan","Pour le client : télécommande et plan","Für den Kunden: Fernbedienung und Plan","Per il cliente: telecomando e pianta","Para o cliente: comando e planta"],
+  ["Hoja del cliente","Customer sheet","Fiche client","Kundenblatt","Foglio cliente","Folha do cliente"],
+  ["Abrir y cerrar las lamas","Open and close the louvres","Ouvrir et fermer les lames","Lamellen öffnen und schließen","Aprire e chiudere le lame","Abrir e fechar as lâminas"],
+  ["Luz indirecta del perímetro","Indirect perimeter light","Lumière indirecte du périmètre","Indirekte Umfangsbeleuchtung","Luce indiretta del perimetro","Luz indireta do perímetro"],
+  ["Luz del perímetro","Perimeter light","Lumière du périmètre","Umfangsbeleuchtung","Luce del perimetro","Luz do perímetro"],
+  ["Luz de las lamas","Louvre light","Lumière des lames","Lamellenbeleuchtung","Luce delle lame","Luz das lâminas"],
+  ["Qué hace","What it does","Fonction","Funktion","Funzione","Função"],
+  ["CAÍDA AGUA","WATER RUN-OFF","ÉCOULEMENT EAU","WASSERABLAUF","SCOLO ACQUA","ESCOAMENTO ÁGUA"],
+  ["focos en lamas","spotlights on louvres","spots sur lames","Strahler an Lamellen","faretti sulle lame","focos nas lâminas"],
+  ["por el lateral","along the side","par le côté","seitlich","dal lato","pela lateral"],
+  ["cable en T","T cable","câble en T","T-Kabel","cavo a T","cabo em T"],
+  ["Alargo directo","Direct extension","Rallonge directe","Verlängerung direkt","Prolunga diretta","Extensão direta"],
+  ["Alargo indirecto","Indirect extension","Rallonge indirecte","Verlängerung indirekt","Prolunga indiretta","Extensão indireta"],
+  ["Alargo","Extension","Rallonge","Verlängerung","Prolunga","Extensão"],
+  ["recorrido","run","parcours","Strecke","percorso","percurso"],["caída","drop","chute","Abfall","caduta","queda"],["empalme","joint","raccord","Verb.","giunto","união"],
+  ["CENTRALITA","CONTROL UNIT","CENTRALE","STEUERUNG","CENTRALINA","CENTRAL"],["centralita","control unit","centrale","Steuerung","centralina","central"],
+  ["MOTOR","MOTOR","MOTEUR","MOTOR","MOTORE","MOTOR"],["Motor","Motor","Moteur","Motor","Motore","Motor"],
+  ["transformador","transformer","transformateur","Transformator","trasformatore","transformador"],["trafo","transformer","transfo","Trafo","trasf.","transf."],
+  ["Receptor","Receiver","Récepteur","Empfänger","Ricevitore","Recetor"],["Emisor","Transmitter","Émetteur","Sender","Trasmettitore","Emissor"],
+  ["mando nº","remote no.","télécommande nº","Fernbedienung Nr.","telecomando n.","comando n.º"],["Mando","Remote control","Télécommande","Fernbedienung","Telecomando","Comando"],
+  ["canales","channels","canaux","Kanäle","canali","canais"],["Canal","Channel","Canal","Kanal","Canale","Canal"],
+  ["Módulo","Module","Module","Modul","Modulo","Módulo"],["módulo","module","module","Modul","modulo","módulo"],
+  ["Focos","Spotlights","Spots","Strahler","Faretti","Focos"],["lamas","louvres","lames","Lamellen","lame","lâminas"],
+  ["indirecta","indirect","indirecte","indirekt","indiretta","indireta"],["Neón","Neon","Néon","Neon","Neon","Néon"],["neón","neon","néon","Neon","neon","néon"]
+].map(f=>[new RegExp("(?<![\\p{L}])"+f[0].replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"(?![\\p{L}])","gu"),f]);
+function traduceCliente(d,idi){
+  const raiz=d.querySelector('[data-hoja="cliente"]');if(!raiz||idi==="es")return;
+  const w=d.createTreeWalker(raiz,4),nodos=[];while(w.nextNode())nodos.push(w.currentNode);
+  /* en una pasada, para no volver a traducir lo ya traducido */
+  const k=IDIOMAS.indexOf(idi),uno=new RegExp(TXT_CLI.map(([re])=>re.source).join("|"),"gu"),por=new Map(TXT_CLI.map(([,f])=>[f[0],f[k]]));
+  nodos.forEach(n=>{n.textContent=n.textContent.replace(uno,m=>por.get(m)??m);});
 }
 function ponPortada(d,cfg,cli){
   d.querySelectorAll("header.top").forEach(e=>e.remove());
+  const idi=cli?(impPref.idi||"es"):"es";d.documentElement.lang=idi;traduceCliente(d,idi);
   const main=d.querySelector("main"),por=d.createElement("section");por.className="portada";
-  por.innerHTML=`<div class="porlogo"><img src="${LOGO_MARCA}" alt="umara by Llaza"></div><h1>${cli?"Elya instalación eléctrica":"Esquema eléctrico"}</h1><div class="porraya"></div><p class="porobra">${esc(nombreObra(cfg))}</p><p class="pordat">${new Date().toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"})}</p><div class="porind"><h2>Índice</h2><div id="porFilas"></div></div>${cli?"":'<p class="pordat porpie">Copia de taller</p>'}`;
+  por.innerHTML=`<div class="porlogo"><img src="${LOGO_MARCA}" alt="umara by Llaza"></div><h1>${cli?idiTxt(idi,TXT_PORT.tit):"Esquema eléctrico"}</h1><div class="porraya"></div><p class="porobra">${esc(nombreObra(cfg))}</p><p class="pordat">${new Date().toLocaleDateString(idi==="en"?"en-GB":idi,{day:"2-digit",month:"2-digit",year:"numeric"})}</p><div class="porind"><h2>${idiTxt(idi,TXT_PORT.ind)}</h2><div id="porFilas"></div></div>${cli?"":'<p class="pordat porpie">Copia de taller</p>'}`;
   main.prepend(por);
   d.querySelectorAll("[data-hoja] > .hd").forEach(h=>{const t=d.createElement("span");t.className="tag pagn";t.textContent="Pág. 00";h.appendChild(t);});
 }
 const NOM_IND={cliente:"Mando y plano",somfy:"Receptor io LED de Somfy",manuales:"Manuales oficiales"};
-function ponIndice(d,orden){
+function ponIndice(d,orden,idi){
   let p=2;const f=d.getElementById("porFilas");
-  f.innerHTML=orden.map(([k,n])=>{const nom=NOM_IND[k]||(HOJAS.find(h=>h[0]===k)||[,k])[1],pag=n>1?`${p}–${p+n-1}`:`${p}`,u=d.querySelector(`[data-hoja="${k}"] > .hd .pagn`);if(u)u.textContent=`Pág. ${pag}`;p+=n;return `<div><span>${esc(nom)}</span><span>${pag}</span></div>`;}).join("");
+  f.innerHTML=orden.map(([k,n])=>{const nom=idi!=="es"&&TXT_PORT[k]?idiTxt(idi,TXT_PORT[k]):NOM_IND[k]||(HOJAS.find(h=>h[0]===k)||[,k])[1],pag=n>1?`${p}–${p+n-1}`:`${p}`,u=d.querySelector(`[data-hoja="${k}"] > .hd .pagn`);if(u)u.textContent=`${idiTxt(idi,TXT_PORT.pag)} ${pag}`;p+=n;return `<div><span>${esc(nom)}</span><span>${pag}</span></div>`;}).join("");
 }
 async function documentoImprimir(tit){
   const cli=!!impPref.cli;
@@ -3367,7 +3415,7 @@ async function documentoImprimir(tit){
   let enc={css:`@page{size:A4;margin:10mm}@media print{main{display:block;max-width:none}.sheet{margin:0}[data-hoja]{break-before:page}}`,largas:[],orden:[]};
   try{enc=await encajaHojas(base,!!impPref.vert);}catch(e){console.warn(e);}
   hojasLargas=enc.largas;
-  ponIndice(d,enc.orden);
+  ponIndice(d,enc.orden,cli?(impPref.idi||"es"):"es");
   return ("<!DOCTYPE html>"+String.fromCharCode(10)+d.documentElement.outerHTML).replace("</head>",`<style>${enc.css}</style></head>`);
 }
 let hojasLargas=[];
