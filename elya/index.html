@@ -3322,7 +3322,7 @@ function limpiaCliente(d){
 function ponPortada(d,cfg,cli){
   d.querySelectorAll("header.top").forEach(e=>e.remove());
   const main=d.querySelector("main"),por=d.createElement("section");por.className="portada";
-  por.innerHTML=`<div class="porlogo"><img src="${LOGO_MARCA}" alt="umara by Llaza"></div><h1>${cli?"Su instalación eléctrica":"Esquema eléctrico"}</h1><div class="porraya"></div><p class="porobra">${esc(nombreObra(cfg))}</p><p class="pordat">${new Date().toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"})}</p><div class="porind"><h2>Índice</h2><div id="porFilas"></div></div>${cli?"":'<p class="pordat porpie">Copia de taller</p>'}`;
+  por.innerHTML=`<div class="porlogo"><img src="${LOGO_MARCA}" alt="umara by Llaza"></div><h1>${cli?"Elya instalación eléctrica":"Esquema eléctrico"}</h1><div class="porraya"></div><p class="porobra">${esc(nombreObra(cfg))}</p><p class="pordat">${new Date().toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"})}</p><div class="porind"><h2>Índice</h2><div id="porFilas"></div></div>${cli?"":'<p class="pordat porpie">Copia de taller</p>'}`;
   main.prepend(por);
   d.querySelectorAll("[data-hoja] > .hd").forEach(h=>{const t=d.createElement("span");t.className="tag pagn";t.textContent="Pág. 00";h.appendChild(t);});
 }
