@@ -3218,10 +3218,12 @@ let top=false;try{top=window.self===window.top;}catch(e){}
 const HOJAS=[["avisos","Avisos"],["unifilar","Esquema unifilar"],["consumo","Consumo"],["planta","Planta y tiras LED"],["cliente","Para el cliente (mando y plano)"],["conexiones","Conexiones por central"],["somfy","Receptor io LED de Somfy"],["material","Material"]];
 let impPref={hojas:Object.fromEntries(HOJAS.map(([k])=>[k,true])),cuadro:false};
 try{impPref=Object.assign(impPref,JSON.parse(localStorage.getItem("elya-imp")||"{}"));}catch(e){}
+/* La hoja del receptor io LED de Somfy solo se ofrece si la obra lleva ese receptor. */
+const hojasVis=()=>HOJAS.filter(([k])=>k!=="somfy"||!$("somfySheet").hidden);
 function abrirImprimir(){
-  $("pHojas").innerHTML=HOJAS.map(([k,t])=>`<label class="chk"><input type="checkbox" data-h="${k}"${impPref.hojas[k]!==false?" checked":""}> ${t}</label>`).join("");
+  $("pHojas").innerHTML=hojasVis().map(([k,t])=>`<label class="chk"><input type="checkbox" data-h="${k}"${impPref.hojas[k]!==false?" checked":""}> ${t}</label>`).join("");
   const cu=verCuadro;$("pCuadro").checked=!!cu;$("pDesdeCent").checked=!cu;$("pDispV").checked=uniVert;$("pDispH").checked=!uniVert;
-  const soloCli=HOJAS.every(([k])=>k==="cliente"?impPref.hojas[k]!==false:impPref.hojas[k]===false);$("pCliente").classList.toggle("pri",soloCli);$("pTaller").classList.toggle("pri",!soloCli);
+  const soloCli=hojasVis().every(([k])=>k==="cliente"?impPref.hojas[k]!==false:impPref.hojas[k]===false);$("pCliente").classList.toggle("pri",soloCli);$("pTaller").classList.toggle("pri",!soloCli);
   $("pNombre").dataset.mano="";$("pNombre").value=nombreDef(soloCli);
   $("dPrint").showModal();
 }
@@ -3230,7 +3232,7 @@ const limpiaNom=t=>String(t||"").replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," 
 function nombreDef(cli){const cfg=last?last.cfg:readForm();return limpiaNom(`Esquema ELYA ${nombreObra(cfg)} ${cli?"cliente":"taller"}`);}
 const nombreImp=()=>limpiaNom($("pNombre").value)||nombreDef(false);
 function leePrefImp(){
-  impPref={hojas:Object.fromEntries([...$("pHojas").querySelectorAll("[data-h]")].map(c=>[c.dataset.h,c.checked])),cuadro:$("pCuadro").checked,vert:$("pDispV").checked};
+  impPref={hojas:Object.assign({},impPref.hojas,Object.fromEntries([...$("pHojas").querySelectorAll("[data-h]")].map(c=>[c.dataset.h,c.checked]))),cuadro:$("pCuadro").checked,vert:$("pDispV").checked};
   try{localStorage.setItem("elya-imp",JSON.stringify(impPref));}catch(e){}
 }
 /* Página suelta para imprimir o guardar como PDF: las hojas elegidas, con el unifilar desde el cuadro si se pidió. */
