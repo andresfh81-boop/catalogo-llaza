@@ -1,12 +1,13 @@
 /* Esquema ELYA instalable: guarda la app para abrirla sin conexión. Es una app aparte del catálogo (caché «elya-…»).
    Archivos propios: primero la red (para coger los cambios) y, si no hay o tarda, la copia. Fuentes: la copia, y se renueva detrás. */
-const V = "elya-75";
+const V = "elya-76";
 const SHELL = ["./", "index.html", "manifest.json", "icon/icon-32.png", "icon/icon-180.png", "icon/icon-192.png", "icon/icon-512.png", "lib/pdfjs/pdf.min.js", "lib/pdfjs/pdf.worker.min.js"];
+const OCR = ["tesseract.min.js", "worker.min.js", "core/tesseract-core-lstm.wasm.js", "core/tesseract-core-simd-lstm.wasm.js", "lang/spa.traineddata.gz"].map(f => "lib/tesseract/" + f);
 const CDN = /^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)\//;
 /* Con wifi sin internet o mala señal la red no falla, se queda esperando: pasado este tiempo se usa la copia guardada. */
 const NET_TIMEOUT = 4000;
 
-self.addEventListener("install", e => e.waitUntil(caches.open(V).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting())));
+self.addEventListener("install", e => e.waitUntil(caches.open(V).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: "reload" }))).then(() => c.addAll(OCR).catch(() => {}))).then(() => self.skipWaiting())));
 /* Solo borra copias viejas de esta app: las del catálogo («cl-…») comparten el mismo sitio. */
 self.addEventListener("activate", e => e.waitUntil(
   caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith("elya-") && k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())));

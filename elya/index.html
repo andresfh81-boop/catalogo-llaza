@@ -2144,7 +2144,7 @@ function interpretaPlano(T){
   return {mods:out,avisos,nPil:Object.keys(pil).length,nVig:vig.length,nCen:cen.length};
 }
 /* Para pruebas: con #dbg en la dirección se puede llamar al lector de planos desde la consola. */
-if(location.hash==="#dbg")window.__elya={textoPlano:(...a)=>textoPlano(...a),interpretaPlano:(...a)=>interpretaPlano(...a),contraste:(...a)=>contraste(...a),aplicaLedCliente:(...a)=>aplicaLedCliente(...a),importaVarios:(...a)=>importaVarios(...a),plano:()=>plano,difs:()=>difsCliente,setOT:o=>{ot=o;aplicaMandoOT();render();},documento:(cli)=>{impPref.cli=!!cli;return documentoImprimir("prueba");}};
+if(location.hash==="#dbg")window.__elya={textoPlano:(...a)=>textoPlano(...a),interpretaPlano:(...a)=>interpretaPlano(...a),contraste:(...a)=>contraste(...a),aplicaLedCliente:(...a)=>aplicaLedCliente(...a),importaVarios:(...a)=>importaVarios(...a),plano:()=>plano,difs:()=>difsCliente,setOT:o=>{ot=o;aplicaMandoOT();render();},documento:(cli)=>{impPref.cli=!!cli;return documentoImprimir("prueba");},textoOCR:b=>textoOCR(b),datosCajetin:T=>datosCajetin(T)};
 const distBox=(b,p)=>Math.hypot(Math.max(b.xL-p.x,0,p.x-b.xR),Math.max(b.yS-p.y,0,p.y-b.yI));
 /* Puntos del PDF por metro: se ajusta con la cota que escribe el usuario. 80 es lo que sale en las fichas de Llaza vistas. */
 let plano=null;
@@ -2209,6 +2209,43 @@ function pintaImport(){
 /* Plano firmado escaneado o foto: no tiene texto. Se manda la imagen de cada página a Claude (capacidad «sample»,
    solo en el enlace de Claude) y devuelve los datos en JSON. En la app instalable no hay Claude: se avisa. */
 let samplePr=null;
+/* OCR del plano firmado escaneado en la app instalable, que no tiene a Claude: tesseract.js dentro de la app (build_elya.py la pone en OCR_DIR).
+   Página 1 a ×2,5; el cajetín va a la izquierda y el plano puede venir tumbado: se prueba girado hasta leer las etiquetas del cajetín.
+   Devuelve las líneas del cajetín, ya en español, en el formato de textoPlano. Del dibujo no se lee nada: los nombres de pilares salen mal. */
+const OCR_DIR="lib/tesseract/";
+let ocrW=null;
+async function cargaOCR(){
+  const abs=p=>new URL(OCR_DIR+p,location.href).href;
+  if(!window.Tesseract)await new Promise((ok,ko)=>{const e=document.createElement("script");e.src=abs("tesseract.min.js");e.onload=ok;e.onerror=()=>ko(new Error("No se ha podido cargar el lector de planos."));document.head.appendChild(e);});
+  if(!ocrW)ocrW=await window.Tesseract.createWorker("spa",1,{workerPath:abs("worker.min.js"),corePath:abs("core"),langPath:abs("lang"),gzip:true});
+  return ocrW;
+}
+const lineaOCR=l=>{let t=String(l).replace(/^[^A-Za-zÀ-ÿ0-9]+|[^A-Za-zÀ-ÿ0-9)%]+$/g,"").replace(/\s+/g," ");
+  [[/^ACCESOR\w*:?$/i,"ACCESORIOS:"],[/^(OFERTA|OFFER):?\s*/i,"OFERTA: "],[/^ELECTR[OÓ]NIC\w*:?$/i,"ELECTRONICA:"],[/^(CLIENTE|CLIENT):?\s*/i,"CLIENTE: "],[/^(REFERENCIA|REFERENCE):?\s*/i,"REFERENCIA: "],[/^(MODELO|MODEL):?$/i,"MODELO:"],
+   [/^H\s*TOTAL:?\s*/i,"H Total: "],[/^H\s*(LIBRE|FREE):?\s*/i,"H Libre: "],[/FREE\s*STANDING/i,"AUTOPORTANTE"],[/PERIMETER\s*LED/i,"LED PERIMETRAL"],[/\bDIRECT\b/i,"DIRECTO"],[/\bINDIRECT\b/i,"INDIRECTO"],[/\bRAIN\s*SENSOR\b/i,"SENSOR LLUVIA"],[/\bWIND\s*SENSOR\b/i,"SENSOR VIENTO"],[/\bSPOT\s*LIGHTS?\b|\bLED\s*SPOTS?\b/i,"FOCOS LED"]].forEach(([a,b])=>{t=t.replace(a,b);});
+  /* lo que el OCR confunde: la raya del cajetín como un 1 delante, y el 4 como una A */
+  const mo=t.match(/^\D{0,2}(\d+)\s*(?:M[OÓ]DUL[OE]S?)\b/i);if(mo)t=`${+mo[1]>6?+mo[1]%10:mo[1]} MODULOS`;
+  const pi=t.match(/^\D{0,2}(\d+|A)\s*(?:PILARES|PILLARS?)\b/i);if(pi)t=`${pi[1].toUpperCase()==="A"?4:pi[1]} PILARES`;
+  /* cliente: 6 cifras, a veces con la raya leída como un 1; y letras sueltas del sello detrás de la etiqueta */
+  t=t.replace(/^1(\d{6})$/,"$1").replace(/^(CLIENTE|REFERENCIA): .{1,3}$/,"$1:");
+  return t;};
+async function textoOCR(buf){
+  const L=await pdfjs(),doc=await L.getDocument({data:buf}).promise;
+  try{
+    const pg=await doc.getPage(1),vp=pg.getViewport({scale:2.5}),c=document.createElement("canvas");c.width=Math.round(vp.width);c.height=Math.round(vp.height);
+    const cx=c.getContext("2d");cx.fillStyle="#fff";cx.fillRect(0,0,c.width,c.height);await pg.render({canvasContext:cx,viewport:vp,intent:"print"}).promise;
+    const gira=g=>{const o=document.createElement("canvas"),rec=Math.abs(g)===90;o.width=rec?c.height:c.width;o.height=rec?c.width:c.height;const x=o.getContext("2d");x.filter="grayscale(1)";x.translate(o.width/2,o.height/2);x.rotate(g*Math.PI/180);x.drawImage(c,-c.width/2,-c.height/2);return o;};
+    const w=await cargaOCR(),T=[],nota=t=>(t.match(/MODEL|ELECTR|ACCESOR|OFERTA|OFFER|PILAR|PILLAR|REFEREN/gi)||[]).length;
+    for(const g of c.width<c.height?[90,-90,0]:[0,90,-90]){
+      const o=gira(g),cr=document.createElement("canvas");cr.width=Math.round(o.width*.22);cr.height=o.height;cr.getContext("2d").drawImage(o,0,0);
+      const tx=(await w.recognize(cr)).data.text;
+      if(nota(tx)<3)continue;
+      tx.split("\n").map(lineaOCR).filter(Boolean).forEach((t,i)=>T.push({s:t,x:0,y:i,size:12,hor:true}));
+      break;
+    }
+    return T;
+  }finally{doc.destroy().catch(()=>{});}
+}
 const claudeSample=()=>samplePr||(samplePr=(window.claude&&window.claude.use?window.claude.use("sample").catch(()=>null):Promise.resolve(null)));
 const PROMPT_PLANO=`Son las páginas de un plano de una pérgola bioclimática ELYA (Llaza), escaneadas o fotografiadas y quizá giradas.
 Léelas con cuidado y devuelve SOLO un objeto JSON con esta forma (null si un dato no aparece; no inventes):
@@ -2279,6 +2316,7 @@ function datosCajetin(T){
     modelo:["ELYA",g(/ELYA\s*\n\s*([^\n]+)/i)].filter(Boolean).join(" "),montaje,electronica:SIS[elec]?elec:null,
     alto_total_mm:num(g(/H\s*Total:\s*(\d+)/i)),h_libre_mm:num(g(/H\s*Libre:\s*(\d+)/i)),pilares:num(g(/(\d+)\s*PILARES/i)),medidas:g(/(\d{3,5}\s*x\s*\d{3,5})/i),luz,ledPos,viento:/ANEM|VIENTO/i.test(acc),lluvia:/LLUVIA/i.test(acc),
     focos_n:parseInt((acc.match(/FOCOS\s*LED:?\s*(\d+)/i)||[])[1])||0,focos_lamas:numLista((acc.match(/FOCOS\s*LED:?\s*\d+\s*\(([^)]*)\)/i)||[])[1]||""),aislante:/AISLANTE/i.test(acc),aislante_sin_focos:/AISLANTE[^\n]*\n?[^\n]*SIN\s*FOCOS/i.test(acc),modulos:[],dudas:[]};
+  if(!/ACCESORIOS:[\s\S]*OFERTA:/i.test(J))["luz","ledPos","viento","lluvia","focos_n","aislante","aislante_sin_focos"].forEach(k=>{d[k]=null;});
   const ancho=num(g(/(\d{3,5})\s*\(Ancho\)/i)),proy=num(g(/(\d{3,5})\s*\(Proyecci/i));
   if(nMod===1){
     const P=T.filter(t=>/^P\d+$/.test(t.s));
@@ -2292,7 +2330,8 @@ function datosCajetin(T){
     /* En el cajetín «4900x3000» es Ancho × Proyección, y la Proyección es el largo de la lama (A de la app);
        comprobado con el nº de lamas de la ficha (23 lamas ≈ 4,9 m → lamas de 3,0 m). */
     const dims=J.match(/(\d{3,5})\s*x\s*(\d{3,5})/i);
-    d.modulos.push({n:1,ancho_mm:proy||(dims?+dims[2]:null),proyeccion_mm:ancho||(dims?+dims[1]:null),motor:motorT&&/izq/i.test(motorT.s)?"izq":"der",
+    const prl=/PRL/i.test(J); /* PRL: las lamas van en la primera medida; PRP: en la segunda */
+    d.modulos.push({n:1,ancho_mm:proy||(dims?+dims[prl?1:2]:null),proyeccion_mm:ancho||(dims?+dims[prl?2:1]:null),motor:motorT&&/izq/i.test(motorT.s)?"izq":"der",
       pilares:pil,centralita,pared:montaje&&montaje!=="autoportante"?"sup":null,lamas_led:lam[1]||0,lamas_led_num:lamN[1]||[]});
     if(!motorT)d.dudas.push("No encuentro el lado del motor en el plano: márcalo a mano.");
   }else{
@@ -2402,10 +2441,12 @@ function contraste(fi,pc,nombre){
   fila("Pilares",fi&&fi.pilares,pc.pilares,(fi&&fi.pilares)===pc.pilares);
   /* Medidas: lo primero que se mira, porque dicen si ficha y plano del cliente son la misma pérgola */
   const mc=(pc.modulos||[]).length===1?pc.modulos[0]:null;let medOk=null;
-  if(m&&pc.medidas){const [x,y]=pc.medidas.split(/\s*x\s*/i).map(Number);medOk=+m[2]===y&&(+m[3]===x||(pc.modulos||[]).length>1);fila("Medidas en mm (lama × otra)",`${m[2]} × ${m[3]} mm`,`${y} × ${x} mm (Ancho ${x} · Proyección ${y})`,medOk);}
+  if(m&&pc.medidas){const [x,y]=pc.medidas.split(/\s*x\s*/i).map(Number);medOk=(+m[2]===y&&(+m[3]===x||(pc.modulos||[]).length>1))||(+m[2]===x&&+m[3]===y);fila("Medidas en mm (lama × otra)",`${m[2]} × ${m[3]} mm`,`${y} × ${x} mm (Ancho ${x} · Proyección ${y})`,medOk);}
   else if(m&&mc&&mc.ancho_mm&&mc.proyeccion_mm){medOk=(+m[2]===mc.ancho_mm&&+m[3]===mc.proyeccion_mm)||(+m[2]===mc.proyeccion_mm&&+m[3]===mc.ancho_mm);fila("Medidas en mm (lama × otra)",`${m[2]} × ${m[3]} mm`,`${mc.ancho_mm} × ${mc.proyeccion_mm} mm`,medOk);}
   const pr=m?propFicha(+m[2],+m[3]):null;
-  if(pr){fila("Proporción del dibujo de la ficha",pct2(pr.f),pct2(pr.n),pr.ok);medOk=medOk!==false&&pr.ok;}
+  /* el lector de la app puede confundir una cifra: si la proporción cuadra con la ficha, no es un error, solo queda sin comprobar */
+  if(pr&&pc.porOCR&&medOk===false&&pr.ok){const f=filas.find(x=>/^Medidas/.test(x.que));if(f){f.ok=null;f.b+=" (lectura dudosa)";}medOk=null;}
+  if(pr){fila("Proporción del dibujo de la ficha",pct2(pr.f),pct2(pr.n),pr.ok);if(medOk!==null)medOk=medOk!==false&&pr.ok;}
   fila("Altura de paso / H libre (mm)",fi&&fi.alto,pc.h_libre_mm,(fi&&fi.alto)===pc.h_libre_mm);
   fila("Electrónica",fi&&fi.sistema&&{nexta:"Cherubini",teleco_eu:"Teleco",somfy:"Somfy"}[fi.sistema],pc.electronica&&cap(pc.electronica),fi&&SIS[pc.electronica]===fi.sistema);
   fila("LED perimetral",fi&&sn(fi.ledPeri),pc.luz?sn(pc.luz!=="none"):null,fi&&fi.ledPeri===(pc.luz!=="none"));
@@ -2583,8 +2624,11 @@ async function importaPlanos(files){
   const nob=firmado&&firmado.name.match(/^(\d{8}(?:-\d+)?)_/);if(nob){$("of").value=nob[1];render();}
   if(firmado){
     const box=$("impRes");let html="";
-    try{const buf=await firmado.arrayBuffer(),T2=await textoPlano(buf.slice(0));
-      if(T2.some(t=>/^MODELO:?$/i.test(t.s))){const pc=datosCajetin(T2);montajeCliente=pc.montaje;html=contraste(plano&&plano.ficha,pc,firmado.name)+aplicaLedCliente(pc);}
+    try{const buf=await firmado.arrayBuffer();let T2=await textoPlano(buf.slice(0)),porOCR=false;
+      if(!T2.some(t=>/^MODELO\b/i.test(t.s))&&OCR_DIR){const smp=await claudeSample(),lm=smp&&await smp.limits().catch(()=>null);
+        if(!(lm&&lm.images)){const prev=box.innerHTML;box.insertAdjacentHTML("afterbegin",`<div><b>Leyendo el plano firmado…</b> La primera vez tarda unos segundos más.</div>`);
+          try{const tO=await textoOCR(buf.slice(0));if(tO.length){T2=tO;porOCR=true;}}catch(e){console.warn(e);}box.innerHTML=prev;}}
+      if(T2.some(t=>/^MODELO:?$/i.test(t.s))){const pc=datosCajetin(T2);pc.porOCR=porOCR;montajeCliente=pc.montaje;html=contraste(plano&&plano.ficha,pc,firmado.name)+aplicaLedCliente(pc)+(porOCR?`<div class="hint">Plano del cliente escaneado, leído con el lector de la app: revisa el cajetín. Del dibujo no lee nada: comprueba a mano la centralita y la numeración de los pilares (el esquema sigue la ficha).</div>`:"");}
       else{const sm=await claudeSample(),lim=sm&&await sm.limits().catch(()=>null);
         if(lim&&lim.images){const prev=box.innerHTML;let d;
           try{d=await leePlanoConClaude(firmado,buf,"");}finally{box.innerHTML=prev;}
@@ -2625,14 +2669,21 @@ async function importaPlano(file){
   drop.classList.add("busy");
   try{
     const buf=esPdf?await file.arrayBuffer():null;
-    const T=buf?await textoPlano(buf.slice(0)):[];
+    let T=buf?await textoPlano(buf.slice(0)):[];
     const r=interpretaPlano(T);
     if(!r.mods.length){
       /* Plano del cliente: se rellena con lo que tenga, aunque no se reconozca entero.
          Cajetín con texto → sus datos; con Claude (enlace de Claude) se lee además el dibujo; sin Claude, el texto y el nombre del archivo. */
-      let errClaude="";const FALTA_FICHA=`<div class="ko">Falta la ficha de fabricación (PLANO.pdf). Arrástrala junto con este plano: de ella salen el motor, la centralita, las vigas, los focos y los sensores.</div>`;
+      let errClaude="",porOCR=false;
+      const sinCaj=!T.some(t=>/^MODELO\b/i.test(t.s));
+      if(sinCaj&&OCR_DIR&&buf){const smp=await claudeSample(),lm=smp&&await smp.limits().catch(()=>null);
+        if(!(lm&&lm.images)){const bx=$("impRes");bx.hidden=false;bx.innerHTML=`<div><b>Leyendo el plano…</b> La primera vez tarda unos segundos más.</div>`;
+          try{const tO=await textoOCR(buf.slice(0));if(tO.length){T=tO;porOCR=true;}}catch(e){console.warn(e);}}}
+      const FALTA_FICHA=`<div class="ko">Falta la ficha de fabricación (PLANO.pdf). Arrástrala junto con este plano: de ella salen el motor, la centralita, las vigas, los focos y los sensores.</div>`;
       const nom=file.name.replace(/\.[^.]+$/,""),suelto=datosSueltos(T,file.name),hayCaj=T.some(t=>/^MODELO\b/i.test(t.s));
       const caj=hayCaj?juntaDatos(datosCajetin(T),suelto):suelto;
+      /* con el lector de la app mandan las medidas del nombre del archivo: el lector puede confundir una cifra */
+      if(porOCR&&caj.modulos.length===1&&suelto.modulos&&suelto.modulos[0]&&suelto.modulos[0].ancho_mm)Object.assign(caj.modulos[0],{ancho_mm:suelto.modulos[0].ancho_mm,proyeccion_mm:suelto.modulos[0].proyeccion_mm});
       const sample=await claudeSample(),lim=sample&&await sample.limits().catch(()=>null),conClaude=!!(lim&&lim.images);
       plano=null;
       if(conClaude&&!(hayCaj&&caj.modulos.length<=1&&caj.modulos[0]&&caj.modulos[0].ancho_mm)){
@@ -2643,7 +2694,7 @@ async function importaPlano(file){
           aplicaPlanoClaude(juntaDatos(d,Object.assign({},caj,{dudas:[]})),nom,hayCaj?"(cajetín) y por Claude (dibujo)":"por Claude");
           $("impRes").insertAdjacentHTML("beforeend",FALTA_FICHA);toast("Plano leído: revisa los datos");return;}
       }
-      aplicaPlanoClaude(caj,nom,hayCaj?"del cajetín":T.length?"(lo que trae el texto y el nombre del archivo)":"(solo el nombre del archivo)");
+      aplicaPlanoClaude(caj,nom,porOCR?"con el lector de la app (revisa el cajetín)":hayCaj?"del cajetín":T.length?"(lo que trae el texto y el nombre del archivo)":"(solo el nombre del archivo)");
       if(!hayCaj)$("impRes").insertAdjacentHTML("beforeend",`<div class="hint">${conClaude?`Claude no ha podido leer el dibujo${errClaude?`: ${esc(errClaude)}`:"."}`:"Este plano no lo puedo leer entero aquí; en el enlace de Claude lo lee Claude."} He rellenado lo que he encontrado: <b>faltan los focos y el tipo de LED</b> si no están en la ficha; lo demás, a mano.</div>`+FALTA_FICHA);
       toast("Plano leído en parte: revisa los datos");return;
     }
