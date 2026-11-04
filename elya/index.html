@@ -1668,7 +1668,7 @@ const DEFS=`<defs><marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWi
 /* Planta de un módulo, a escala, como un plano de montaje: vigas con su ancho, pilares, y cada cable en su propio carril
    por encima de la viga (entre la viga y la tapa), paralelo a los demás, sin cruzarse ni cortarse con los rótulos.
    Los rótulos de los cables van por fuera de la viga; los nombres de viga y las tiras, por dentro. */
-function dibujaModulo(pm,cfg,limpio){
+function dibujaModulo(pm,cfg){
   const {m,tiras}=pm,A=m.A,P=m.P,sc=Math.min(560/A,560/P),w=A*sc,h=P*sc;
   /* estructura a escala real (mm, aprox.): pilar 150 (ficha 1:30), VIGA 133 y VIGA GRANDE 208 en planta (app de embalajes) */
   const MM={viga:133,grande:208,pilar:150},px=mm=>mm/1000*sc;
@@ -1746,7 +1746,7 @@ function dibujaModulo(pm,cfg,limpio){
   const filas={izq:0,sup:0,der:0,inf:0},rot=[...lista];
   NIV(m).forEach(nv=>{const key=k0+(nv==="i"?":i":""),gc=(pm.grAl||{})[key];
     if(gc&&!pm.periMan)rot.push({ed:"grupo:"+key,col:CC.al,lado:lat,t:`Alargo${m.ledPos==="ambos"?" "+nivTxt(m,nv):""} ${secAl(gc.rgb)} · ${gc.al.map(([l])=>m2c(l)).join(" + ")} m · centralita → ${gc.y?"Y":"tira"}`});});
-  if(!limpio)rot.forEach(c=>{const sd=c.lado,[e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=laneOut+12+filas[sd]*14;filas[sd]++;
+  rot.forEach(c=>{const sd=c.lado,[e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=laneOut+12+filas[sd]*14;filas[sd]++;
     txt+=ed(c.ed,T((x1+x2)/2+nx*d,(y1+y2)/2+ny*d,c.t,{col:c.col,rot:vert(sd),fs:cabe(c.t,Math.hypot(x2-x1,y2-y1),11)}));});
   /* ---- tiras LED: en la cara interior de la viga ---- */
   /* directo: en la cara interior de la viga; indirecto (alojamiento de arriba): un poco más adentro, a trazos */
@@ -1760,7 +1760,7 @@ function dibujaModulo(pm,cfg,limpio){
     tir+=ed("tira:"+sd,lineaLed(p1[0],p1[1],p2[0],p2[1],t.prod,t.niv==="i"?2.6:3.4,t.niv==="i"?' stroke-dasharray="8 4"':"")+hit([p1,p2]));}));
   /* entrada de cada grupo de tiras: la Y une sus dos tiras; sin Y, el alargo llega a la punta de la tira */
   const finAl={};lista.filter(c=>c.k==="al").forEach(c=>{finAl[c.R.key]=c.pts[c.pts.length-1];});
-  (limpio?[]:NIV(m)).forEach(nv=>gs.forEach(G=>{const ts=tiras.filter(t=>t.g===G.g&&t.niv===nv);if(!ts.length)return;const key=kN(G.corner,nv);
+  NIV(m).forEach(nv=>gs.forEach(G=>{const ts=tiras.filter(t=>t.g===G.g&&t.niv===nv);if(!ts.length)return;const key=kN(G.corner,nv);
     const [gx,gy]=SP(G.corner),[dx,dy]=ins(G.corner),desde=G.corner===k0?[cx,cy]:finAl[key];if(!desde)return;
     const col=pm.periMan?"var(--muted)":CC.al;
     if(conY.has(key)){const q0=[gx+dx*(hX+16),gy+dy*(hY+16+(nv==="i"&&amb?28:0))],dq=Math.hypot(desde[0]-q0[0],desde[1]-q0[1])||1,
@@ -1788,11 +1788,11 @@ function dibujaModulo(pm,cfg,limpio){
   const mp=pm.motorPos||{x:mside,y:Math.min(0.6,P/4)},mx=X(mp.x),my=Y(mp.y);
   sim+=ed("motor",`<circle cx="${mx}" cy="${my}" r="11" fill="var(--paper)" stroke="${CC.mot}" stroke-width="2.4"/><text x="${mx}" y="${my+4}" text-anchor="middle" font-size="11" font-weight="700" style="fill:${CC.mot}">M</text>`);
   /* centrales de luces (L), junto a la del motor */
-  for(let j=0;j<(limpio?0:pm.nLed||0);j++){const rk=(pm.remLed||[])[j],[bx,by]=rk?SP(rk):[cx,cy],[jx,jy]=rk?ins(rk):[ix,iy],lx=bx-jx*(laneOut+16+(rk?0:j*28)),ly=by-jy*(laneOut+56);
+  for(let j=0;j<(pm.nLed||0);j++){const rk=(pm.remLed||[])[j],[bx,by]=rk?SP(rk):[cx,cy],[jx,jy]=rk?ins(rk):[ix,iy],lx=bx-jx*(laneOut+16+(rk?0:j*28)),ly=by-jy*(laneOut+56);
     sim+=ed("luz:"+j,`<line x1="${bx}" y1="${by}" x2="${lx}" y2="${ly}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 2"/><rect x="${lx-11}" y="${ly-11}" width="22" height="22" rx="3" fill="var(--paper)" stroke="var(--ink)" stroke-width="2"/><text x="${lx}" y="${ly+4}" text-anchor="middle" font-size="10" font-weight="700" style="fill:var(--ink)">L${pm.nLed>1?j+1:""}</text>`);}
   /* receptores de luces (Somfy io LED / io RGB, Teleco UL), cada uno con su transformador, junto a la centralita */
-  const nRx=limpio?0:(pm.rx||[]).length;
-  (limpio?[]:(pm.rx||[])).forEach((x,j)=>{const jj=(pm.nLed||0)+j,lx=cx-ix*(laneOut+16+jj*34),ly=cy-iy*(laneOut+56),
+  const nRx=(pm.rx||[]).length;
+  (pm.rx||[]).forEach((x,j)=>{const jj=(pm.nLed||0)+j,lx=cx-ix*(laneOut+16+jj*34),ly=cy-iy*(laneOut+56),
       lab={somLed:"io",somRGB:"RGB",rgbww:"R"}[x.k]||"R",nom={somLed:"Receptor io LED",somRGB:"Receptor io RGB",rgbww:"Receptor RGB+BL"}[x.k]||"Receptor";
     sim+=ed("rx:"+j,`<line x1="${cx}" y1="${cy}" x2="${lx}" y2="${ly}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 2"/><rect x="${lx-13}" y="${ly-11}" width="26" height="22" rx="3" fill="var(--paper)" stroke="var(--ink)" stroke-width="2"/><text x="${lx}" y="${ly+4}" text-anchor="middle" font-size="9.5" font-weight="700" style="fill:var(--ink)">${lab}${x.tot>1?x.n:""}</text><title>${nom}${x.tot>1?` ${x.n}/${x.tot}`:""} + transformador ${TR_W[x.tr]} W</title>`);
     /* rótulos en lista, uno por receptor, para que no se pisen */
@@ -1813,7 +1813,7 @@ function dibujaModulo(pm,cfg,limpio){
     const tsd=tiras.filter(t=>t.sides[0]===sd),t=tsd[0],nomT=x=>TIRA_C[x.prod]||C[x.prod][1],dist=new Set(tsd.map(nomT)).size>1;
     /* directo e indirecto con tiras distintas: se rotulan las dos */
     const tt=t&&(dist?tsd.map(x=>(x.niv==="i"?"ind. ":"dir. ")+nomT(x)).join(" + "):`${amb?"2 × ":""}${nomT(t)}${m.ledPos==="ind"?" · indirecta":""}`);
-    if(t&&!limpio)txt+=ed("tira:"+sd,T(mx2-nx*(d+(vert(sd)?14:0)),my2-ny*d,tt,{fs:cabe(tt,Math.hypot(x2-x1,y2-y1)-2*B,9.5),col:"var(--muted)",rot:vert(sd)}));});
+    if(t)txt+=ed("tira:"+sd,T(mx2-nx*(d+(vert(sd)?14:0)),my2-ny*d,tt,{fs:cabe(tt,Math.hypot(x2-x1,y2-y1)-2*B,9.5),col:"var(--muted)",rot:vert(sd)}));});
   /* cotas, por fuera de los rótulos de cables */
   SIDES.forEach(sd=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=laneOut+18+Math.max(1,filas[sd])*14,t=5;
     const a=[x1+nx*d,y1+ny*d],b=[x2+nx*d,y2+ny*d];
@@ -1821,9 +1821,9 @@ function dibujaModulo(pm,cfg,limpio){
     [a,b].forEach(([px,py])=>{fondo+=`<line x1="${px-ny*t}" y1="${py-nx*t}" x2="${px+ny*t}" y2="${py+nx*t}" stroke="var(--muted)" stroke-width="0.8"/>`;});
     txt+=T((a[0]+b[0])/2,(a[1]+b[1])/2,` ${m2(sideLen(m,sd))} m `,{fs:10.5,col:"var(--muted)",rot:vert(sd),halo:8});});
   /* recorte: solo el margen que usan los rótulos de cada lado (y los receptores, por fuera de su esquina), para aprovechar la hoja */
-  const fuera=sd=>laneOut+18+Math.max(1,filas[sd])*14+16,nLuz=limpio?0:pm.nLed||0,sobreRx=nRx||nLuz?laneOut+56+22+nRx*13+12:0,rotC=laneOut+14+(String(pilNom(pilDe(m,k0))||"").length+13)*7;
+  const fuera=sd=>laneOut+18+Math.max(1,filas[sd])*14+16,nLuz=pm.nLed||0,sobreRx=nRx||nLuz?laneOut+56+22+nRx*13+12:0,rotC=laneOut+14+(String(pilNom(pilDe(m,k0))||"").length+13)*7;
   const vbX=mg-Math.max(fuera("izq"),ix>0?rotC:laneOut+40),vbX2=mg+w+Math.max(fuera("der"),ix<0?rotC:laneOut+40),vbY=mg-Math.max(fuera("sup"),iy>0||nLuz?sobreRx:0),vbY2=mg+h+Math.max(fuera("inf")+24,iy<0||nLuz?sobreRx:0);
-  return `<svg viewBox="${vbX} ${vbY} ${vbX2-vbX} ${vbY2-vbY}" role="img" aria-label="Planta de ${esc(m.nombre)}" data-mi="${m._i}">${DEFS}${fondo}${viga}${tir}${limpio?"":cab}${sim}${txt}</svg>`;
+  return `<svg viewBox="${vbX} ${vbY} ${vbX2-vbX} ${vbY2-vbY}" role="img" aria-label="Planta de ${esc(m.nombre)}" data-mi="${m._i}">${DEFS}${fondo}${viga}${tir}${cab}${sim}${txt}</svg>`;
 }
 /* Posición de cada módulo en la planta (m, esquina inf. izq.): la escrita a mano; si no, por los pilares que comparte
    con otro ya colocado; los que no comparten ninguno, en fila a la derecha. */
@@ -3025,7 +3025,7 @@ function pintaCliente(cfg,r,cj){
   const QUE={mot:"Abrir y cerrar las lamas",peri:"Luz del perímetro",ind:"Luz indirecta del perímetro",lam:"Luz de las lamas",foc:"Focos"},nm=r.plan.length>1;
   const juntos=x=>x.k==="ind"&&(r.canales||[]).some(y=>y.k==="peri"&&y.mi===x.mi&&y.c===x.c&&y.em===x.em&&y.mando===x.mando);
   const filas=(r.canales||[]).filter(x=>!juntos(x)).slice().sort((a,b)=>a.em===b.em?(a.mando||1)-(b.mando||1)||a.c-b.c:0).map(x=>`<tr><td>${x.c}</td><td>${esc(x.k==="peri"&&(r.canales||[]).some(juntos)&&lucesDe(r.plan[x.mi].m).includes("rgb")?"Luz RGB del perímetro (directa e indirecta)":QUE[x.k])}${nm?` · módulo ${x.mi+1}`:""}</td><td>${esc(C[x.em][1])}${x.nM>1?` · mando nº ${x.mando}`:""}</td></tr>`).join("");
-  const planos=(cj?`<figure>${cj.svg}</figure>`:"")+r.plan.map(pm=>`<figure><figcaption>${esc(pm.m.nombre)}</figcaption>${dibujaModulo(pm,cfg,true)}</figure>`).join("");
+  const planos=(cj?`<figure>${cj.svg}</figure>`:"")+r.plan.map(pm=>`<figure><figcaption>${esc(pm.m.nombre)}</figcaption>${dibujaModulo(pm,cfg).replace(/\s*·\s*caída\s+[\d.,]+\s*%/g,"")}<ul class="rutas">${recorridos(pm,cfg).map(x=>`<li>${x.replace(/\s*<b>Aviso para taller:<\/b>[^<]*$/,"").replace(/\s*Caída ≈[^)]*\)[^.]*\.?/g,"").replace(/\s*Caída ≈[^.]*\.[^.]*\./g,"")}</li>`).join("")}</ul></figure>`).join("");
   $("cliente").innerHTML=`<p>${esc(cfg.obra||"")}</p>${filas?`<table class="cli-can"><thead><tr><th>Canal</th><th>Qué hace</th><th>Mando</th></tr></thead><tbody>${filas}</tbody></table>`:""}${(r.canales||[]).some(x=>x.em==="pop")?`<p class="hint">En el mando Pop Plus, el canal 0 es el común: mueve y enciende todo a la vez.</p>`:""}<div class="cli-pl">${planos}</div>`;
 }
 /* Material = lo calculado con los cambios a mano encima. */
