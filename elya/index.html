@@ -2919,7 +2919,8 @@ let last=null,plantaH="",impCuadro=null; /* null = como en pantalla; true / fals
 /* unifilar en pantalla: desde la centralita o desde el cuadro eléctrico (se recuerda en este navegador) */
 let verCuadro=false;try{verCuadro=localStorage.getItem("elya-uni")==="cuadro";}catch(e){}
 /* unifilar horizontal o vertical por columnas (se recuerda); al imprimir se puede elegir otro */
-let uniVert=false,impVert=null;try{uniVert=localStorage.getItem("elya-univ")==="v";}catch(e){}
+/* el unifilar sale en vertical por defecto; se recuerda si se cambia a horizontal */
+let uniVert=true,impVert=null;try{uniVert=localStorage.getItem("elya-univ")!=="h";}catch(e){}
 function pagApaisada(on){let st=$("pagV");if(on&&!st){st=document.createElement("style");st.id="pagV";st.textContent="@page{size:A4 landscape}";document.head.appendChild(st);}if(!on&&st)st.remove();}
 /* Los desplegables de entrada y recorrido dicen por qué pilares y vigas va cada opción. */
 function etiquetasMod(m,i,pp){
@@ -3477,7 +3478,7 @@ $("bCopy").addEventListener("click",()=>{
 let top=false;try{top=window.self===window.top;}catch(e){}
 /* Imprimir: se eligen las hojas y si el unifilar sale desde el cuadro del cliente; se recuerda la elección. */
 const HOJAS=[["avisos","Avisos"],["unifilar","Esquema unifilar"],["consumo","Consumo"],["planta","Planta y tiras LED"],["recorridos","Circuitos y recorridos"],["cliente","Para el cliente (mando y plano)"],["conexiones","Conexiones por central"],["manuales","Manuales oficiales (QR)"],["somfy","Receptores io de Somfy"],["material","Material"]];
-let impPref={hojas:Object.fromEntries(HOJAS.map(([k])=>[k,true])),cuadro:false};
+let impPref={hojas:Object.fromEntries(HOJAS.map(([k])=>[k,true])),cuadro:false,vert:true};
 try{impPref=Object.assign(impPref,JSON.parse(localStorage.getItem("elya-imp")||"{}"));}catch(e){}
 /* el unifilar es opcional: de entrada no se imprime */
 if(!impPref.uniOpc){impPref.hojas.unifilar=false;impPref.uniOpc=true;}
