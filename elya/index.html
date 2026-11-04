@@ -2218,6 +2218,7 @@ Léelas con cuidado y devuelve SOLO un objeto JSON con esta forma (null si un da
  "luz": "none" | "w3000" | "w4000" | "rgb" | null   (según accesorios: tiras LED, blanco cálido/neutro, RGB; "none" si no lleva),
  "led_pos": "dir" | "ind" | "ambos" | null   (LED perimetral «Directo», «Indirecto» o los dos; el perfil tiene un alojamiento abajo, directo, y otro arriba, indirecto),
  "viento": true | false (según accesorios: anemómetro o sensor de viento), "lluvia": true | false (sensor de lluvia),
+ "focos_n": número total de focos (accesorios, p. ej. «FOCOS LED: 9 (5,12,19)» son 9) | 0, "focos_lamas": [números de las lamas con focos, p. ej. [5,12,19]] | [], "aislante": true | false (AISLANTE LAMAS), "aislante_sin_focos": true | false («AISLANTE LAMAS (sin focos)»),
  "modulos": [{"n": 1,
    "ancho_mm": medida del módulo paralela a las lamas (las lamas se ven como líneas finas paralelas dentro del módulo),
    "proyeccion_mm": medida del módulo perpendicular a las lamas (ojo: en los planos la cota «(Proyección)» suele ser la de las lamas y «(Ancho)» la otra; fíjate en el dibujo de las lamas, y ninguna lama pasa de 4500 mm),
@@ -2276,7 +2277,8 @@ function datosCajetin(T){
   const lam={},lamN={};for(const m of acc.matchAll(/M[óo]dulo\s*([\d\/]+)\s*\(([\d,\s]+)\)/gi)){const ns=numLista(m[2]);m[1].split("/").forEach(k=>{lam[+k]=ns.length;lamN[+k]=ns;});}
   const d={obra:g(/REFERENCIA:\s*([^\n]+)/i),oferta:g(/OFERTA:\s*(\d+)/i),cliente:g(/CLIENTE:\s*([^\n]+)/i),
     modelo:["ELYA",g(/ELYA\s*\n\s*([^\n]+)/i)].filter(Boolean).join(" "),montaje,electronica:SIS[elec]?elec:null,
-    alto_total_mm:num(g(/H\s*Total:\s*(\d+)/i)),h_libre_mm:num(g(/H\s*Libre:\s*(\d+)/i)),pilares:num(g(/(\d+)\s*PILARES/i)),medidas:g(/(\d{3,5}\s*x\s*\d{3,5})/i),luz,ledPos,viento:/ANEM|VIENTO/i.test(acc),lluvia:/LLUVIA/i.test(acc),modulos:[],dudas:[]};
+    alto_total_mm:num(g(/H\s*Total:\s*(\d+)/i)),h_libre_mm:num(g(/H\s*Libre:\s*(\d+)/i)),pilares:num(g(/(\d+)\s*PILARES/i)),medidas:g(/(\d{3,5}\s*x\s*\d{3,5})/i),luz,ledPos,viento:/ANEM|VIENTO/i.test(acc),lluvia:/LLUVIA/i.test(acc),
+    focos_n:parseInt((acc.match(/FOCOS\s*LED:?\s*(\d+)/i)||[])[1])||0,focos_lamas:numLista((acc.match(/FOCOS\s*LED:?\s*\d+\s*\(([^)]*)\)/i)||[])[1]||""),aislante:/AISLANTE/i.test(acc),aislante_sin_focos:/AISLANTE[^\n]*\n?[^\n]*SIN\s*FOCOS/i.test(acc),modulos:[],dudas:[]};
   const ancho=num(g(/(\d{3,5})\s*\(Ancho\)/i)),proy=num(g(/(\d{3,5})\s*\(Proyecci/i));
   if(nMod===1){
     const P=T.filter(t=>/^P\d+$/.test(t.s));
@@ -2343,6 +2345,10 @@ function aplicaPlanoClaude(d,nombreArchivo,quien){
       luz:LUZ[d.luz]?d.luz:"none",ledPos:LEDPOS[d.ledPos||d.led_pos]?(d.ledPos||d.led_pos):"dir",lados};
   });
   if(!mods.length)throw new Error("Claude no ha encontrado módulos en el plano.");
+  /* focos del cajetín: con varios módulos no dice cuáles van en cada uno; se ponen a mano */
+  const nFoc=parseInt(d.focos_n)||0,lFoc=Array.isArray(d.focos_lamas)?numLista(d.focos_lamas.join(",")):[];
+  if(nFoc&&mods.length===1)Object.assign(mods[0],lFoc.length&&nFoc%lFoc.length===0?{focN:nFoc,focL:"lam",focLam:lFoc,focPL:nFoc/lFoc.length}:{focN:nFoc});
+  mods.forEach(m=>{if(d.aislante)m.aisl=true;if(d.aislante_sin_focos)m.aislSF=true;});
   const obra=[d.obra,d.cliente].filter(Boolean).join(" · ")||nombreArchivo;
   $("obra").value=obra;$("of").value=d.oferta?String(d.oferta):"";
   if(d.alto_total_mm>0)$("alto").value=Math.round(d.alto_total_mm/10)/100;
@@ -2352,7 +2358,7 @@ function aplicaPlanoClaude(d,nombreArchivo,quien){
   const dudas=(Array.isArray(d.dudas)?d.dudas:[]).map(String);
   const box=$("impRes");box.hidden=false;
   box.innerHTML=`<div><span class="ok">Plano leído${quien?" "+quien:" por Claude"}:</span> ${esc(d.modelo||"")} · ${mods.length} módulo(s)${d.montaje?" · "+esc(String(d.montaje).replace("_"," ")):""}</div>
-  <ul>${mods.map(m=>`<li>${esc(m.nombre)}: ${m2(m.A)} × ${m2(m.P)} m · motor ${m.motor==="izq"?"izquierda":"derecha"} · centralita en ${m.aloj} ${esc((m.aloj==="pilar"?pilNom(m.ref):m.ref)||"?")}${m.lamasN?` · ${m.lamasN} lamas LED`:""}</li>`).join("")}</ul>
+  <ul>${mods.map(m=>`<li>${esc(m.nombre)}: ${m2(m.A)} × ${m2(m.P)} m · motor ${m.motor==="izq"?"izquierda":"derecha"} · centralita en ${m.aloj} ${esc((m.aloj==="pilar"?pilNom(m.ref):m.ref)||"?")}${m.lamasN?` · ${m.lamasN} lamas LED`:""}${m.focN?` · ${m.focN} focos`:""}${LUZ[m.luz]&&m.luz!=="none"?` · ${esc(LUZ[m.luz])}`:""}</li>`).join("")}</ul>
   ${dudas.length?`<div><b>Comprobar:</b></div><ul>${dudas.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:""}
   <div class="hint">Revisa los datos con el plano antes de usar el esquema${quien==="del cajetín"?"":": la lectura del dibujo puede equivocarse"}.</div>`;
   render();
@@ -2403,6 +2409,7 @@ function contraste(fi,pc,nombre){
   fila("Altura de paso / H libre (mm)",fi&&fi.alto,pc.h_libre_mm,(fi&&fi.alto)===pc.h_libre_mm);
   fila("Electrónica",fi&&fi.sistema&&{nexta:"Cherubini",teleco_eu:"Teleco",somfy:"Somfy"}[fi.sistema],pc.electronica&&cap(pc.electronica),fi&&SIS[pc.electronica]===fi.sistema);
   fila("LED perimetral",fi&&sn(fi.ledPeri),pc.luz?sn(pc.luz!=="none"):null,fi&&fi.ledPeri===(pc.luz!=="none"));
+  if(pc.focos_n!=null)fila("Focos",fi&&(focosFicha(fi.focos).n||"no"),pc.focos_n||"no",fi&&focosFicha(fi.focos).n===(parseInt(pc.focos_n)||0));
   fila("Sensor lluvia",fi&&sn(fi.lluvia),sn(pc.lluvia),fi&&!!fi.lluvia===!!pc.lluvia);
   fila("Sensor viento",fi&&sn(fi.viento),sn(pc.viento),fi&&!!fi.viento===!!pc.viento);
   if(m){if(fi&&fi.union)fila("Unión",fi.union,m[4],N(fi.union)===N(m[4]));else fila("Tipo",fi&&fi.tipo,m[4],N(fi&&fi.tipo)===N(m[4]));}
@@ -2623,20 +2630,21 @@ async function importaPlano(file){
     if(!r.mods.length){
       /* Plano del cliente: se rellena con lo que tenga, aunque no se reconozca entero.
          Cajetín con texto → sus datos; con Claude (enlace de Claude) se lee además el dibujo; sin Claude, el texto y el nombre del archivo. */
+      let errClaude="";const FALTA_FICHA=`<div class="ko">Falta la ficha de fabricación (PLANO.pdf). Arrástrala junto con este plano: de ella salen el motor, la centralita, las vigas, los focos y los sensores.</div>`;
       const nom=file.name.replace(/\.[^.]+$/,""),suelto=datosSueltos(T,file.name),hayCaj=T.some(t=>/^MODELO\b/i.test(t.s));
       const caj=hayCaj?juntaDatos(datosCajetin(T),suelto):suelto;
       const sample=await claudeSample(),lim=sample&&await sample.limits().catch(()=>null),conClaude=!!(lim&&lim.images);
       plano=null;
       if(conClaude&&!(hayCaj&&caj.modulos.length<=1&&caj.modulos[0]&&caj.modulos[0].ancho_mm)){
-        let d=null;try{d=await leePlanoConClaude(file,buf?buf.slice(0):null,T.map(t=>t.s).join("\n"));}catch(e){if(/parada/i.test(e.message||""))throw e;}
+        let d=null;try{d=await leePlanoConClaude(file,buf?buf.slice(0):null,T.map(t=>t.s).join("\n"));}catch(e){if(/parada/i.test(e.message||""))throw e;errClaude=e.message||"";console.warn(e);}
         if(d&&Array.isArray(d.modulos)&&d.modulos.length){
           if(hayCaj){["obra","oferta","cliente","modelo","montaje","electronica","alto_total_mm","luz"].forEach(k=>{if(caj[k]!=null&&caj[k]!=="")d[k]=caj[k];});
             (d.modulos||[]).forEach((m,i)=>{if(caj.modulos[i]&&caj.modulos[i].lamas_led&&!m.lamas_led)m.lamas_led=caj.modulos[i].lamas_led;});}
           aplicaPlanoClaude(juntaDatos(d,Object.assign({},caj,{dudas:[]})),nom,hayCaj?"(cajetín) y por Claude (dibujo)":"por Claude");
-          toast("Plano leído: revisa los datos");return;}
+          $("impRes").insertAdjacentHTML("beforeend",FALTA_FICHA);toast("Plano leído: revisa los datos");return;}
       }
       aplicaPlanoClaude(caj,nom,hayCaj?"del cajetín":T.length?"(lo que trae el texto y el nombre del archivo)":"(solo el nombre del archivo)");
-      if(!hayCaj)$("impRes").insertAdjacentHTML("beforeend",`<div class="hint">${conClaude?"Claude no ha podido leer el dibujo.":"Este plano no lo puedo leer entero aquí; en el enlace de Claude lo lee Claude."} He rellenado lo que he encontrado; lo demás, a mano.</div>`);
+      if(!hayCaj)$("impRes").insertAdjacentHTML("beforeend",`<div class="hint">${conClaude?`Claude no ha podido leer el dibujo${errClaude?`: ${esc(errClaude)}`:"."}`:"Este plano no lo puedo leer entero aquí; en el enlace de Claude lo lee Claude."} He rellenado lo que he encontrado: <b>faltan los focos y el tipo de LED</b> si no están en la ficha; lo demás, a mano.</div>`+FALTA_FICHA);
       toast("Plano leído en parte: revisa los datos");return;
     }
     plano=Object.assign(r,{refN:r.mods[0].n});plano.refA=Math.round(r.mods[0].w/80*100)/100;
