@@ -1725,7 +1725,15 @@ function dibujaModulo(pm,cfg){
     /* lamas: un ramal del carril a cada lama */
     if(c.k==="lam")lamYs.forEach(yy=>{const xx=X(c.lamX)+(lat==="izq"?1:-1)*0;extra+=`<line x1="${X(c.lamX)+NRM[lat][0]*c.off}" y1="${Y(yy)}" x2="${X(c.lamX)-NRM[lat][0]*hX}" y2="${Y(yy)}" stroke="${c.col}" stroke-width="1.6"/>`;});
     /* focos: un ramal del carril a cada foco */
-    if(c.k==="foc"&&pm.focos.lam)pm.focos.lamas.forEach(l=>{const yy=Y(l.y),xf=X(l.xs[l.xs.length-1]);extra+=`<line x1="${X(latX)+NRM[lat][0]*c.off}" y1="${yy}" x2="${xf}" y2="${yy}" stroke="${c.col}" stroke-width="1.6" stroke-dasharray="5 3"/>`;});
+    if(c.k==="foc"&&pm.focos.lam){const yTop=Math.min(...pm.focos.lamas.map(l=>Y(l.y))),sg=latX?-1:1,nomL=d=>d<=0.5+1e-6?"ext. 0,5 m":`alargo ${alargos(d,false).map(([q])=>m2c(q)).join(" + ")} m`;
+      pm.focos.lamas.forEach(l=>{const yy=Y(l.y),xs=l.xs.map(X),xf=xs[xs.length-1],xE=X(latX)+sg*(hX+9),xC=xE+sg*20,rotulo=yy===yTop,lab=(x,dy,t,o={})=>rotulo?T(x,yy+dy,t,Object.assign({fs:9,col:c.col,halo:3},o)):"";
+        extra+=`<line x1="${X(latX)+NRM[lat][0]*c.off}" y1="${yy}" x2="${xf}" y2="${yy}" stroke="${c.col}" stroke-width="1.6" stroke-dasharray="5 3"/>`;
+        /* del lateral a la lama: cableado de eje y conector de lama */
+        extra+=conSvg(xE,yy,0,1.15)+conSvg(xC,yy,0,1.15)+lab(xE,15,"eje + conector de lama",{anchor:sg>0?"start":"end"});
+        /* cada alargo con su conector a cada lado de los focos; el último foco lleva tapón */
+        xs.forEach((x,j)=>{extra+=conSvg(x-sg*15,yy,0,1.15);if(j<xs.length-1)extra+=conSvg(x+sg*15,yy,0,1.15)+lab((x+xs[j+1])/2,-11,nomL(l.g));
+          else extra+=`<rect x="${x+sg*11-(sg<0?7:0)}" y="${yy-3.5}" width="7" height="7" rx="1.5" fill="#2e3135"/>`+lab(x+sg*15,-11,"tapón",{anchor:sg>0?"start":"end"});});
+        extra+=lab((xC+xs[0])/2,-11,nomL(l.dx));});}
     else if(c.k==="foc")pm.focos.pos.forEach(f=>{const [nx,ny]=NRM[f.sd],fx=X(f.p[0]),fy=Y(f.p[1]);extra+=`<line x1="${fx+nx*c.off}" y1="${fy+ny*c.off}" x2="${fx-nx*(hw(f.sd)+9)}" y2="${fy-ny*(hw(f.sd)+9)}" stroke="${c.col}" stroke-width="1.6"/>`;});
     /* alargo de varios tramos (p. ej. 1,5 + 3 m): un conector en cada empalme, repartidos según la medida de cada tramo */
     /* el empalme cae donde se acaba el primer tramo, medido desde la centralita (5 + 5 m: a 5 m); el sobrante queda al final */
@@ -1813,7 +1821,9 @@ function dibujaModulo(pm,cfg){
     const tsd=tiras.filter(t=>t.sides[0]===sd),t=tsd[0],nomT=x=>TIRA_C[x.prod]||C[x.prod][1],dist=new Set(tsd.map(nomT)).size>1;
     /* directo e indirecto con tiras distintas: se rotulan las dos */
     const tt=t&&(dist?tsd.map(x=>(x.niv==="i"?"ind. ":"dir. ")+nomT(x)).join(" + "):`${amb?"2 × ":""}${nomT(t)}${m.ledPos==="ind"?" · indirecta":""}`);
-    if(t)txt+=ed("tira:"+sd,T(mx2-nx*(d+(vert(sd)?14:0)),my2-ny*d,tt,{fs:cabe(tt,Math.hypot(x2-x1,y2-y1)-2*B,9.5),col:"var(--muted)",rot:vert(sd)}));});
+    /* en un lateral, el rótulo va en el hueco mayor entre lamas con focos, para no pisar sus conectores */
+    const yF=vert(sd)&&pm.focos&&pm.focos.lam?[Y(0),...pm.focos.lamas.map(l=>Y(l.y)),Y(P)].sort((a,b)=>a-b):null,myT=yF?yF.slice(1).map((y,j)=>[y-yF[j],(y+yF[j])/2]).sort((a,b)=>b[0]-a[0])[0][1]:my2;
+    if(t)txt+=ed("tira:"+sd,T(mx2-nx*(d+(vert(sd)?14:0)),myT-ny*d,tt,{fs:cabe(tt,Math.hypot(x2-x1,y2-y1)-2*B,9.5),col:"var(--muted)",rot:vert(sd)}));});
   /* cotas, por fuera de los rótulos de cables */
   SIDES.forEach(sd=>{const [e1,e2]=EXT[sd],[x1,y1]=SP(e1),[x2,y2]=SP(e2),[nx,ny]=NRM[sd],d=laneOut+18+Math.max(1,filas[sd])*14,t=5;
     const a=[x1+nx*d,y1+ny*d],b=[x2+nx*d,y2+ny*d];
@@ -1872,7 +1882,7 @@ function recorridos(pm,cfg){
   if(pm.periMan)L.push(`<b style="color:var(--c-al)">Cables del perímetro</b> (a mano): ${PERCAB.filter(k=>m.periCab[k]>0).map(k=>`${m.periCab[k]} × ${esc(C[k][1])}`).join(", ")}.`);
   if(m.lamasN)L.push(`<b style="color:var(--c-lam)">Lamas LED (${m.lamasN}: lamas ${lamLED(m).join(", ")} de ${lamT(m)})</b>: unir los dos conectores de cada lama (conector de lama + conector de eje) y llevar los cables por el mecanizado de la viga ${esc(vigaDe(m,m.cent[1]==="i"?"izq":"der"))} hasta la centralita${out(pm.lamOut||"OUT2 / OUT4")}.${LAMCAB.some(k=>(m.lamCab||{})[k]>0)?` Cables: ${LAMCAB.filter(k=>m.lamCab[k]>0).map(k=>`${m.lamCab[k]} × ${esc(C[k][1])}`).join(", ")}.`:` Cable 3 m 2P + 2 micro en T: uno por cada 2 lamas, encadenados.`}`);
   if(m.focN&&pm.focos&&pm.focos.lam){const F=pm.focos,fo=pm.sis==="nexta"&&pm.focOut?` → ${pm.focOut}`:"";
-    L.push(`<b>Focos en lamas (${m.focN} × ${esc(FOCOS[m.focT]||FOCOS.fMiAL)}, ${FOCO_W} W c/u)</b>: lamas ${F.lamas.map(l=>l.k).join(", ")}, ${m.focPL||2} por lama, repartidos cada ≈ ${m2(F.lamas[0].g)} m. El cable entra por el lateral (mecanizado de la viga ${esc(vigaDe(m,F.lat))}) con el cable 3 m 2P + 2 micro en T (uno por cada 2 lamas, encadenados) y por cada lama hasta sus focos, con alargos${F.al&&F.al.length?`; antes, alargo ${F.al.map(([l])=>m2c(l)+" m").join(" + ")} por el lateral`:""}; tapón en el último foco de cada lama, hasta la centralita${fo}.`);}
+    L.push(`<b>Focos en lamas (${m.focN} × ${esc(FOCOS[m.focT]||FOCOS.fMiAL)}, ${FOCO_W} W c/u)</b>: lamas ${F.lamas.map(l=>l.k).join(", ")}, ${m.focPL||2} por lama, repartidos cada ≈ ${m2(F.lamas[0].g)} m. El cable entra por el lateral (mecanizado de la viga ${esc(vigaDe(m,F.lat))}) con el cable 3 m 2P + 2 micro en T (uno por cada 2 lamas, encadenados) y en cada lama: cableado de eje y conector de lama (uno por lama), y un alargo${F.lamas[0].dx>0.5?` de ${alargos(F.lamas[0].dx,false).map(([q])=>m2c(q)).join(" + ")} m`:""} con sus conectores del lateral al primer foco y de foco a foco${F.al&&F.al.length?`; antes, alargo ${F.al.map(([l])=>m2c(l)+" m").join(" + ")} por el lateral`:""}; tapón en el último foco de cada lama, hasta la centralita${fo}.`);}
   else if(m.focN){const fo=(pm.focOut?` → ${pm.focOut}`:"");L.push(`<b>Focos (${m.focN} × ${esc(FOCOS[m.focT]||FOCOS.fMiAL)}, ${FOCO_W} W c/u)</b>: entran por el lateral con el cable 3 m 2P + 2 micro en T${pm.focos&&pm.focos.al&&pm.focos.al.length?` (antes, alargo ${pm.focos.al.map(([l])=>m2c(l)+" m").join(" + ")} desde la centralita)`:""} y entre ellos van con extensiones de 0,50 m, hasta la centralita${pm.sis==="nexta"?fo:""}. ${pm.focos?`Van en ${esc(SIDES.includes(m.focL)?vigaDe(m,m.focL):"el perímetro, repartidos")}; cadena desde la centralita ≈ ${m2(pm.focos.ruta.len)} m por encima de ${esc(vigasDe(m,pm.focos.ruta.sides))}.`:""}`);}
   (m.extra||[]).forEach((x,j)=>{if(!C[x.k])return;const so=pm.sis==="nexta"&&x.W>0&&pm.xOut&&pm.xOut[j]?` → ${pm.xOut[j]}`:"";
     L.push(`<b style="color:var(--c-x)">◆ ${j+1}</b> ${x.q} × ${esc(C[x.k][1])} (${C[x.k][0]}) en ${esc(dondeX(m,x))}${x.W>0?` · ${w0(x.W*x.q)}`:""}${so}.`);});
@@ -3270,7 +3280,7 @@ function mandosMalOT(cfg){
 const SIN_REF_OT=["tkWPM","tkWPH"];
 /* Texto para reclamar la corrección de la OT: lo que falta o sobra frente al cálculo, con su motivo. No envía nada: se copia y se pega. */
 function textoReclamacion(r,difs,mal){
-  const cant=(f,v)=>f.k==="mang"?`${f.a===v?"≈ ":""}${String(Math.round(v*1000)).replace(/\B(?=(\d{3})+$)/g,".")} mm`:`${String(v).replace(".",",")} ud.`;
+  const cant=(f,v)=>f.k==="mang"?`${v!==f.o?"≈ ":""}${String(Math.round(v*1000)).replace(/\B(?=(\d{3})+$)/g,".")} mm`:`${String(Math.round(v*100)/100).replace(".",",")} ud.`;
   const wRGB=r.plan.flatMap(p=>(p.rx||[]).filter(x=>x.k==="somRGB").map(x=>x.W));
   const motivo=f=>{const k=f.k||"";
     if(/^tr\d/.test(k))return f.o===0?"La OT no trae este transformador, y el Louver Control y los receptores funcionan a 24 V.":"";
@@ -3282,9 +3292,10 @@ function textoReclamacion(r,difs,mal){
     if(Object.values(EMISORES).flat().includes(k))return f.o>f.a&&mal.some(t=>t.startsWith(f.c))?"Este mando no es compatible con el sistema de la obra.":"Es el mando compatible con el sistema de la obra.";
     return "";};
   const of=$("of").value.trim(),obra=$("obra").value.trim();
-  const lineas=difs.map(f=>{const m=motivo(f);return `- ${f.c} ${C[f.k][1]}: la OT lleva ${cant(f,f.o)}${f.a?` y hacen falta ${cant(f,f.a)}`:" y no hace falta ninguna"}${/\.$/.test(f.a?cant(f,f.a):"")?"":"."}${m?" "+m:""}`;});
+  const linea=(f,verbo)=>{const m=motivo(f);return `- ${f.c} ${C[f.k][1]}: ${verbo} ${cant(f,Math.abs(f.a-f.o))} (la OT lleva ${cant(f,f.o)}${f.a?` y hacen falta ${cant(f,f.a)}`:" y no hace falta ninguna"}).${m?" "+m:""}`;};
+  const anade=difs.filter(f=>f.a>f.o).map(f=>linea(f,"añadir")),quita=[...difs.filter(f=>f.a<f.o).map(f=>linea(f,"quitar")),...mal.filter(t=>!difs.some(f=>t.startsWith(f.c))).map(t=>`- ${t}: quitar; este mando no es compatible con el sistema de la obra.`)];
   return [`Asunto: ${of?`OF ${of}`:"Orden de fabricación"}${obra?`, ${obra}`:""}: corrección del material eléctrico de la OT`,"","Hola:","",
-    `Al revisar la orden de trabajo${of?` de la OF ${of}`:""} con la ficha de fabricación y el cálculo eléctrico, hemos encontrado estas diferencias:`,"",...lineas,...mal.filter(t=>!difs.some(f=>t.startsWith(f.c))).map(t=>`- ${t}: este mando no es compatible con el sistema de la obra.`),"",
+    `Al revisar la orden de trabajo${of?` de la OF ${of}`:""} con la ficha de fabricación y el cálculo eléctrico, hemos encontrado estas diferencias:`,"",...(anade.length?["AÑADIR A LA OT:",...anade,""]:[]),...(quita.length?["QUITAR DE LA OT:",...quita,""]:[]),
     "¿Podéis revisarlo y corregir la OT antes de fabricar?","","Un saludo."].join("\n");
 }
 function pintaOT(r){
