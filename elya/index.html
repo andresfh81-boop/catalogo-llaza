@@ -389,7 +389,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
     <div class="bd noprint bomadd" style="padding-top:0"><b style="font-size:13px">Orden de trabajo</b><button type="button" class="mini" id="bOT">Contrastar con la OT (PDF / CSV / foto)</button><button type="button" class="mini" id="bOTCam">📷 Cámara</button>
       <input type="file" id="fOT" accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain,image/*" hidden><input type="file" id="fOTCam" accept="image/*" capture="environment" hidden>
       <span class="hint">Lee los códigos (11 cifras) y cantidades de la orden de trabajo y los compara con este material. Manda el cálculo de la app: la OT no cambia nada, solo se indican las diferencias.</span></div>
-    <div class="bd" style="padding-top:0"><div id="otRes" class="impres" hidden></div></div>
+    <div class="bd noprint" style="padding-top:0"><div id="otRes" class="impres" hidden></div></div>
     <div class="bd" style="padding-top:0"><p class="hint">Cambia cualquier producto por otro de su familia, corrige la cantidad, quita líneas o añade productos del catálogo. Los cambios se guardan con la obra. «Revisar» = cantidad estimada o dato sin confirmar en manual.</p></div>
   </section>
 </main>
@@ -3319,10 +3319,8 @@ function pintaOT(r){
   ${fueraCat.length?`<div class="ko"><b>${fueraCat.length} ${fueraCat.length===1?"producto eléctrico de la OT no está":"productos eléctricos de la OT no están"} en tu app del catálogo</b> (lista del ${CATALOGO_APP.fecha}): ${fueraCat.map(c=>`${c} ×${ot.q[c]}${CATALOGO_APP.obsoletas.has(c)?" (obsoleta)":""}`).join(", ")}.</div>`:""}
   ${noElec.length?`<details class="hint noprint"><summary>${noElec.length} líneas de la OT fuera del catálogo eléctrico, sin contrastar (perfiles, piezas, juntas, tornillería…)</summary>${noElec.map(c=>`${c} ×${ot.q[c]}`).join(", ")}</details>`:""}
   ${recl?`<div class="noprint"><button type="button" class="mini" id="otRecl">Copiar reclamación</button> <span class="hint">Copia el texto para pegarlo en un correo; no envía nada.</span>
-  <details class="hint"><summary>Ver el texto de la reclamación</summary><textarea id="otReclT" readonly rows="14" style="width:100%">${esc(recl)}</textarea></details></div>`:""}
-  <div class="noprint"><button type="button" class="mini" id="otX">Quitar la orden de trabajo</button></div>`);
+  <details class="hint" open><summary>Texto de la reclamación</summary><textarea id="otReclT" readonly rows="14" style="width:100%">${esc(recl)}</textarea></details></div>`:""}`);
   if(fueraCat.length){const su=box.querySelector("summary");if(su)su.insertAdjacentHTML("beforeend",` <span class="ko">⚠ ${fueraCat.length} fuera del catálogo</span>`);}
-  const bx=$("otX");if(bx)bx.onclick=()=>{ot=null;render();};
   const bRe=$("otRecl");if(bRe)bRe.onclick=()=>{const ta=$("otReclT"),mano=()=>{ta.closest("details").open=true;ta.select();let ok=false;try{ok=document.execCommand("copy");}catch(e){}toast(ok?"Reclamación copiada":"Selecciona el texto y cópialo");};
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(recl).then(()=>toast("Reclamación copiada"),mano);else mano();};
 }
@@ -3476,7 +3474,7 @@ $("bNueva").addEventListener("click",()=>{
   const b=$("bNueva");
   if(!nuevaT){b.textContent="¿Borrar todo? Pulsa otra vez";b.classList.add("pri");nuevaT=setTimeout(()=>{nuevaT=null;b.textContent="Nueva obra";b.classList.remove("pri");},4000);return;}
   clearTimeout(nuevaT);nuevaT=null;b.textContent="Nueva obra";b.classList.remove("pri");
-  plano=null;planoFile=null;$("impRes").hidden=true;$("drive").hidden=true;
+  ot=null;plano=null;planoFile=null;$("impRes").hidden=true;$("drive").hidden=true;
   try{localStorage.removeItem(KEY);}catch(e){}adjuntos=[];adjPinta();
   writeForm(VACIA());render();window.scrollTo(0,0);toast("Obra nueva en blanco");
 });
