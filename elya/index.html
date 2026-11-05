@@ -3532,9 +3532,16 @@ async function encajaHojas(html,vert){
     const k=x.dataset.hoja,[W,H]=medida(k);anc[k]=W;fr.style.width=W+"px";
     /* la planta no se reduce: cada módulo cabe en su página y sigue en la siguiente */
     if(k==="planta"&&x.offsetHeight>H*.98){largas.push(k);anc[k]=W;orden.push([k,paginasHoja(x,H)]);return;}
-    const z=Math.min(1,H*.98/x.offsetHeight,W/Math.max(W,x.scrollWidth));
+    /* la hoja reducida se maqueta más ancha (ancho ÷ escala) para que ocupe todo el papel: los márgenes son siempre los del A4 y, con el texto más ancho, hay que reducir menos */
+    x.style.maxWidth="none";
+    const mide=e=>{x.style.width=W/e+"px";return Math.min(1,H*.98/x.offsetHeight,x.scrollWidth>x.clientWidth+1?W/x.scrollWidth:1);};
+    x.style.width=W+"px";let z=Math.min(1,H*.98/x.offsetHeight,W/Math.max(W,x.scrollWidth));
+    for(let i=0;i<6&&z<1;i++)z=Math.max(z,Math.min(mide(Math.max(z,ESC_MIN)),1));
+    while(z<1&&z>=ESC_MIN&&mide(z)<z-1e-3)z-=.01;
     if(z<ESC_MIN)largas.push(k);
-    if(z<1)esc[k]=z<ESC_MIN?ESC_LARGA:z;
+    const e=z<1?(z<ESC_MIN?ESC_LARGA:z):1;
+    if(z<1){esc[k]=e;anc[k]=W/e;}
+    x.style.width=W/e+"px";
     orden.push([k,z<ESC_MIN?paginasHoja(x,H/ESC_LARGA):1]);
   });
   fr.remove();
@@ -3543,7 +3550,7 @@ async function encajaHojas(html,vert){
 ${vert?`[data-hoja="unifilar"]{page:apaisada}[data-hoja]:not([data-hoja="unifilar"]){max-width:718px;margin-inline:auto}`:""}
 [data-hoja]{break-before:page}
 .sheet>.hd{break-after:avoid}svg,figure,tr,li,.conx section{break-inside:avoid}
-${Object.entries(esc).map(([k,z])=>`[data-hoja="${k}"]{zoom:${z.toFixed(3)};width:${anc[k]}px;max-width:none;margin-inline:auto}`).join("")}
+${Object.entries(esc).map(([k,z])=>`[data-hoja="${k}"]{zoom:${z.toFixed(3)};width:${anc[k]}px!important;max-width:none!important;margin-inline:0!important}`).join("")}
 ${largas.map(k=>`[data-hoja="${k}"]{break-inside:auto;border-bottom:0}[data-hoja="${k}"] .bd{padding-bottom:0}`).join("")}}`,largas,orden};
 }
 /* Páginas que ocupará una hoja larga: los dibujos y las filas no se parten, así que se simula el salto de página. */
