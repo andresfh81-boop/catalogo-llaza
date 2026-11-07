@@ -2,8 +2,8 @@
 /* =========================================================
    Catálogo Llaza — cliente
    ========================================================= */
-const SUBCATS=["Centralitas","Centralitas iluminación","Emisores","Receptores","Sensores","Motores","Fuentes de alimentación","Cables y alargadores","Conectores","Tiras y neón LED","Focos","Tomas"];
-const SECS=[{n:"ELYA",c:SUBCATS},{n:"PERGOHABITAT",c:SUBCATS},{n:"CONSUMIBLES",c:["Cintas y adhesivos","Conectores"]}];
+const SUBCATS=["Centralitas","Centralitas iluminación","Emisores","Receptores","Sensores","Motores","Fuentes de alimentación","Cables y alargadores","Conectores","Tiras y neón LED","Focos","Tomas","Adaptadores y soportes","Inversores y pulsadores","Pilas y accesorios"];
+const SECS=[{n:"ELYA",c:SUBCATS},{n:"PERGOHABITAT",c:SUBCATS},{n:"CONSUMIBLES",c:["Cintas y adhesivos","Conectores","Pilas y accesorios","General"]}];
 /* Subcarpetas por marca dentro de estas categorías. Sin marca guardada se deduce de la descripción o el modelo. */
 const MARCAS=["Somfy","Cherubini","Teleco","Nexta"],MARCA_CATS=["Centralitas","Centralitas iluminación","Motores","Emisores","Receptores","Sensores"],OTRA="Otra",OTRAS="Otras marcas";
 /* Stock de seguridad: cantidad mínima en almacén fijada en la ficha (vacío = sin fijar). */
@@ -20,11 +20,13 @@ const faltas=i=>[!i.photos.length&&"foto de etiqueta",!i.prod.length&&"foto de p
 const incompleta=i=>!i.obsoleta&&faltas(i).length>0;
 const XLSX_URL="https:\/\/cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
       DOCX_URL="https:\/\/cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js",
-      JSZIP_URL="https:\/\/cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+      JSZIP_URL="https:\/\/cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+      DOCXPV_URL="https:\/\/cdn.jsdelivr.net/npm/docx-preview@0.3.7/dist/docx-preview.min.js";
 
 let S=null;               /* datos del servidor (boot) */
 let refs=[],fotos=[],items=[],revs=[],manuales=[],moveAsk=null;
 let sec=DEFSEC,cur="Todas",marca="Todas",view="cat",notFound=null,recog=null,confirmCode=null;
+let pvOut=null,pvUrls=[];   /* último archivo preparado para la vista previa, para no repetirlo al exportar */
 let selMode=false,expOne=null;const selSet=new Set(),expCats=new Set();let expAddOn=true;
 let lbList=[],lbI=0,lbItem=null;
 let revId=null,revDraft=null,revT=null,sendState="idle",filling=false;const docBusy={};
@@ -858,8 +860,8 @@ function renderWhat(val){const obs=$("#expObs").checked,it=itemOf(expOne);
     <label><input type="radio" name="expWhat" value="all"><span>Todo el catálogo (${items.filter(i=>obs||!i.obsoleta).length})</span></label><p class="note" id="expCount"></p>`;
   const r=document.querySelector(`input[name=expWhat][value="${val||(expOne?"one":view==="cat"&&cur===STK?"stk":"mix")}"]`);if(r)r.checked=true;updCount();}
 const curWhat=()=>(document.querySelector("input[name=expWhat]:checked")||{}).value||"mix";
-function updCount(){const n=scopeList(curWhat(),$("#expObs").checked).length;$("#expCount").textContent=n?`Se exportarán ${n} referencia${n===1?"":"s"}.`:"Marca al menos un subgrupo o una referencia.";$("#expGo").disabled=!n;}
-function openExp(one){expOne=one||null;$("#expMsg").textContent="";
+function updCount(){const n=scopeList(curWhat(),$("#expObs").checked).length;$("#expCount").textContent=n?`Se exportarán ${n} referencia${n===1?"":"s"}.`:"Marca al menos un subgrupo o una referencia.";$("#expGo").disabled=$("#expPv").disabled=!n;}
+function openExp(one){expOne=one||null;pvOut=null;$("#expMsg").textContent="";
   if(!one&&!expCats.size&&view==="cat"&&cur!=="Todas"&&cur!==OBS&&cur!==INC&&cur!==STK&&cur!==DOC&&cur!==PROP)(sec===ALL?SECS.map(x=>x.n):[sec]).forEach(x=>expCats.add(x+"|"+cur+(marca!=="Todas"?"|"+marca:"")));
   renderWhat();let fm=null,sz=null;try{fm=localStorage.getItem("cl_expFmt");sz=localStorage.getItem("cl_expSize");}catch(_){}
   const setR=(n,v)=>{const r=v&&document.querySelector(`input[name=${n}][value="${v}"]`);if(r)r.checked=true;};setR("expFmt",fm||(expOne?"png":"tabla"));setR("expSize",sz);updFmt();
@@ -894,14 +896,60 @@ async function deliver(blob,name,mime,dest,mailTo,msg){
   msg.textContent="Subiendo…";const data=await blobB64(blob);
   if(dest==="mail"){await api("mailExport",mailTo,`Catálogo Llaza · ${name.replace(/\.[^.]+$/,"")}`,"Te envío el archivo adjunto del catálogo de Llaza.",name,mime,data);msg.textContent=`✅ Enviado a ${mailTo}.`;return;}
   const r=await api("saveExport",name,mime,data);msg.innerHTML=`✅ Guardado en tu Drive (Exportaciones): <a class="linkout" href="${esc(r.url)}" target="_blank" rel="noopener">abrir ${esc(r.name)}</a>`;}
-$("#expGo").onclick=async()=>{const what=curWhat(),fmt=(document.querySelector("input[name=expFmt]:checked")||{}).value||"tabla",size=(document.querySelector("input[name=expSize]:checked")||{}).value||"m",dest=(document.querySelector("input[name=expDest]:checked")||{}).value||"drive";
-  const allPh=$("#expAllPh").checked,obs=$("#expObs").checked,list=scopeList(what,obs),msg=$("#expMsg"),btn=$("#expGo"),mailTo=$("#expMailTo").value.trim();
-  if(!list.length){msg.textContent="No hay referencias que exportar con esa elección.";return;}
-  if(dest==="mail"&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mailTo)){msg.textContent="Escribe el correo al que quieres enviarlo.";return;}
-  const name=safeName(`Catalogo Llaza - ${scopeName(what)} ${hoy()}`);btn.disabled=true;
-  try{let out;if(fmt==="xlsx")out=what==="stk"||(what!=="one"&&$("#expStkOnly")&&$("#expStkOnly").checked)?await expStockXlsx(list,name,msg):await expXlsx(list,name,msg);else if(fmt==="png")out=await expPng(list,name,allPh,msg);else out=await expDocx(list,name,scopeName(what),fmt,allPh,msg,size);
-    await deliver(out.blob,out.name,out.mime,dest,mailTo,msg);}
-  catch(e){msg.textContent=errMsg(e);}finally{btn.disabled=false;}};
+function expOpts(){const val=n=>(document.querySelector(`input[name=${n}]:checked`)||{}).value,what=curWhat(),obs=$("#expObs").checked;
+  return {what,obs,fmt:val("expFmt")||"tabla",size:val("expSize")||"m",dest:val("expDest")||"drive",allPh:$("#expAllPh").checked,mailTo:$("#expMailTo").value.trim(),
+    stk:what==="stk"||(what!=="one"&&!!$("#expStkOnly")&&$("#expStkOnly").checked),list:scopeList(what,obs),name:safeName(`Catalogo Llaza - ${scopeName(what)} ${hoy()}`)};}
+const expKey=o=>JSON.stringify([o.name,o.fmt,o.size,o.allPh,o.stk,o.list.map(i=>i.code)]);
+async function buildExp(o,msg){const k=expKey(o);if(pvOut&&pvOut.key===k)return pvOut.out;let out;
+  if(o.fmt==="xlsx")out=o.stk?await expStockXlsx(o.list,o.name,msg):await expXlsx(o.list,o.name,msg);else if(o.fmt==="png")out=await expPng(o.list,o.name,o.allPh,msg);else out=await expDocx(o.list,o.name,scopeName(o.what),o.fmt,o.allPh,msg,o.size);
+  pvOut={key:k,out};return out;}
+$("#expGo").onclick=async()=>{const o=expOpts(),msg=$("#expMsg"),btn=$("#expGo");
+  if(!o.list.length){msg.textContent="No hay referencias que exportar con esa elección.";return;}
+  if(o.dest==="mail"&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(o.mailTo)){msg.textContent="Escribe el correo al que quieres enviarlo.";return;}
+  btn.disabled=$("#expPv").disabled=true;
+  try{const out=await buildExp(o,msg);await deliver(out.blob,out.name,out.mime,o.dest,o.mailTo,msg);}
+  catch(e){msg.textContent=errMsg(e);}finally{btn.disabled=$("#expPv").disabled=false;}};
+
+/* ---------- Vista previa: enseña el archivo que se va a exportar, ya generado, y permite imprimirlo o exportarlo sin volver a prepararlo ---------- */
+$("#expPv").onclick=async()=>{const o=expOpts(),msg=$("#expMsg"),btn=$("#expPv");
+  if(!o.list.length){msg.textContent="No hay referencias que exportar con esa elección.";return;}
+  btn.disabled=$("#expGo").disabled=true;
+  try{const out=await buildExp(o,msg);msg.textContent="Montando la vista previa…";await showPv(out,o);msg.textContent="";}
+  catch(e){closePv();msg.textContent=errMsg(e);}finally{btn.disabled=$("#expGo").disabled=false;}};
+function closePv(){$("#pvSheet").hidden=true;$("#pvInner").innerHTML="";pvUrls.forEach(u=>URL.revokeObjectURL(u));pvUrls=[];}
+function pvPageCss(css){let s=$("#pvPage");if(!s){s=document.createElement("style");s.id="pvPage";document.head.appendChild(s);}s.textContent=`@page{${css}}`;}
+function pvFit(){const B=$("#pvBody"),I=$("#pvInner");I.style.zoom=1;const pg=I.querySelector("section.docx"),w=pg?pg.offsetWidth:0;I.style.zoom=w?Math.min(1,(B.clientWidth-16)/w):1;}
+async function showPv(out,o){const I=$("#pvInner"),n=o.list.length,refsTxt=`${n} referencia${n===1?"":"s"}`;closePv();$("#pvBody").scrollTop=0;$("#pvSheet").hidden=false;
+  if(o.fmt==="xlsx")await pvXlsx(out,I,refsTxt);else if(o.fmt==="png")await pvPng(out,I,refsTxt);else await pvDocx(out,I,refsTxt);pvFit();}
+async function pvXlsx(out,I,refsTxt){const wb=XLSX.read(await out.blob.arrayBuffer(),{type:"array"});I.innerHTML=`<div class="pvxl">${XLSX.utils.sheet_to_html(wb.Sheets[wb.SheetNames[0]],{header:"",footer:""})}</div>`;
+  pvPageCss("size:A4 landscape;margin:10mm");$("#pvInfo").textContent=`Excel · ${refsTxt}`;}
+async function pvPng(out,I,refsTxt){let bl=[out.blob];
+  if(out.mime==="application/zip"){const z=await JSZip.loadAsync(out.blob);bl=await Promise.all(Object.values(z.files).filter(f=>!f.dir).map(f=>f.async("blob")));}
+  pvUrls=bl.map(b=>URL.createObjectURL(b));I.innerHTML=`<div class="pvimgs">${pvUrls.map(u=>`<img src="${u}" alt="">`).join("")}</div>`;
+  pvPageCss("size:A4;margin:10mm");$("#pvInfo").textContent=`Imagen · ${refsTxt}`;}
+/* docx-preview se publica también como window.docx, el mismo nombre que la librería que crea los Word: se guarda aparte. */
+async function loadDocxPv(){if(loadDocxPv.lib)return loadDocxPv.lib;await loadLib(JSZIP_URL,"JSZip");const gen=window.docx;window.docx=undefined;
+  try{await loadLib(DOCXPV_URL,"docx");return loadDocxPv.lib=window.docx;}finally{window.docx=gen;}}
+async function pvDocx(out,I,refsTxt){const L=await loadDocxPv();
+  await L.renderAsync(out.blob,I,I,{className:"docx",inWrapper:false,ignoreLastRenderedPageBreak:true,useBase64URL:true,renderHeaders:false,renderFooters:false});
+  await Promise.all([...I.querySelectorAll("img")].map(m=>m.decode().catch(()=>{})));
+  const pages=pvPaginate(I),first=I.querySelector("section.docx"),land=first.offsetWidth>first.offsetHeight;
+  pvPageCss(`size:A4${land?" landscape":""};margin:0`);$("#pvInfo").textContent=`Word · ${refsTxt} · unas ${pages} página${pages===1?"":"s"}`;}
+/* El visor deja cada sección en una sola hoja muy larga: aquí se reparte en hojas A4, sin partir ninguna fila (como en el Word). Devuelve cuántas salen. */
+function pvPaginate(I){let total=0;
+  [...I.querySelectorAll("section.docx")].forEach(sec=>{const art=sec.querySelector("article");total++;if(!art)return;
+    const cs=getComputedStyle(sec),H=parseFloat(cs.minHeight)-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom),kids=[...art.children];art.innerHTML="";sec.style.height=cs.minHeight;
+    let page=art,last=sec;
+    const nueva=()=>{const s=sec.cloneNode(false),a=art.cloneNode(false);s.appendChild(a);last.after(s);last=s;page=a;total++;};
+    const pone=el=>{page.appendChild(el);if(page.offsetHeight>H&&page.children.length>1){el.remove();nueva();page.appendChild(el);}};
+    kids.forEach(el=>{if(el.tagName!=="TABLE"){if(el.style.breakBefore==="page"||el.style.pageBreakBefore==="always"){if(page.children.length)nueva();}pone(el);return;}
+      const rows=[...el.rows],head=rows[0],shell=()=>{const t=el.cloneNode(false);[...el.children].filter(c=>c.tagName==="COLGROUP").forEach(c=>t.appendChild(c.cloneNode(true)));const b=document.createElement("tbody");t.appendChild(b);page.appendChild(t);return b;};
+      let b=shell();rows.forEach((r,k)=>{b.appendChild(r);if(page.offsetHeight>H&&b.rows.length>1){r.remove();nueva();b=shell();if(k>0)b.appendChild(head.cloneNode(true));b.appendChild(r);}});});});
+  return total;}
+$("#pvClose").onclick=closePv;
+$("#pvPrint").onclick=()=>{$("#pvInner").style.zoom=1;window.print();pvFit();};
+$("#pvExp").onclick=()=>{closePv();$("#expGo").click();$("#expMsg").scrollIntoView({block:"nearest"});};
+window.addEventListener("resize",()=>{if(!$("#pvSheet").hidden)pvFit();});
 
 async function expXlsx(list,name,msg){msg.textContent="Preparando el Excel…";await loadLib(XLSX_URL,"XLSX");
   const rows=list.map(i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,i.canal,i.modelo,hasStock(i)?i.stock:"",i.photos.length?"Sí":"No",i.prod.length?"Sí":"No",i.obsoleta?"Sí":"No"]);
@@ -1009,7 +1057,7 @@ async function expPng(list,name,allPh,msg){
   for(const i of list){msg.textContent=`Preparando las imágenes… ${++n} de ${list.length}`;zip.file(safeName(`${i.code} ${i.desc}`)+".png",await cardPng(i,allPh));}
   return {blob:await zip.generateAsync({type:"blob"}),name:name+".zip",mime:"application/zip"};}
 
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(fichaCode&&$("#lb").hidden&&$("#addSheet").hidden&&$("#expSheet").hidden){if(history.state&&history.state.ficha)history.back();else closeFicha();}$("#lb").hidden=true;$("#addSheet").hidden=true;$("#expSheet").hidden=true;}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#pvSheet").hidden){closePv();return;}if(e.key==="Escape"){if(fichaCode&&$("#lb").hidden&&$("#addSheet").hidden&&$("#expSheet").hidden){if(history.state&&history.state.ficha)history.back();else closeFicha();}$("#lb").hidden=true;$("#addSheet").hidden=true;$("#expSheet").hidden=true;}
   if($("#lb").hidden)return;if(e.key==="ArrowRight")$("#lbNext").click();else if(e.key==="ArrowLeft")$("#lbPrev").click();});
 /* ---------- Arrastrar fotos desde el ordenador (Explorador, escritorio, Fotos) ----------
    Encima de «Etiqueta» o «Producto» de una ficha o tarjeta: va ahí. Encima de una tarjeta o con la ficha abierta:

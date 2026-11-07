@@ -133,8 +133,12 @@ setTimeout(function(){if(!window.__appOK&&!window.__appStarted){window.__errs.pu
     </fieldset>
     <p class="note">Los archivos no llevan enlaces a tu Drive, nombres de archivo ni correos.</p>
     <p class="err" id="expMsg"></p>
-    <div class="actions"><button class="btn-l" id="expClose" type="button">Cerrar</button><button class="btn-l primary" id="expGo" type="button">⬇ Exportar</button></div>
+    <div class="actions"><button class="btn-l" id="expClose" type="button">Cerrar</button><button class="btn-l" id="expPv" type="button">👁 Vista previa</button><button class="btn-l primary" id="expGo" type="button">⬇ Exportar</button></div>
   </div>
+</div>
+<div id="pvSheet" hidden>
+  <div class="pvbar"><button class="btn-s" id="pvClose" type="button">← Volver</button><div class="pvtit"><b>Vista previa</b><small id="pvInfo"></small></div><button class="btn-s" id="pvPrint" type="button">🖨 Imprimir</button><button class="btn-s primary" id="pvExp" type="button">⬇ Exportar</button></div>
+  <div id="pvBody"><div id="pvInner"></div></div>
 </div>
 <div class="selbar" id="selBar" hidden><b id="selN">0 elegidas</b><button class="btn-s" id="selAll" type="button">Todas las visibles</button><button class="btn-s" id="selNone" type="button">Ninguna</button><button class="btn-s" id="selExit" type="button">Salir</button><button class="btn-l primary" id="selGo" type="button">⬇ Exportar</button></div>
 

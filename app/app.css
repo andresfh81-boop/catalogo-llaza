@@ -207,6 +207,17 @@ img.r90{transform:rotate(90deg)} img.r180{transform:rotate(180deg)} img.r270{tra
 .sheet{position:fixed;inset:0;z-index:25;background:rgba(10,12,14,.55);display:flex;align-items:flex-end;justify-content:center}
 .sheet .panel{background:var(--surface);width:100%;max-width:560px;max-height:92%;overflow:auto;border-radius:14px 14px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));box-sizing:border-box;display:flex;flex-direction:column;gap:12px}
 @media (min-width:700px){.sheet{align-items:center}.sheet .panel{border-radius:14px}}
+#pvSheet{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;background:#525659}
+.pvbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top,0px));background:var(--surface);border-bottom:1px solid var(--line)}
+.pvtit{flex:1;min-width:150px;display:flex;flex-direction:column;line-height:1.25}
+@media (max-width:500px){.pvtit{order:-1;flex-basis:100%}}
+.pvbar .btn-s.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+#pvBody{flex:1;overflow:auto;padding:8px;box-sizing:border-box}
+#pvInner section.docx{margin:0 auto 12px;background:#fff;color:#000;box-shadow:0 2px 8px rgba(0,0,0,.45);overflow:hidden;box-sizing:border-box}
+.pvimgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:10px;align-items:start}.pvimgs img{width:100%;display:block;background:#fff}
+.pvxl{background:#fff;color:#1B2127;overflow:auto;width:fit-content;max-width:100%;margin:0 auto}.pvxl table{border-collapse:collapse;font:13px var(--sans)}.pvxl td{border:1px solid #C9CED3;padding:3px 7px;white-space:nowrap}
+@media print{body>*:not(#pvSheet){display:none!important}#pvSheet{position:static;display:block;background:#fff}.pvbar{display:none}#pvBody{overflow:visible;padding:0}#pvInner{zoom:1!important}
+  #pvInner section.docx{margin:0;box-shadow:none;break-after:page}#pvInner section.docx:last-of-type{break-after:auto}.pvimgs{display:block}.pvimgs img{break-inside:avoid;max-height:270mm;width:auto;max-width:100%;margin:0 auto 6mm}.pvxl{overflow:visible;width:auto;max-width:none}.pvxl td{white-space:normal}}
 .panel h3{font-family:var(--cond);font-size:22px;margin:0}
 .field{display:flex;flex-direction:column;gap:4px}
 .also{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:14px}.also label{display:flex;align-items:center;gap:6px;min-height:32px}.also input{width:18px;height:18px}
