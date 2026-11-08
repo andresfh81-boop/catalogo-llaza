@@ -13,7 +13,7 @@ const hasStock=i=>i.stock!==""&&i.stock!=null&&!isNaN(i.stock),stockTxt=i=>hasSt
 const hasMarca=c=>MARCA_CATS.includes(c);
 /* Sistema de radio o cable (columna «Sistema»): qué mando va con qué motor. « (por revisar)» al final = lo dedujo Claude
    y falta que Andrés lo confirme. Compatibles = mismo sistema (y misma frecuencia si las dos dicen 868 o 916 MHz). */
-const SISTEMAS=["A-OK/EON 868","Cable","Cherubini RX/ZRX","Nexta","Somfy io","Somfy RTS","Teleco"].sort(byAZ),SIS_REV=" (por revisar)",SIS_PR="__rev";
+const SISTEMAS=["A-OK WiFi","A-OK/EON 868","Cable","Cherubini RX/ZRX","Nexta","Somfy io","Somfy RTS","Teleco"].sort(byAZ),SIS_REV=" (por revisar)",SIS_PR="__rev";
 const SIS_CATS=["Emisores","Motores","Receptores","Sensores","Centralitas","Centralitas iluminación","Inversores y pulsadores"];
 const sisOf=i=>{const s=String(i.sistema||"").replace(/\s*\(por revisar\)\s*$/i,"").trim();return SISTEMAS.includes(s)?s:"";};
 const sisRev=i=>!!sisOf(i)&&/\(por revisar\)\s*$/i.test(String(i.sistema||""));
