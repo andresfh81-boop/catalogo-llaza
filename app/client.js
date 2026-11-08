@@ -16,7 +16,8 @@ const docIco=m=>DOC_ICO[m.tipo]||"📄";
 const docBtns=i=>{const L=docsOf(i.code);return L.length?`<div class="docs">${L.map(m=>m.url?`<a href="${esc(m.url)}" target="_blank" rel="noopener">${docIco(m)} ${esc(m.titulo)}</a>`:`<span class="tag" title="Falta guardar en el Drive el PDF ${esc(m.archivo)}">⏳ ${esc(m.titulo)}</span>`).join("")}</div>`:"";};
 const isSinRef=c=>/^SINREF-/.test(String(c||""));
 const DEFSEC=SECS[0].n, OBS="Obsoletas", INC="Incompletas", STK="Stock seguridad", DOC="Documentación", PROP="Fotos por confirmar";
-const faltas=i=>[!i.prod.length&&"foto de producto",!String(i.desc||"").trim()&&"descripción"].filter(Boolean);
+const prodOf=i=>i.prod.length?i.prod:i.ofi; /* foto de producto: la propia y, si no hay, la oficial del fabricante */
+const faltas=i=>[!prodOf(i).length&&"foto de producto",!String(i.desc||"").trim()&&"descripción"].filter(Boolean);
 const incompleta=i=>!i.obsoleta&&faltas(i).length>0;
 const XLSX_URL="https:\/\/cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
       DOCX_URL="https:\/\/cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js",
@@ -135,7 +136,7 @@ function chips(){
   if(view==="cfg"){$("#h1").textContent="Ajustes";$("#count").textContent="";$("#mode").textContent="";return;}
   $("#h1").textContent=sec===ALL?"Todas las referencias":sec;
   const inSec=items.filter(i=>inS(i,sec)),act=inSec.filter(i=>!i.obsoleta),nObs=inSec.length-act.length;
-  const pp=act.filter(i=>i.prod.length).length;
+  const pp=act.filter(i=>prodOf(i).length).length;
   $("#count").textContent=act.length?`${act.length} referencias · ${pp} con foto de producto.`:"Todavía no hay referencias en este apartado.";
   $("#mode").textContent="";
   const cats=["Todas",...catsOf(sec).filter(c=>act.some(i=>i.cat===c))];
@@ -266,7 +267,7 @@ function renderList(){
     catBody(c,vis.filter(i=>i.cat===c).sort((a,b)=>b.nueva-a.nueva))}</section>`).join("");}
 
 function pane(i,kind){
-  const list=kind==="e"?i.photos:i.prod,lab=kind==="e"?"Etiqueta":"Producto",key=i.code+kind;
+  const list=kind==="e"?i.photos:prodOf(i),lab=kind==="e"?"Etiqueta":"Producto",key=i.code+kind;
   if(kind==="e"&&!busy.has(key)){const n=i.photos.length,add=!i.obsoleta?`<label class="addmini" title="Añadir una foto de la etiqueta">＋<input type="file" accept="image/*" capture="environment" data-pick data-multi="1" data-code="${i.code}" data-k="e" aria-label="Añadir una foto de la etiqueta de ${esc(i.desc)}"></label>`:"";
     return `<div class="cell"><button class="ph single lbl" data-code="${i.code}" data-k="e" aria-label="Ver la etiqueta de ${esc(i.desc)}"><img src="${lblOf(i).src}" alt="Etiqueta ${esc(i.desc)} ${i.code}" loading="lazy"><span class="lab">Etiqueta</span>${n?`<span class="n" title="Fotos de la etiqueta">📷${n}</span>`:""}</button>${add}</div>`;}
   if(busy.has(key))return `<div class="ph miss busy"><span class="lab">${lab}</span><span>Subiendo foto…</span></div>`;
@@ -564,7 +565,7 @@ async function recognize(f){
   finally{$("#scanL").classList.remove("busy");}}
 
 /* ---------- visor de fotos ---------- */
-function buildLb(i){lbList=[{...lblOf(i),k:"e",lab:"Etiqueta"},...i.photos.map(p=>({...p,k:"e",lab:"Foto de la etiqueta"})),...i.prod.map(p=>({...p,k:"p",lab:p.from==="web"?"Producto (web del fabricante)":"Producto"}))];}
+function buildLb(i){lbList=[{...lblOf(i),k:"e",lab:"Etiqueta"},...i.photos.map(p=>({...p,k:"e",lab:"Foto de la etiqueta"})),...prodOf(i).map(p=>({...p,k:"p",lab:p.from==="web"?"Producto (web del fabricante)":"Producto"}))];}
 function openLb(i,k){lbItem=i;buildLb(i);lbI=k==="p"?i.photos.length+1:0;askDel(false);showLb();$("#lb").hidden=false;$("#lbClose").focus();}
 function askDel(on){$("#lbAsk").hidden=!on;$("#lbNav").hidden=on;}
 async function fullSrc(p){if(fullCache[p.fileId])return fullCache[p.fileId];const r=await api("getFull",p.fileId);return fullCache[p.fileId]=`data:${r.mime};base64,${r.b64}`;}
@@ -993,7 +994,7 @@ $("#pvExp").onclick=()=>{closePv();$("#expGo").click();$("#expMsg").scrollIntoVi
 window.addEventListener("resize",()=>{if(!$("#pvSheet").hidden)pvFit();});
 
 async function expXlsx(list,name,msg){msg.textContent="Preparando el Excel…";await loadLib(XLSX_URL,"XLSX");
-  const rows=list.map(i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,i.canal,i.modelo,hasStock(i)?i.stock:"",i.photos.length?"Sí":"No",i.prod.length?"Sí":"No",i.obsoleta?"Sí":"No"]);
+  const rows=list.map(i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,i.canal,i.modelo,hasStock(i)?i.stock:"",i.photos.length?"Sí":"No",prodOf(i).length?"Sí":"No",i.obsoleta?"Sí":"No"]);
   const ws=XLSX.utils.aoa_to_sheet([["Apartado","Categoría","Marca","Código","Descripción","Medida / formato","Canal / color","Modelo / notas","Stock seguridad","Foto etiqueta","Foto producto","Obsoleta"],...rows]);
   ws["!cols"]=[{wch:18},{wch:20},{wch:14},{wch:14},{wch:40},{wch:15},{wch:12},{wch:40},{wch:15},{wch:12},{wch:13},{wch:10}];ws["!autofilter"]={ref:`A1:L${rows.length+1}`};
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Catálogo");
@@ -1013,7 +1014,7 @@ async function imgBuf(p,full,max=620){const bmp=await bmpOf(p,full);
   const c=document.createElement("canvas");c.width=side?h:w;c.height=side?w:h;const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);
   g.translate(c.width/2,c.height/2);g.rotate(rot*Math.PI/180);g.drawImage(bmp,-w/2,-h/2,w,h);
   const b=await new Promise(res=>c.toBlob(res,"image/jpeg",0.82));return {data:await b.arrayBuffer(),w:c.width,h:c.height};}
-const pics=(i,allPh)=>({e:[lblOf(i),...(allPh?i.photos:[])],p:allPh?i.prod:i.prod.slice(0,1)});
+const pics=(i,allPh)=>({e:[lblOf(i),...(allPh?i.photos:[])],p:allPh?[...i.prod,...i.ofi]:prodOf(i).slice(0,1)});
 async function expDocx(list,name,title,fmt,allPh,msg,size){msg.textContent="Preparando el Word…";await loadLib(DOCX_URL,"docx");const D=window.docx;
   const P=(t,{center,...o}={})=>new D.Paragraph({alignment:center?D.AlignmentType.CENTER:undefined,children:[new D.TextRun({text:String(t||""),...o})]});
   const cell=(children,w,shade)=>new D.TableCell({children,width:{size:w,type:D.WidthType.DXA},verticalAlign:D.VerticalAlign.CENTER,margins:{top:60,bottom:60,left:80,right:80},shading:shade?{fill:"D9DEE3",type:D.ShadingType.CLEAR,color:"auto"}:undefined});
