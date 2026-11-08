@@ -71,7 +71,7 @@ function catBody(c,L){
   if(!hasMarca(c)||marca!=="Todas")return grid(L);
   return marcasIn(L).map(m=>`<h3 class="msub">${esc(m)} <small>${L.filter(i=>marcaOf(i)===m).length}</small></h3>${grid(L.filter(i=>marcaOf(i)===m))}`).join("");}
 const itemOf=code=>code?items.find(i=>i.code===code):null;
-const thumbOf=it=>{const p=it&&(it.photos[0]||it.prod[0]);return p?p.src:"";};
+const thumbOf=it=>it?lblOf(it).src:""; /* la etiqueta dibujada manda sobre las fotos de etiqueta */
 function loadLib(url,glob){if(window[glob])return Promise.resolve();loadLib.p=loadLib.p||{};if(loadLib.p[url])return loadLib.p[url];
   return loadLib.p[url]=new Promise((res,rej)=>{const s=document.createElement("script");s.src=url;s.onload=()=>window[glob]?res():rej(new Error(glob));
     s.onerror=()=>{delete loadLib.p[url];rej(new Error(glob));};document.head.appendChild(s);});}
