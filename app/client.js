@@ -16,7 +16,7 @@ const docIco=m=>DOC_ICO[m.tipo]||"📄";
 const docBtns=i=>{const L=docsOf(i.code);return L.length?`<div class="docs">${L.map(m=>m.url?`<a href="${esc(m.url)}" target="_blank" rel="noopener">${docIco(m)} ${esc(m.titulo)}</a>`:`<span class="tag" title="Falta guardar en el Drive el PDF ${esc(m.archivo)}">⏳ ${esc(m.titulo)}</span>`).join("")}</div>`:"";};
 const isSinRef=c=>/^SINREF-/.test(String(c||""));
 const DEFSEC=SECS[0].n, OBS="Obsoletas", INC="Incompletas", STK="Stock seguridad", DOC="Documentación", PROP="Fotos por confirmar";
-const faltas=i=>[!i.photos.length&&"foto de etiqueta",!i.prod.length&&"foto de producto",!String(i.desc||"").trim()&&"descripción"].filter(Boolean);
+const faltas=i=>[!i.prod.length&&"foto de producto",!String(i.desc||"").trim()&&"descripción"].filter(Boolean);
 const incompleta=i=>!i.obsoleta&&faltas(i).length>0;
 const XLSX_URL="https:\/\/cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
       DOCX_URL="https:\/\/cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js",
@@ -135,8 +135,8 @@ function chips(){
   if(view==="cfg"){$("#h1").textContent="Ajustes";$("#count").textContent="";$("#mode").textContent="";return;}
   $("#h1").textContent=sec===ALL?"Todas las referencias":sec;
   const inSec=items.filter(i=>inS(i,sec)),act=inSec.filter(i=>!i.obsoleta),nObs=inSec.length-act.length;
-  const pe=act.filter(i=>i.photos.length).length,pp=act.filter(i=>i.prod.length).length;
-  $("#count").textContent=act.length?`${act.length} referencias · ${pe} con foto de etiqueta · ${pp} con foto de producto.`:"Todavía no hay referencias en este apartado.";
+  const pp=act.filter(i=>i.prod.length).length;
+  $("#count").textContent=act.length?`${act.length} referencias · ${pp} con foto de producto.`:"Todavía no hay referencias en este apartado.";
   $("#mode").textContent="";
   const cats=["Todas",...catsOf(sec).filter(c=>act.some(i=>i.cat===c))];
   const nInc=act.filter(incompleta).length,nStk=act.filter(hasStock).length,nDoc=act.filter(i=>docsOf(i.code).length).length;
@@ -267,6 +267,8 @@ function renderList(){
 
 function pane(i,kind){
   const list=kind==="e"?i.photos:i.prod,lab=kind==="e"?"Etiqueta":"Producto",key=i.code+kind;
+  if(kind==="e"&&!busy.has(key)){const n=i.photos.length,add=!i.obsoleta?`<label class="addmini" title="Añadir una foto de la etiqueta">＋<input type="file" accept="image/*" capture="environment" data-pick data-multi="1" data-code="${i.code}" data-k="e" aria-label="Añadir una foto de la etiqueta de ${esc(i.desc)}"></label>`:"";
+    return `<div class="cell"><button class="ph single lbl" data-code="${i.code}" data-k="e" aria-label="Ver la etiqueta de ${esc(i.desc)}"><img src="${lblOf(i).src}" alt="Etiqueta ${esc(i.desc)} ${i.code}" loading="lazy"><span class="lab">Etiqueta</span>${n?`<span class="n" title="Fotos de la etiqueta">📷${n}</span>`:""}</button>${add}</div>`;}
   if(busy.has(key))return `<div class="ph miss busy"><span class="lab">${lab}</span><span>Subiendo foto…</span></div>`;
   if(!list.length){if(!i.obsoleta)return `<label class="ph miss take"><span class="lab">${lab}</span><span class="cam" aria-hidden="true">📷</span><span>Hacer foto</span>
       <input type="file" accept="image/*" capture="environment" data-pick data-multi="1" data-code="${i.code}" data-k="${kind}" aria-label="Hacer foto de ${lab.toLowerCase()} de ${esc(i.desc)}"></label>`;
@@ -300,11 +302,50 @@ function card(i,ex){
 /* ---------- lista (una foto por referencia) y ficha ----------
    En la lista sale la foto oficial del fabricante; si no hay, la de producto (y si no, la de etiqueta).
    Al tocar la referencia se abre la ficha con todas sus fotos. Para elegir y exportar sigue la tarjeta completa. */
-const listPic=i=>i.ofi[0]||i.prod.find(p=>p.from==="web")||i.prod[0]||i.photos[0]||null;
+/* ---------- etiqueta dibujada (la principal de cada referencia) ----------
+   Se dibuja con los datos de la hoja; las fotos de etiqueta quedan detrás, en la ficha. El QR lleva al manual oficial
+   del fabricante (nunca al Drive ni a YouTube) y prefiere el que está en castellano. La librería del QR se carga aparte:
+   mientras no está, la etiqueta sale sin QR. */
+const QR_LIB="https:\/\/cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js";
+const qrDoc=i=>{const L=docsOf(i.code).filter(m=>m.url&&m.tipo!=="Vídeo"&&!/drive\.google|docs\.google|youtu/i.test(m.url));
+  const es=m=>/castellano|\(ES\b|\bES\)|· ES|[-_ ]ES\.pdf|_Spa\b|-ES\b|_ES\b|Spa\.pdf/i.test(m.titulo+" "+decodeURIComponent(m.url));
+  const sc=m=>(es(m)?2:0)+(m.tipo==="Instrucciones"?1:0);return L.sort((a,b)=>sc(b)-sc(a))[0]||null;};
+let lblCtx=null;const lblW=(t,font)=>{lblCtx=lblCtx||document.createElement("canvas").getContext("2d");lblCtx.font=font;return lblCtx.measureText(t).width;};
+const lblWrap=(t,font,w,max)=>{const L=[];let c="";for(const p of String(t||"").split(/\s+/)){const n=c?c+" "+p:p;if(c&&lblW(n,font)>w){L.push(c);c=p;}else c=n;}if(c)L.push(c);
+  if(L.length>max){L.length=max;L[max-1]+="…";}return L;};
+const lblCache={};
+function lblSrc(i){
+  const doc=qrDoc(i),ref=/^Ref\. fabricante:\s*/i.test(i.modelo||"")?["Ref. fabricante",i.modelo.replace(/^Ref\. fabricante:\s*/i,"")]:["Modelo",i.modelo||"—"];
+  const key=[i.code,i.desc,secsOf(i).join("+"),i.cat,i.marca,marcaOf(i),i.modelo,i.medida,i.canal,doc&&doc.url,!!window.qrcode].join("|");
+  if(lblCache[i.code]&&lblCache[i.code].k===key)return lblCache[i.code].s;
+  const W=1000,H=500,A="Arial,Helvetica,sans-serif",x=e=>esc(e).replace(/'/g,"&#39;");
+  let qr="",der=W-28;
+  if(doc&&window.qrcode){try{const q=window.qrcode(0,"M");q.addData(doc.url);q.make();const n=q.getModuleCount(),S=250,c=S/(n+4),x0=W-28-S,y0=78;let d="";
+    for(let r=0;r<n;r++)for(let k=0;k<n;k++)if(q.isDark(r,k))d+=`M${(x0+(k+2)*c).toFixed(2)} ${(y0+(r+2)*c).toFixed(2)}h${c.toFixed(2)}v${c.toFixed(2)}h-${c.toFixed(2)}z`;
+    qr=`<rect x="${x0}" y="${y0}" width="${S}" height="${S}" fill="#fff"/><path d="${d}" fill="#000"/>
+      <text x="${x0+S/2}" y="${y0+S+28}" font-family="${A}" font-weight="700" font-size="22" fill="#1B2127" text-anchor="middle">Instrucciones</text>
+      <text x="${x0+S/2}" y="${y0+S+54}" font-family="${A}" font-size="19" fill="#5A636B" text-anchor="middle">${x(host(doc.url))}</text>`;der=x0-24;}catch(_){qr="";}}
+  const izq=der-28,fD=`bold 50px ${A}`,code=isSinRef(i.code)?"Sin código":i.code;
+  const dl=lblWrap(i.desc,fD,izq,3),dsz=dl.length>2?42:50;
+  const desc=lblWrap(i.desc,`bold ${dsz}px ${A}`,izq,3).map((t,j)=>`<text x="28" y="${226+j*(dsz+10)}" font-family="${A}" font-weight="700" font-size="${dsz}" fill="#1B2127">${x(t)}</text>`).join("");
+  const med=[i.medida,i.canal].filter(Boolean).join(" · ")||"—",cut=(t,w)=>{const f=`bold 30px ${A}`;let s=String(t);if(lblW(s,f)<=w)return s;while(s.length>3&&lblW(s+"…",f)>w)s=s.slice(0,-1);return s.trim()+"…";};
+  const mk=String(i.marca||"").trim()||(marcaOf(i)!==OTRAS?marcaOf(i):""),cols=[["Marca",mk||"—"],ref,["Medida",med]].map(([k,v],j)=>`<text x="${28+j*320}" y="${430}" font-family="${A}" font-size="20" fill="#5A636B">${x(k.toUpperCase())}</text>
+    <text x="${28+j*320}" y="${466}" font-family="${A}" font-weight="700" font-size="30" fill="#1B2127">${x(cut(v,285))}</text>`).join("");
+  const svg=`<svg xmlns="http:\/\/www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#fff"/>
+    <rect x="4" y="4" width="${W-8}" height="${H-8}" fill="none" stroke="#1B2127" stroke-width="4"/>
+    <text x="28" y="48" font-family="${A}" font-weight="700" font-size="26" fill="#1B2127">Llaza World, S.A.</text>
+    <text x="${W-28}" y="48" font-family="${A}" font-size="22" fill="#5A636B" text-anchor="end">${x(secsOf(i).join(" + ")+" · "+i.cat)}</text>
+    <line x1="24" y1="64" x2="${W-24}" y2="64" stroke="#1B2127" stroke-width="2"/>
+    <text x="28" y="${isSinRef(i.code)?140:146}" font-family="${A}" font-weight="700" font-size="${isSinRef(i.code)?56:72}" fill="#1B2127">${x(code)}</text>
+    ${desc}${qr}<line x1="24" y1="392" x2="${W-24}" y2="392" stroke="#C9CED3" stroke-width="2"/>${cols}</svg>`;
+  const s="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg);lblCache[i.code]={k:key,s};return s;}
+const lblOf=i=>({id:"gen-"+i.code,src:lblSrc(i),gen:true,rot:0});
+loadLib(QR_LIB,"qrcode").then(()=>{if(items.length)merge();}).catch(()=>{});
+const listPic=i=>i.ofi[0]||i.prod.find(p=>p.from==="web")||i.prod[0]||lblOf(i);
 const grid=L=>selMode?`<div class="grid">${L.map(i=>card(i)).join("")}</div>`:`<div class="grid gs">${L.map(cardS).join("")}</div>`;
 function cardS(i){const p=listPic(i),m=marcaOf(i),nd=docsOf(i.code).length,web=p&&(p===i.ofi[0]||p.from==="web");
   return `<article class="card cs${i.obsoleta?" is-obs":""}" data-open="${esc(i.code)}" tabindex="0" aria-label="Ver la ficha de ${esc(i.desc)}">
-    <div class="csph">${p?`<img src="${p.src}" alt="" loading="lazy" class="${web?"web ":""}${p.rot?"r"+p.rot:""}">`:`<span>Sin foto</span>`}${i.prop.length?`<span class="csnew">📸 Por confirmar</span>`:""}</div>
+    <div class="csph">${p?`<img src="${p.src}" alt="" loading="lazy" class="${p.gen?"gen ":web?"web ":""}${p.rot?"r"+p.rot:""}">`:`<span>Sin foto</span>`}${i.prop.length?`<span class="csnew">📸 Por confirmar</span>`:""}</div>
     <div class="body"><b class="cscode">${isSinRef(i.code)?"Sin código":esc(i.code)}</b><p class="desc">${esc(i.desc)}</p>
       <div class="tags">${i.nueva?`<span class="tag new">Nueva</span>`:""}${i.obsoleta?`<span class="tag obs">Obsoleta</span>`:""}${m&&m!==OTRAS?`<span class="tag">${esc(m)}</span>`:""}${i.medida?`<span class="tag">${esc(i.medida)}</span>`:""}${i.canal?`<span class="tag">${esc(i.canal)}</span>`:""}${nd?`<span class="tag">📚 ${nd}</span>`:""}</div></div></article>`;}
 let fichaCode=null;
@@ -523,18 +564,18 @@ async function recognize(f){
   finally{$("#scanL").classList.remove("busy");}}
 
 /* ---------- visor de fotos ---------- */
-function buildLb(i){lbList=[...i.photos.map(p=>({...p,k:"e",lab:"Etiqueta"})),...i.prod.map(p=>({...p,k:"p",lab:p.from==="web"?"Producto (web del fabricante)":"Producto"}))];}
-function openLb(i,k){lbItem=i;buildLb(i);lbI=k==="p"?i.photos.length:0;askDel(false);showLb();$("#lb").hidden=false;$("#lbClose").focus();}
+function buildLb(i){lbList=[{...lblOf(i),k:"e",lab:"Etiqueta"},...i.photos.map(p=>({...p,k:"e",lab:"Foto de la etiqueta"})),...i.prod.map(p=>({...p,k:"p",lab:p.from==="web"?"Producto (web del fabricante)":"Producto"}))];}
+function openLb(i,k){lbItem=i;buildLb(i);lbI=k==="p"?i.photos.length+1:0;askDel(false);showLb();$("#lb").hidden=false;$("#lbClose").focus();}
 function askDel(on){$("#lbAsk").hidden=!on;$("#lbNav").hidden=on;}
 async function fullSrc(p){if(fullCache[p.fileId])return fullCache[p.fileId];const r=await api("getFull",p.fileId);return fullCache[p.fileId]=`data:${r.mime};base64,${r.b64}`;}
 function showLb(){const p=lbList[lbI];if(!p)return;const img=$("#lbImg");img.src=fullCache[p.fileId]||p.src;img.alt=lbItem.desc;
-  if(!fullCache[p.fileId])fullSrc(p).then(u=>{if(lbList[lbI]===p)img.src=u;}).catch(()=>{});
+  if(!p.gen&&!fullCache[p.fileId])fullSrc(p).then(u=>{if(lbList[lbI]===p)img.src=u;}).catch(()=>{});
   img.className=p.rot?"r"+p.rot:"";$("#lbStage").classList.toggle("side",p.rot===90||p.rot===270);
   const same=lbList.filter(x=>x.k===p.k),pos=same.indexOf(p)+1;
   $("#lbCap").innerHTML=`<b>${esc(lbItem.code)}</b>${esc(lbItem.desc)} · ${p.lab}${same.length>1?` ${pos} de ${same.length}`:""}`;
   const T=$("#lbThumbs");T.innerHTML=lbList.map((x,j)=>`${j>0&&x.k!==lbList[j-1].k?'<span class="sep"></span>':""}<button data-j="${j}" aria-current="${j===lbI}" aria-label="${x.lab} ${j+1}"><img src="${x.src}" alt="" class="${x.rot?"r"+x.rot:""}"></button>`).join("");
   T.hidden=lbList.length<2;$("#lbPrev").hidden=$("#lbNext").hidden=lbList.length<2;
-  const w=!lbItem.obsoleta;$("#lbAdd").hidden=!w;$("#lbRot").hidden=!w;$("#lbDel").hidden=!w;}
+  const w=!lbItem.obsoleta;$("#lbAdd").hidden=!w;$("#lbRot").hidden=!w||!!p.gen;$("#lbDel").hidden=!w||!!p.gen;}
 $("#lbThumbs").addEventListener("click",e=>{const b=e.target.closest("button[data-j]");if(!b)return;lbI=+b.dataset.j;askDel(false);showLb();});
 const rotT={};
 $("#lbRot").onclick=()=>{const p=lbList[lbI],f=fotos.find(x=>x.id===p.id);if(!f)return;f.rot=((f.rot||0)+90)%360;p.rot=f.rot;
@@ -966,13 +1007,13 @@ async function expStockXlsx(list,name,msg){msg.textContent="Preparando la lista 
   ws["!cols"]=[{wch:16},{wch:22},{wch:14},{wch:14},{wch:40},{wch:15},{wch:15},{wch:13},{wch:10}];ws["!autofilter"]={ref:`A4:I${list.length+4}`};
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Stock seguridad");
   return {blob:new Blob([XLSX.write(wb,{type:"array",bookType:"xlsx"})]),name:name+".xlsx",mime:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"};}
-async function bmpOf(p,full){const src=full?await fullSrc(p):p.src;return await createImageBitmap(await (await fetch(src)).blob());}
+async function bmpOf(p,full){if(p.gen){const im=new Image();im.src=p.src;await im.decode();return await createImageBitmap(im);}const src=full?await fullSrc(p):p.src;return await createImageBitmap(await (await fetch(src)).blob());}
 async function imgBuf(p,full,max=620){const bmp=await bmpOf(p,full);
   const rot=p.rot||0,s=Math.min(1,max/Math.max(bmp.width,bmp.height)),w=Math.round(bmp.width*s),h=Math.round(bmp.height*s),side=rot===90||rot===270;
   const c=document.createElement("canvas");c.width=side?h:w;c.height=side?w:h;const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);
   g.translate(c.width/2,c.height/2);g.rotate(rot*Math.PI/180);g.drawImage(bmp,-w/2,-h/2,w,h);
   const b=await new Promise(res=>c.toBlob(res,"image/jpeg",0.82));return {data:await b.arrayBuffer(),w:c.width,h:c.height};}
-const pics=(i,allPh)=>({e:allPh?i.photos:i.photos.slice(0,1),p:allPh?i.prod:i.prod.slice(0,1)});
+const pics=(i,allPh)=>({e:[lblOf(i),...(allPh?i.photos:[])],p:allPh?i.prod:i.prod.slice(0,1)});
 async function expDocx(list,name,title,fmt,allPh,msg,size){msg.textContent="Preparando el Word…";await loadLib(DOCX_URL,"docx");const D=window.docx;
   const P=(t,{center,...o}={})=>new D.Paragraph({alignment:center?D.AlignmentType.CENTER:undefined,children:[new D.TextRun({text:String(t||""),...o})]});
   const cell=(children,w,shade)=>new D.TableCell({children,width:{size:w,type:D.WidthType.DXA},verticalAlign:D.VerticalAlign.CENTER,margins:{top:60,bottom:60,left:80,right:80},shading:shade?{fill:"D9DEE3",type:D.ShadingType.CLEAR,color:"auto"}:undefined});
