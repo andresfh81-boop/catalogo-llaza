@@ -1070,9 +1070,12 @@ async function expDocx(list,name,title,fmt,allPh,msg,size){msg.textContent="Prep
   const full=fmt==="fichas";
   async function imgPar(p,maxW,maxH){try{const im=await imgBuf(p,full);let w=maxW,h=Math.round(im.h*w/im.w);if(h>maxH){w=Math.round(w*maxH/h);h=maxH;}
       return new D.Paragraph({alignment:D.AlignmentType.CENTER,spacing:{after:80},children:[new D.ImageRun({data:im.data,transformation:{width:w,height:h}})]});}catch(_){return P("(sin foto)",{italics:true,center:true});}}
+  /* Word consulta cada enlace antes de abrirlo y asset.somfy.com le responde 403 (solo deja entrar a navegadores):
+     esos enlaces pasan por ir.html de la app instalable, que abre el PDF oficial en el navegador. */
+  const wordLink=u=>/^https:\/\/asset\.somfy\.com\//i.test(u)?"https:\/\/andresfh81-boop.github.io/catalogo-llaza/ir.html#"+encodeURIComponent(u):u;
   function notesPar(t){const runs=[];let k=0;t=String(t||"");
     for(const m of t.matchAll(URL_RE)){if(m.index>k)runs.push(new D.TextRun(t.slice(k,m.index)));
-      runs.push(new D.ExternalHyperlink({link:m[0],children:[new D.TextRun({text:linkLabel(m[0]).replace(/^\S+\s/,""),style:"Hyperlink",color:"0563C1",underline:{}})]}));k=m.index+m[0].length;}
+      runs.push(new D.ExternalHyperlink({link:wordLink(m[0]),children:[new D.TextRun({text:linkLabel(m[0]).replace(/^\S+\s/,""),style:"Hyperlink",color:"0563C1",underline:{}})]}));k=m.index+m[0].length;}
     if(k<t.length)runs.push(new D.TextRun(t.slice(k)));return [new D.Paragraph({children:runs})];}
   let done=0;const step=()=>{msg.textContent=`Preparando el Word… ${++done} de ${list.length}`;};let sections;
   if(fmt==="tabla2"){const W=[5233,5233],Z={s:[300,120],m:[320,185],l:[330,290]}[size]||[320,185];
