@@ -329,8 +329,13 @@ const qrDoc=i=>{const L=docsOf(i.code).filter(m=>m.url&&m.tipo!=="Vídeo"&&!/dri
   const es=m=>/castellano|\(ES\b|\bES\)|· ES|[-_ ]ES\.pdf|_Spa\b|-ES\b|_ES\b|Spa\.pdf/i.test(m.titulo+" "+decodeURIComponent(m.url));
   const sc=m=>(es(m)?2:0)+(m.tipo==="Instrucciones"?1:0);return L.sort((a,b)=>sc(b)-sc(a))[0]||null;};
 let lblCtx=null;const lblW=(t,font)=>{lblCtx=lblCtx||document.createElement("canvas").getContext("2d");lblCtx.font=font;return lblCtx.measureText(t).width;};
-const lblWrap=(t,font,w,max)=>{const L=[];let c="";for(const p of String(t||"").split(/\s+/)){const n=c?c+" "+p:p;if(c&&lblW(n,font)>w){L.push(c);c=p;}else c=n;}if(c)L.push(c);
-  if(L.length>max){L.length=max;L[max-1]+="…";}return L;};
+/* NORMA (Andrés, 08/11/2026): el texto sale siempre ENTERO, sin «…» ni palabras partidas. Si no cabe, letra más pequeña
+   y más líneas. Solo un «palabro» más ancho que la línea entera (una URL) se reparte en trozos, sin guion. */
+const lblWrap=(t,font,w)=>{const L=[];let c="";
+  const toks=String(t||"").split(/\s+/).filter(Boolean).flatMap(p=>{if(lblW(p,font)<=w)return [p];const o=[];let q="";for(const ch of p){if(q&&lblW(q+ch,font)>w){o.push(q);q=ch;}else q+=ch;}if(q)o.push(q);return o;});
+  for(const p of toks){const n=c?c+" "+p:p;if(c&&lblW(n,font)>w){L.push(c);c=p;}else c=n;}if(c)L.push(c);return L;};
+/* Primer tamaño de letra con el que el texto entero cabe en las líneas que hay (maxL según el tamaño). */
+const lblFit=(t,font,w,sizes,maxL)=>{let r;for(const z of sizes){r={z,L:lblWrap(t,font(z),w)};if(r.L.length<=maxL(z))return r;}return r;};
 const lblCache={};
 function lblSrc(i){
   const doc=qrDoc(i),ref=/^Ref\. fabricante:\s*/i.test(i.modelo||"")?["Ref. fabricante",i.modelo.replace(/^Ref\. fabricante:\s*/i,"")]:["Modelo",i.modelo||"—"];
@@ -343,12 +348,15 @@ function lblSrc(i){
     qr=`<rect x="${x0}" y="${y0}" width="${S}" height="${S}" fill="#fff"/><path d="${d}" fill="#000"/>
       <text x="${x0+S/2}" y="${y0+S+28}" font-family="${A}" font-weight="700" font-size="22" fill="#1B2127" text-anchor="middle">Instrucciones</text>
       <text x="${x0+S/2}" y="${y0+S+54}" font-family="${A}" font-size="19" fill="#5A636B" text-anchor="middle">${x(host(doc.url))}</text>`;der=x0-24;}catch(_){qr="";}}
-  const izq=der-28,fD=`bold 50px ${A}`,code=isSinRef(i.code)?"Sin código":i.code;
-  const dl=lblWrap(i.desc,fD,izq,3),dsz=dl.length>2?42:50;
-  const desc=lblWrap(i.desc,`bold ${dsz}px ${A}`,izq,3).map((t,j)=>`<text x="28" y="${226+j*(dsz+10)}" font-family="${A}" font-weight="700" font-size="${dsz}" fill="#1B2127">${x(t)}</text>`).join("");
-  const med=[i.medida,i.canal].filter(Boolean).join(" · ")||"—",cut=(t,w)=>{const f=`bold 30px ${A}`;let s=String(t);if(lblW(s,f)<=w)return s;while(s.length>3&&lblW(s+"…",f)>w)s=s.slice(0,-1);return s.trim()+"…";};
-  const mk=String(i.marca||"").trim()||(marcaOf(i)!==OTRAS?marcaOf(i):""),cols=[["Marca",mk||"—"],ref,["Medida",med]].map(([k,v],j)=>`<text x="${28+j*320}" y="${430}" font-family="${A}" font-size="20" fill="#5A636B">${x(k.toUpperCase())}</text>
-    <text x="${28+j*320}" y="${466}" font-family="${A}" font-weight="700" font-size="30" fill="#1B2127">${x(cut(v,285))}</text>`).join("");
+  const izq=der-28,code=isSinRef(i.code)?"Sin código":i.code;
+  /* Descripción entre la línea 226 y la 380; columnas de abajo entre la 426 y la 488. */
+  const dF=dz=>`bold ${dz}px ${A}`,D=lblFit(i.desc,dF,izq,[50,44,38,32,28,24,20,17],dz=>Math.floor((380-226)/(dz+10))+1);
+  const desc=D.L.map((t,j)=>`<text x="28" y="${226+j*(D.z+10)}" font-family="${A}" font-weight="700" font-size="${D.z}" fill="#1B2127">${x(t)}</text>`).join("");
+  const med=[i.medida,i.canal].filter(Boolean).join(" · ")||"—";
+  const mk=String(i.marca||"").trim()||(marcaOf(i)!==OTRAS?marcaOf(i):""),CX=[[28,200],[248,440],[708,264]],cols=[["Marca",mk||"—"],ref,["Medida",med]].map(([k,v],j)=>{
+    const C=lblFit(v,cz=>`bold ${cz}px ${A}`,CX[j][1],[30,26,22,19,16,14,12],cz=>Math.floor((488-(426+cz))/(cz+4))+1);
+    return `<text x="${CX[j][0]}" y="420" font-family="${A}" font-size="20" fill="#5A636B">${x(k.toUpperCase())}</text>`+
+      C.L.map((t,n)=>`<text x="${CX[j][0]}" y="${426+C.z+n*(C.z+4)}" font-family="${A}" font-weight="700" font-size="${C.z}" fill="#1B2127">${x(t)}</text>`).join("");}).join("");
   const svg=`<svg xmlns="http:\/\/www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#fff"/>
     <rect x="4" y="4" width="${W-8}" height="${H-8}" fill="none" stroke="#1B2127" stroke-width="4"/>
     <text x="28" y="48" font-family="${A}" font-weight="700" font-size="26" fill="#1B2127">Llaza World, S.A.</text>
@@ -705,7 +713,7 @@ function renderCons(){const R=$("#rev"),{lab}=consRange(consP,consOff),P=[["dia"
 async function consXlsx(){try{await loadLib(XLSX_URL,"XLSX");const {rows,hojas}=consRows(),{lab}=consRange(consP,consOff);
   const aoa=[[`Consumo · ${lab}`],[`${hojas} hojas revisadas`],[],["Código","Descripción","Medida","Cantidad","Nº de hojas"],
     ...rows.map(x=>{const it=itemOf(x.code);return [x.code,it?it.desc:"",it?it.medida:"",x.q,x.n];})];
-  const ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=[{wch:14},{wch:44},{wch:14},{wch:10},{wch:12}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Consumo");
+  const ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=xlCols(aoa,3);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Consumo");
   await deliver(new Blob([XLSX.write(wb,{type:"array",bookType:"xlsx"})]),`Consumo ${lab.replace(/[^\wÀ-ÿ\-]+/g,"_")}.xlsx`,
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","drive",null,$("#consMsg"));}catch(x){toast(errMsg(x),5000);}}
 function lineHTML(l,idx){const it=itemOf(l.code),src=thumbOf(it);
@@ -1029,11 +1037,16 @@ $("#pvPrint").onclick=()=>{$("#pvInner").style.zoom=1;window.print();pvFit();};
 $("#pvExp").onclick=()=>{closePv();$("#expGo").click();$("#expMsg").scrollIntoView({block:"nearest"});};
 window.addEventListener("resize",()=>{if(!$("#pvSheet").hidden)pvFit();});
 
+/* NORMA (textos enteros): cada columna tan ancha como su texto más largo (desde la fila «desde»), para que nada salga cortado. */
+const xlCols=(aoa,desde=0)=>{const n=Math.max(...aoa.map(r=>r.length));return Array.from({length:n},(_,c)=>({wch:Math.min(120,Math.max(6,...aoa.slice(desde).map(r=>String(r[c]??"").length))+2)}));};
+const xlName=(t,usadas)=>{let b=String(t).replace(/[[\]:*?/\\]/g," ").trim().slice(0,31)||"Hoja",n=b,k=2;while(usadas.has(n.toLowerCase()))n=b.slice(0,28)+" "+(k++);usadas.add(n.toLowerCase());return n;};
+/* Excel del catálogo: hoja «Todo» y una hoja por categoría (en orden alfabético), cada una con su filtro. */
 async function expXlsx(list,name,msg){msg.textContent="Preparando el Excel…";await loadLib(XLSX_URL,"XLSX");
-  const rows=list.map(i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,i.canal,i.modelo,hasStock(i)?i.stock:"",i.photos.length?"Sí":"No",prodOf(i).length?"Sí":"No",i.obsoleta?"Sí":"No"]);
-  const ws=XLSX.utils.aoa_to_sheet([["Apartado","Categoría","Marca","Código","Descripción","Medida / formato","Canal / color","Modelo / notas","Stock seguridad","Foto etiqueta","Foto producto","Obsoleta"],...rows]);
-  ws["!cols"]=[{wch:18},{wch:20},{wch:14},{wch:14},{wch:40},{wch:15},{wch:12},{wch:40},{wch:15},{wch:12},{wch:13},{wch:10}];ws["!autofilter"]={ref:`A1:L${rows.length+1}`};
-  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Catálogo");
+  const H=["Apartado","Categoría","Marca","Código","Descripción","Medida / formato","Canal / color","Modelo / notas","Sistema","Stock seguridad","Foto etiqueta","Foto producto","Obsoleta"];
+  const row=i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,i.canal,i.modelo,sisOf(i)?sisOf(i)+(sisRev(i)?SIS_REV:""):"",hasStock(i)?i.stock:"",i.photos.length?"Sí":"No",prodOf(i).length?"Sí":"No",i.obsoleta?"Sí":"No"];
+  const hoja=L=>{const aoa=[H,...L.map(row)],ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=xlCols(aoa);ws["!autofilter"]={ref:`A1:${XLSX.utils.encode_col(H.length-1)}${aoa.length}`};return ws;};
+  const wb=XLSX.utils.book_new(),usadas=new Set();XLSX.utils.book_append_sheet(wb,hoja(list),xlName("Todo",usadas));
+  [...new Set(list.map(i=>i.cat))].sort(byAZ).forEach(c=>XLSX.utils.book_append_sheet(wb,hoja(list.filter(i=>i.cat===c)),xlName(c,usadas)));
   return {blob:new Blob([XLSX.write(wb,{type:"array",bookType:"xlsx"})]),name:name+".xlsx",mime:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"};}
 /* Lista de stock de seguridad: «Stock actual» se rellena al hacer el recuento y «A pedir» se calcula sola. */
 async function expStockXlsx(list,name,msg){msg.textContent="Preparando la lista de stock…";await loadLib(XLSX_URL,"XLSX");
@@ -1041,7 +1054,7 @@ async function expStockXlsx(list,name,msg){msg.textContent="Preparando la lista 
   const ws=XLSX.utils.aoa_to_sheet([[`Lista de stock de seguridad · ${fmtF(new Date().toISOString())}`],["Rellena «Stock actual» al contar; «A pedir» = stock de seguridad − stock actual (0 si hay suficiente)."],[],H,
     ...list.map(i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,Number(i.stock),"",""])]);
   list.forEach((_,k)=>{const r=k+5;ws["I"+r]={t:"n",f:`IF(H${r}="","",MAX(0,G${r}-H${r}))`};});
-  ws["!cols"]=[{wch:16},{wch:22},{wch:14},{wch:14},{wch:40},{wch:15},{wch:15},{wch:13},{wch:10}];ws["!autofilter"]={ref:`A4:I${list.length+4}`};
+  ws["!cols"]=xlCols([H,...list.map(i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,String(i.stock),"",""])]);ws["!autofilter"]={ref:`A4:I${list.length+4}`};
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Stock seguridad");
   return {blob:new Blob([XLSX.write(wb,{type:"array",bookType:"xlsx"})]),name:name+".xlsx",mime:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"};}
 async function bmpOf(p,full){if(p.gen){const im=new Image();im.src=p.src;await im.decode();return await createImageBitmap(im);}const src=full?await fullSrc(p):p.src;return await createImageBitmap(await (await fetch(src)).blob());}
@@ -1108,7 +1121,7 @@ async function expDocx(list,name,title,fmt,allPh,msg,size){msg.textContent="Prep
     sections=[{properties:{page:{margin:{top:900,bottom:900,left:1000,right:1000}}},children}];}
   const blob=await D.Packer.toBlob(new D.Document({styles:{default:{document:{run:{font:"Arial",size:21}}}},sections}));
   return {blob,name:name+".docx",mime:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"};}
-function wrapLines(g,text,maxW){const words=String(text||"").split(/\s+/),lines=[];let line="";for(const w of words){const t=line?line+" "+w:w;if(g.measureText(t).width>maxW&&line){lines.push(line);line=w;}else line=t;}if(line)lines.push(line);return lines;}
+function wrapLines(g,text,maxW){const words=String(text||"").split(/\s+/).filter(Boolean).flatMap(p=>{if(g.measureText(p).width<=maxW)return [p];const o=[];let q="";for(const ch of p){if(q&&g.measureText(q+ch).width>maxW){o.push(q);q=ch;}else q+=ch;}if(q)o.push(q);return o;}),lines=[];let line="";for(const w of words){const t=line?line+" "+w:w;if(g.measureText(t).width>maxW&&line){lines.push(line);line=w;}else line=t;}if(line)lines.push(line);return lines;}
 function drawFit(g,bmp,rot,x,y,w,h){g.save();g.fillStyle="#FFFFFF";g.fillRect(x,y,w,h);g.beginPath();g.rect(x,y,w,h);g.clip();g.translate(x+w/2,y+h/2);g.rotate((rot||0)*Math.PI/180);
   const side=rot===90||rot===270,bw=side?bmp.height:bmp.width,bh=side?bmp.width:bmp.height,s=Math.min(w/bw,h/bh);g.drawImage(bmp,-bmp.width*s/2,-bmp.height*s/2,bmp.width*s,bmp.height*s);g.restore();}
 async function cardPng(i,allPh){try{await Promise.all(["600 60px 'IBM Plex Mono'","600 38px 'IBM Plex Sans'"].map(f=>document.fonts.load(f)));}catch(_){}
@@ -1116,16 +1129,17 @@ async function cardPng(i,allPh){try{await Promise.all(["600 60px 'IBM Plex Mono'
   if(!ph.e.length)cells.unshift(["ETIQUETA",null]);if(!ph.p.length)cells.push(["PRODUCTO",null]);
   const cw=(W-pad*2-16)/2,rowsN=Math.ceil(cells.length/2),m=document.createElement("canvas").getContext("2d");
   m.font="600 38px 'IBM Plex Sans', Arial";const dl=wrapLines(m,i.desc,W-pad*2);m.font="500 28px 'IBM Plex Mono', monospace";const ml=i.modelo?wrapLines(m,i.modelo,W-pad*2):[];
-  const tags=[i.medida,i.canal,stockTxt(i)].filter(Boolean).join("  ·  "),H=Math.ceil(96+pad+rowsN*(cw+16)+24+70+dl.length*48+(tags?46:0)+ml.length*38+pad+40);
+  const tags=[i.medida,i.canal,stockTxt(i)].filter(Boolean).join("  ·  ");m.font="500 30px 'IBM Plex Sans', Arial";const tl=tags?wrapLines(m,tags,W-pad*2):[];
+  const H=Math.ceil(96+pad+rowsN*(cw+16)+24+70+dl.length*48+tl.length*46+ml.length*38+pad+40);
   const c=document.createElement("canvas");c.width=W;c.height=H;const g=c.getContext("2d");g.fillStyle="#FFFFFF";g.fillRect(0,0,W,H);
-  g.fillStyle="#C9501C";g.fillRect(0,0,W,96);g.fillStyle="#FFFFFF";g.font="600 30px 'IBM Plex Sans', Arial";g.textBaseline="middle";g.fillText(`LLAZA  ·  ${i.sec.toUpperCase()}  ·  ${i.cat.toUpperCase()}`,pad,48);
+  g.fillStyle="#C9501C";g.fillRect(0,0,W,96);g.fillStyle="#FFFFFF";g.textBaseline="middle";{const ht=`LLAZA  ·  ${i.sec.toUpperCase()}  ·  ${i.cat.toUpperCase()}`;let hz=30;g.font=`600 ${hz}px 'IBM Plex Sans', Arial`;while(hz>16&&g.measureText(ht).width>W-pad*2){hz--;g.font=`600 ${hz}px 'IBM Plex Sans', Arial`;}g.fillText(ht,pad,48);}
   const y0=96+pad;
   for(let k=0;k<cells.length;k++){const [lab,p]=cells[k],x=pad+(k%2)*(cw+16),yy=y0+Math.floor(k/2)*(cw+16);g.fillStyle="#ECEEF0";g.fillRect(x,yy,cw,cw);
     if(p){try{drawFit(g,await bmpOf(p,true),p.rot,x,yy,cw,cw);}catch(_){}}else{g.fillStyle="#8A949E";g.font="500 30px 'IBM Plex Sans', Arial";g.textAlign="center";g.fillText("Sin foto",x+cw/2,yy+cw/2);g.textAlign="left";}
     g.font="600 22px 'IBM Plex Sans', Arial";const tw=g.measureText(lab).width+20;g.fillStyle="rgba(0,0,0,.7)";g.fillRect(x+10,yy+10,tw,34);g.fillStyle="#FFFFFF";g.fillText(lab,x+20,yy+27);}
   let y=y0+rowsN*(cw+16)+24;g.textBaseline="alphabetic";g.fillStyle="#1B2127";g.font="600 60px 'IBM Plex Mono', monospace";g.fillText(i.code,pad,y+56);y+=70;
   g.font="600 38px 'IBM Plex Sans', Arial";for(const l of dl){y+=48;g.fillText(l,pad,y);}
-  if(tags){y+=46;g.fillStyle="#5A6570";g.font="500 30px 'IBM Plex Sans', Arial";g.fillText(tags,pad,y);}
+  g.fillStyle="#5A6570";g.font="500 30px 'IBM Plex Sans', Arial";for(const l of tl){y+=46;g.fillText(l,pad,y);}
   g.fillStyle="#5A6570";g.font="500 28px 'IBM Plex Mono', monospace";for(const l of ml){y+=38;g.fillText(l,pad,y);}
   g.fillStyle="#9AA5B0";g.font="500 22px 'IBM Plex Sans', Arial";g.fillText(`Catálogo Llaza · ${fmtF(new Date().toISOString())}${i.obsoleta?" · OBSOLETA":""}`,pad,H-pad/2);
   return await new Promise(r=>c.toBlob(r,"image/png"));}
