@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Abriendo instrucciones</title>
+<style>
+  :root { --bg:#ECEEF0; --ink:#1B2127; --accent:#C9501C; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#15191D; --ink:#E6EAEE; --accent:#F07A45; } }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--ink);
+    font:16px system-ui, -apple-system, "Segoe UI", sans-serif; padding:16px; box-sizing:border-box; text-align:center; }
+  a { color:var(--accent); font-weight:600; word-break:break-all; }
+</style>
+</head>
+<body>
+<!-- Puente para los enlaces del Word del catálogo (catalogo-llaza-app, notesPar): Word consulta el enlace antes de abrirlo y
+     asset.somfy.com le responde 403, así que el Word enlaza aquí (ir.html#<url>) y esta página abre el PDF oficial en el navegador.
+     Solo abre direcciones de los fabricantes de la lista (no es un redireccionador abierto). -->
+<p id="m">Abriendo las instrucciones oficiales…</p>
+<script>
+(function () {
+  var OK = ["asset.somfy.com", "www.somfy.es", "www.somfypro.es"];
+  var u = "", m = document.getElementById("m");
+  try { u = decodeURIComponent(location.hash.slice(1)); } catch (e) {}
+  var h = "";
+  try { var x = new URL(u); if (x.protocol === "https:") h = x.hostname; } catch (e) {}
+  if (h && OK.indexOf(h) >= 0) {
+    location.replace(u);
+    m.innerHTML = 'Si no se abre solo: <a href="' + u.replace(/"/g, "%22") + '">abrir las instrucciones</a>';
+  } else {
+    m.textContent = "Este enlace no es de un fabricante conocido y no se abre.";
+  }
+})();
+</script>
+</body>
+</html>
