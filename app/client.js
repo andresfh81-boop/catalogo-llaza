@@ -5,7 +5,7 @@
 const SUBCATS=["Centralitas","Centralitas iluminación","Emisores","Receptores","Sensores","Motores","Fuentes de alimentación","Cables y alargadores","Conectores","Tiras y neón LED","Focos","Tomas","Adaptadores y soportes","Inversores y pulsadores","Pilas y accesorios"];
 const SECS=[{n:"ELYA",c:SUBCATS},{n:"PERGOHABITAT",c:SUBCATS},{n:"CONSUMIBLES",c:["Cintas y adhesivos","Conectores","Pilas y accesorios","General"]}];
 /* Subcarpetas por marca dentro de estas categorías. Sin marca guardada se deduce de la descripción o el modelo. */
-const MARCAS=["Somfy","Cherubini","Teleco","Nexta"],MARCA_CATS=["Centralitas","Centralitas iluminación","Motores","Emisores","Receptores","Sensores"],OTRA="Otra",OTRAS="Otras marcas";
+const MARCAS=["Somfy","A-OK","Cherubini","Teleco","Nexta","Gaposa"],MARCA_CATS=["Centralitas","Centralitas iluminación","Motores","Emisores","Receptores","Sensores","Adaptadores y soportes"],OTRA="Otra",OTRAS="Otras marcas";
 /* Stock de seguridad: cantidad mínima en almacén fijada en la ficha (vacío = sin fijar). */
 const hasStock=i=>i.stock!==""&&i.stock!=null&&!isNaN(i.stock),stockTxt=i=>hasStock(i)?`Stock seg.: ${i.stock}`:"";
 const hasMarca=c=>MARCA_CATS.includes(c);
