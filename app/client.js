@@ -3,9 +3,11 @@
    Catálogo Llaza — cliente
    ========================================================= */
 const SUBCATS=["Centralitas","Centralitas iluminación","Emisores","Receptores","Sensores","Motores","Fuentes de alimentación","Cables y alargadores","Conectores","Tiras y neón LED","Focos","Tomas","Adaptadores y soportes","Inversores y pulsadores","Pilas y accesorios"];
-const SECS=[{n:"ELYA",c:SUBCATS},{n:"PERGOHABITAT",c:SUBCATS},{n:"CONSUMIBLES",c:["Cintas y adhesivos","Conectores","Pilas y accesorios","General"]}];
+const SECS=[{n:"CONSUMIBLES",c:["Cintas y adhesivos","Conectores","Pilas y accesorios","General"]},{n:"ELYA",c:SUBCATS},{n:"PERGOHABITAT",c:SUBCATS}];
+/* Menús en orden alfabético (apartados, categorías y marcas); «Otras marcas» siempre al final. */
+const byAZ=(a,b)=>a.localeCompare(b,"es");
 /* Subcarpetas por marca dentro de estas categorías. Sin marca guardada se deduce de la descripción o el modelo. */
-const MARCAS=["Somfy","A-OK","Cherubini","Teleco","Nexta","Gaposa"],MARCA_CATS=["Centralitas","Centralitas iluminación","Motores","Emisores","Receptores","Sensores","Adaptadores y soportes"],OTRA="Otra",OTRAS="Otras marcas";
+const MARCAS=["A-OK","Cherubini","Nexta","Somfy","Teleco"],MARCA_CATS=["Centralitas","Centralitas iluminación","Motores","Emisores","Receptores","Sensores","Adaptadores y soportes"],OTRA="Otra",OTRAS="Otras marcas";
 /* Stock de seguridad: cantidad mínima en almacén fijada en la ficha (vacío = sin fijar). */
 const hasStock=i=>i.stock!==""&&i.stock!=null&&!isNaN(i.stock),stockTxt=i=>hasStock(i)?`Stock seg.: ${i.stock}`:"";
 const hasMarca=c=>MARCA_CATS.includes(c);
@@ -15,7 +17,7 @@ const docsOf=code=>manuales.filter(m=>m.codes.includes(code));
 const docIco=m=>DOC_ICO[m.tipo]||"📄";
 const docBtns=i=>{const L=docsOf(i.code);return L.length?`<div class="docs">${L.map(m=>m.url?`<a href="${esc(m.url)}" target="_blank" rel="noopener">${docIco(m)} ${esc(m.titulo)}</a>`:`<span class="tag" title="Falta guardar en el Drive el PDF ${esc(m.archivo)}">⏳ ${esc(m.titulo)}</span>`).join("")}</div>`:"";};
 const isSinRef=c=>/^SINREF-/.test(String(c||""));
-const DEFSEC=SECS[0].n, OBS="Obsoletas", INC="Incompletas", STK="Stock seguridad", DOC="Documentación", PROP="Fotos por confirmar";
+const DEFSEC="ELYA", OBS="Obsoletas", INC="Incompletas", STK="Stock seguridad", DOC="Documentación", PROP="Fotos por confirmar";
 const prodOf=i=>i.prod.length?i.prod:i.ofi; /* foto de producto: la propia y, si no hay, la oficial del fabricante */
 const faltas=i=>[!prodOf(i).length&&"foto de producto",!String(i.desc||"").trim()&&"descripción"].filter(Boolean);
 const incompleta=i=>!i.obsoleta&&faltas(i).length>0;
@@ -62,7 +64,7 @@ function errMsg(e){const m=String((e&&e.message)||e||"");
 const ALL="TODAS",secsOf=i=>[i.sec,...(i.also||[])],inS=(i,s)=>s===ALL||secsOf(i).includes(s);
 function catsOf(s){const pre=s===ALL?[...new Set(SECS.flatMap(x=>x.c))]:(SECS.find(x=>x.n===s)||{c:[]}).c;
   const extra=[...new Set(items.filter(i=>inS(i,s)).map(i=>i.cat))].filter(c=>!pre.includes(c)).sort((a,b)=>a.localeCompare(b,"es"));
-  return [...pre,...extra];}
+  return [...pre,...extra].sort(byAZ);}
 function marcaOf(i){if(!hasMarca(i.cat))return "";const m=String(i.marca||"").trim();if(m)return MARCAS.find(x=>norm(x)===norm(m))||OTRAS;
   return guessMarca(i.desc+" "+i.modelo)||OTRAS;}
 const guessMarca=t=>MARCAS.find(x=>norm(t).includes(norm(x)))||"";
@@ -448,7 +450,7 @@ function openEdit(code){const it=itemOf(code);if(!it)return;openAdd();editCode=c
   const mo=marcaOf(it);$("#fMarca").value=mo===OTRAS?(it.marca?OTRA:""):mo;syncMarca();
   $("#fAuto").textContent="Puedes añadir fotos nuevas aquí; se suman a las que ya tiene.";renderDocBox();(it.medida?$("#fMod"):$("#fMed")).focus();}
 function openAdd(code,file,prodFile){editCode=null;$("#fTitle").textContent="Nueva referencia";$("#fCode").disabled=false;$("#fCode").placeholder="48009000000";$("#fNoCodeL").hidden=false;$("#addForm").reset();slots[0]={f:null,k:"e"};slots[1]={f:null,k:"p"};SLOT_LAB.forEach(id=>$("#"+id).querySelector("img")?.remove());
-  $("#fErr").textContent="";$("#fSec").value=sec===ALL?SECS[0].n:sec;fillAlso([]);fillCats();$("#fCat").value=cur!=="Todas"&&cur!==OBS&&cur!==INC&&cur!==STK&&cur!==DOC&&cur!==PROP?cur:"";syncCatSel();
+  $("#fErr").textContent="";$("#fSec").value=sec===ALL?DEFSEC:sec;fillAlso([]);fillCats();$("#fCat").value=cur!=="Todas"&&cur!==OBS&&cur!==INC&&cur!==STK&&cur!==DOC&&cur!==PROP?cur:"";syncCatSel();
   $("#fMarca").value=MARCAS.includes(marca)?marca:"";syncMarca();
   secTouched=false;$("#fAuto").textContent="Consejo: haz primero la foto de la etiqueta y se rellenan solos el código y los datos.";
   if(typeof code==="string")$("#fCode").value=code;if(file instanceof Blob){slots[0].f=file;preview("fEtqL",file);fillFromLabel(file);}if(prodFile instanceof Blob){slots[1].f=prodFile;preview("fProdL",prodFile);}
