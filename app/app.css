@@ -149,6 +149,13 @@ textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--surface);
 .msub{font:600 14px var(--sans);color:var(--ink);margin:14px 0 8px;padding-left:8px;border-left:3px solid var(--accent)}
 .msub:first-child{margin-top:0}.msub small{color:var(--muted);font-weight:500;margin-left:4px}
 .field[hidden],.chips[hidden]{display:none}
+.sisf{display:flex;align-items:center;gap:8px;font:500 13px var(--sans);color:var(--muted)}.sisf[hidden]{display:none}
+.sisf select{width:auto;max-width:100%;min-width:0;padding:6px 10px}
+.fsis h4{margin:4px 0 0;font:600 14px var(--sans)}.fsis h4 small{color:var(--muted);font-weight:500;margin-left:4px}
+.sisrev{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0}
+.cmpl{display:flex;flex-direction:column;gap:6px}
+.cmp{display:flex;gap:10px;align-items:baseline;text-align:left;width:100%;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:8px 10px;font:400 14px var(--sans);cursor:pointer}
+.cmp b{font-weight:600;font-variant-numeric:tabular-nums;flex:none}.cmp span{flex:1;min-width:0}.cmp small{flex:none;font:500 12px var(--sans);color:var(--muted)}
 section{margin-bottom:26px}
 h2{font-family:var(--cond);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}

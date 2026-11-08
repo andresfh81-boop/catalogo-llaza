@@ -11,6 +11,14 @@ const MARCAS=["A-OK","Cherubini","Nexta","Somfy","Teleco"],MARCA_CATS=["Centrali
 /* Stock de seguridad: cantidad mínima en almacén fijada en la ficha (vacío = sin fijar). */
 const hasStock=i=>i.stock!==""&&i.stock!=null&&!isNaN(i.stock),stockTxt=i=>hasStock(i)?`Stock seg.: ${i.stock}`:"";
 const hasMarca=c=>MARCA_CATS.includes(c);
+/* Sistema de radio o cable (columna «Sistema»): qué mando va con qué motor. « (por revisar)» al final = lo dedujo Claude
+   y falta que Andrés lo confirme. Compatibles = mismo sistema (y misma frecuencia si las dos dicen 868 o 916 MHz). */
+const SISTEMAS=["A-OK/EON 868","Cable","Cherubini RX/ZRX","Nexta","Somfy io","Somfy RTS","Teleco"].sort(byAZ),SIS_REV=" (por revisar)",SIS_PR="__rev";
+const SIS_CATS=["Emisores","Motores","Receptores","Sensores","Centralitas","Centralitas iluminación","Inversores y pulsadores"];
+const sisOf=i=>{const s=String(i.sistema||"").replace(/\s*\(por revisar\)\s*$/i,"").trim();return SISTEMAS.includes(s)?s:"";};
+const sisRev=i=>!!sisOf(i)&&/\(por revisar\)\s*$/i.test(String(i.sistema||""));
+const freqOf=i=>{const t=i.desc+" "+i.modelo;return /916/.test(t)?916:/868/.test(t)?868:0;};
+const compatOf=i=>{const s=sisOf(i),f=freqOf(i);return s?items.filter(x=>x.code!==i.code&&!x.obsoleta&&sisOf(x)===s&&(!f||!freqOf(x)||freqOf(x)===f)):[];};
 /* Documentación: manuales, guías rápidas y vídeos (hoja «Manuales»; un documento puede servir para varias referencias). */
 const DOC_TIPOS=["Instrucciones","Guía rápida","Vídeo","Programación"],DOC_ICO={"Instrucciones":"📄","Guía rápida":"⚡","Vídeo":"▶","Programación":"⚙"};
 const docsOf=code=>manuales.filter(m=>m.codes.includes(code));
@@ -28,7 +36,7 @@ const XLSX_URL="https:\/\/cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.m
 
 let S=null;               /* datos del servidor (boot) */
 let refs=[],fotos=[],items=[],revs=[],manuales=[],moveAsk=null;
-let sec=DEFSEC,cur="Todas",marca="Todas",view="cat",notFound=null,recog=null,confirmCode=null;
+let sec=DEFSEC,cur="Todas",marca="Todas",sis="",view="cat",notFound=null,recog=null,confirmCode=null;
 let pvOut=null,pvUrls=[];   /* último archivo preparado para la vista previa, para no repetirlo al exportar */
 let selMode=false,expOne=null;const selSet=new Set(),expCats=new Set();let expAddOn=true;
 let lbList=[],lbI=0,lbItem=null;
@@ -153,11 +161,16 @@ function chips(){
     (nObs?`<button class="chip obs" aria-pressed="${cur===OBS}" data-c="${OBS}">${OBS}<small>${nObs}</small></button>`:"");
   const inCat=hasMarca(cur)?act.filter(i=>i.cat===cur):[],ms=marcasIn(inCat);if(!ms.includes(marca))marca="Todas";
   $("#mchips").hidden=!ms.length;$("#mchips").innerHTML=ms.length?["Todas",...ms].map(m=>`<button class="chip" aria-pressed="${m===marca}" data-m="${esc(m)}">${m==="Todas"?"Todas las marcas":esc(m)}<small>${m==="Todas"?inCat.length:inCat.filter(i=>marcaOf(i)===m).length}</small></button>`).join(""):"";
+  const nS=x=>act.filter(i=>x===SIS_PR?sisRev(i):sisOf(i)===x).length,sl=SISTEMAS.filter(x=>nS(x)||x===sis),nPR=nS(SIS_PR);
+  if(sis&&sis!==SIS_PR&&!sl.includes(sis))sis="";if(sis===SIS_PR&&!nPR)sis="";
+  $("#sisF").hidden=!sl.length;$("#sisSel").innerHTML=`<option value="">Todos los sistemas</option>`+sl.map(x=>`<option value="${esc(x)}"${x===sis?" selected":""}>${esc(x)} (${nS(x)})</option>`).join("")+
+    (nPR?`<option value="${SIS_PR}"${sis===SIS_PR?" selected":""}>⚠ Por revisar (${nPR})</option>`:"");
   ["#chips","#mchips"].forEach(id=>{const r=$(id),b=r.querySelector('[aria-pressed="true"]');if(b&&r.scrollWidth>r.clientWidth)r.scrollLeft=b.offsetLeft-r.offsetLeft-(r.clientWidth-b.offsetWidth)/2;});
   updateFab();}
 $("#secs").addEventListener("click",e=>{const b=e.target.closest("button[data-s]");if(!b)return;sec=b.dataset.s;cur="Todas";marca="Todas";moveAsk=null;
   try{localStorage.setItem("cl_apartado",sec);}catch(_){}notFound=null;recog=null;confirmCode=null;$("#q").value="";chips();render();});
 $("#chips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;cur=b.dataset.c;marca="Todas";confirmCode=null;recog=null;chips();render();});
+$("#sisSel").addEventListener("change",e=>{sis=e.target.value;chips();render();});
 $("#mchips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;marca=b.dataset.m;chips();render();});
 /* En el ordenador, la rueda del ratón mueve en horizontal la fila de categorías o marcas. */
 ["#chips","#mchips"].forEach(id=>$(id).addEventListener("wheel",e=>{const r=e.currentTarget;if(r.scrollWidth<=r.clientWidth||Math.abs(e.deltaX)>Math.abs(e.deltaY))return;
@@ -263,9 +276,11 @@ function renderList(){
   if(cur===INC){const L=inSec.filter(incompleta),n=k=>L.filter(i=>faltas(i).includes(k)).length;
     $("#list").innerHTML=`<p class="note" style="margin:0 0 12px">Referencias incompletas: <b>${n("foto de etiqueta")}</b> sin foto de etiqueta, <b>${n("foto de producto")}</b> sin foto de producto y <b>${n("descripción")}</b> sin descripción. Usa «Hacer foto» o «✏ Editar» para completarlas.</p>`+
       catsOf(sec).filter(c=>L.some(i=>i.cat===c)).map(c=>`<section><h2>${esc(c)}</h2><div class="grid">${L.filter(i=>i.cat===c).map(x=>card(x)).join("")}</div></section>`).join("");return;}
-  const vis=inSec.filter(i=>!i.obsoleta&&(cur==="Todas"||i.cat===cur)&&(marca==="Todas"||marcaOf(i)===marca));
-  if(!vis.length){$("#list").innerHTML=`<p class="empty">Todavía no hay referencias en ${esc(sec)}. Pulsa «＋ Referencia» para añadir la primera.</p>`;return;}
-  $("#list").innerHTML=catsOf(sec).filter(c=>vis.some(i=>i.cat===c)).map(c=>`<section><h2>${esc(c)}${marca!=="Todas"?" · "+esc(marca):""}</h2>${
+  const sisOk=i=>!sis||(sis===SIS_PR?sisRev(i):sisOf(i)===sis);
+  const vis=inSec.filter(i=>!i.obsoleta&&(cur==="Todas"||i.cat===cur)&&(marca==="Todas"||marcaOf(i)===marca)&&sisOk(i));
+  if(!vis.length){$("#list").innerHTML=sis?`<p class="empty">Ninguna referencia de aquí tiene ese sistema.</p>`:`<p class="empty">Todavía no hay referencias en ${esc(sec)}. Pulsa «＋ Referencia» para añadir la primera.</p>`;return;}
+  const nRev=vis.filter(sisRev).length,can=!window.__pwa&&sis&&sis!==SIS_PR&&nRev;
+  $("#list").innerHTML=(sis?`<p class="note" style="margin:0 0 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span><b>${vis.length}</b> referencia${vis.length===1?"":"s"} ${sis===SIS_PR?"con el sistema por revisar (lo dedujo Claude de la descripción). Ábrelas y confírmalo o cámbialo en la ficha.":`del sistema <b>${esc(sis)}</b>${nRev?` · ${nRev} por revisar`:""}.`}</span>${can?`<button class="btn-s yes" data-sis-all>✓ Confirmar ${nRev===1?"la que falta":`las ${nRev}`}</button>`:""}</p>`:"")+catsOf(sec).filter(c=>vis.some(i=>i.cat===c)).map(c=>`<section><h2>${esc(c)}${marca!=="Todas"?" · "+esc(marca):""}</h2>${
     catBody(c,vis.filter(i=>i.cat===c).sort((a,b)=>b.nueva-a.nueva))}</section>`).join("");}
 
 function pane(i,kind){
@@ -364,9 +379,23 @@ function renderFicha(){const i=itemOf(fichaCode);if(!i){closeFicha();return;}
       <p class="note">Sacada de${src(pr)||" la web del fabricante"}. Si es esta pieza, será la foto que sale en la lista.</p>
       <div class="acts2"><button class="btn-l" data-ofi-no="${esc(pr.id)}">✕ Descartar</button><button class="btn-l primary" data-ofi-ok="${esc(pr.id)}">✓ Usar esta foto</button></div></div>`:"";
   const ofi=of?`<div class="fofi"><img src="${of.src}" alt="Foto oficial de ${esc(i.desc)}"><p class="note">Foto oficial del fabricante${of.page?" ·"+src(of):""}</p></div>`:"";
-  fichaBox.innerHTML=`<div class="fbar"><button class="btn-s" data-fclose>‹ Volver</button><b>${esc(secsOf(i).join(" + "))} · ${esc(i.cat)}</b></div><div class="fbody">${prop}${card(i)}${ofi}</div>`;
+  fichaBox.innerHTML=`<div class="fbar"><button class="btn-s" data-fclose>‹ Volver</button><b>${esc(secsOf(i).join(" + "))} · ${esc(i.cat)}</b></div><div class="fbody">${prop}${card(i)}${sisBox(i)}${ofi}</div>`;
   /* En la ficha, la foto del fabricante a buen tamaño (en la lista basta la miniatura). */
   const big=pr||of,code=i.code;if(big)fullSrc(big).then(u=>{const im=fichaBox.querySelector(".fofi img");if(im&&fichaCode===code)im.src=u;}).catch(()=>{});}
+/* Ficha: sistema (editable en la app completa) y «Compatible con», agrupado por categoría. */
+function sisBox(i){const s=sisOf(i),can=!window.__pwa;if(!s&&!SIS_CATS.includes(i.cat))return "";
+  const sel=can?`<select data-sis="${esc(i.code)}" aria-label="Sistema de ${esc(i.desc)}"><option value="">— Sin sistema —</option>${SISTEMAS.map(x=>`<option${x===s?" selected":""}>${esc(x)}</option>`).join("")}</select>`:`<b>${s?esc(s):"Sin sistema"}</b>`;
+  const rev=sisRev(i)?`<p class="note sisrev"><span>⚠ Por revisar: lo dedujo Claude de la descripción.</span>${can?`<button class="btn-s yes" data-sis-ok="${esc(i.code)}">✓ Confirmar</button>`:""}</p>`:"";
+  if(!s)return `<div class="fofi fsis"><h3>🔗 Sistema</h3>${sel}<p class="note">Elige el sistema para ver con qué mandos, motores y receptores es compatible.</p></div>`;
+  const L=compatOf(i),cats=[...SIS_CATS,...[...new Set(L.map(x=>x.cat))].filter(c=>!SIS_CATS.includes(c)).sort(byAZ)].filter(c=>L.some(x=>x.cat===c));
+  const cmp=L.length?cats.map(c=>{const g=L.filter(x=>x.cat===c).sort((a,b)=>String(a.desc).localeCompare(String(b.desc),"es"));
+    return `<h4>${esc(c)} <small>${g.length}</small></h4><div class="cmpl">${g.map(x=>`<button class="cmp" data-cmp="${esc(x.code)}"><b>${isSinRef(x.code)?"Sin código":esc(x.code)}</b><span>${esc(x.desc)}</span>${sisRev(x)?`<small title="Sistema por revisar">por revisar</small>`:""}</button>`).join("")}</div>`;}).join("")
+    :`<p class="note">Ninguna otra referencia del catálogo tiene este sistema.</p>`;
+  return `<div class="fofi fsis"><h3>🔗 Sistema</h3>${sel}${rev}<h3>Compatible con</h3>${cmp}</div>`;}
+async function saveSis(list,msg){const old=list.map(([c])=>[c,(itemOf(c)||{}).sistema||""]);
+  const put=L=>L.forEach(([c,v])=>{const r=refs.find(x=>x.code===c);if(r)r.sistema=v;const i=itemOf(c);if(i)i.sistema=v;});
+  put(list);chips();render();
+  try{await api("setSistemas",list);toast(msg);}catch(e){put(old);chips();render();toast(errMsg(e),5000);}}
 async function decideOfi(id,ok){const f=fotos.find(x=>x.id===id);if(!f)return;const code=f.code;
   try{await api("setOficial",id,ok);
     if(ok){fotos=fotos.filter(x=>!(x.code===code&&x.tipo==="Oficial"));f.tipo="Oficial";}else fotos=fotos.filter(x=>x.id!==id);
@@ -379,8 +408,11 @@ fichaBox.addEventListener("click",e=>{const t=e.target;
   if(t.closest("[data-fclose]")){if(history.state&&history.state.ficha)history.back();else closeFicha();return;}
   const ok=t.closest("[data-ofi-ok]");if(ok){ok.disabled=true;decideOfi(ok.dataset.ofiOk,true);return;}
   const no=t.closest("[data-ofi-no]");if(no){no.disabled=true;decideOfi(no.dataset.ofiNo,false);return;}
+  const cm=t.closest("[data-cmp]");if(cm){openFicha(cm.dataset.cmp);fichaBox.scrollTop=0;return;}
+  const so=t.closest("[data-sis-ok]");if(so){const i=itemOf(so.dataset.sisOk);if(i)saveSis([[i.code,sisOf(i)]],"Sistema confirmado.");return;}
   listClick(e);});
-fichaBox.addEventListener("change",listChange);
+fichaBox.addEventListener("change",e=>{const s=e.target.closest&&e.target.closest("select[data-sis]");
+  if(s){saveSis([[s.dataset.sis,s.value]],s.value?`Sistema: ${s.value}.`:"Sin sistema.");return;}listChange(e);});
 
 /* ---------- acciones del catálogo ---------- */
 const CROP_JS="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js";
@@ -406,6 +438,8 @@ $("#list").addEventListener("change",listChange);
 $("#list").addEventListener("click",listClick);
 $("#list").addEventListener("keydown",e=>{const o=e.target.closest&&e.target.closest("[data-open]");if(o&&(e.key==="Enter"||e.key===" ")&&e.target===o){e.preventDefault();openFicha(o.dataset.open);}});
 async function listClick(e){const t=e.target;
+  if(t.closest("[data-sis-all]")){const L=items.filter(i=>inS(i,sec)&&!i.obsoleta&&sisRev(i)&&sisOf(i)===sis&&(cur==="Todas"||i.cat===cur)&&(marca==="Todas"||marcaOf(i)===marca));
+    if(L.length)saveSis(L.map(i=>[i.code,sisOf(i)]),`Confirmado el sistema de ${L.length} referencia${L.length===1?"":"s"}.`);return;}
   const op=t.closest("[data-open]");if(op&&!t.closest("a,button,label,input")){openFicha(op.dataset.open);return;}
   const cp=t.closest("[data-copy]");if(cp){const v=cp.dataset.copy;try{await navigator.clipboard.writeText(v);cp.textContent="Copiado";setTimeout(()=>cp.textContent="Copiar",1400);}
     catch(_){const r=document.createRange();r.selectNodeContents(cp.closest(".code").querySelector("b"));const s=getSelection();s.removeAllRanges();s.addRange(r);}return;}
