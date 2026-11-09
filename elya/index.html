@@ -158,7 +158,8 @@ button.del{padding:7px 10px;font-size:13px;color:var(--bad)}
 .zbox .pags{margin:0 auto;display:grid;gap:12px}.zbox .pags img{width:100%;display:block;border:1px solid var(--line);background:#fff}
 .unides{display:flex;gap:6px;align-items:center;font-size:13px;margin-left:auto}.unides select{width:auto;padding:3px 6px}
 .cli-can{border-collapse:collapse;margin:0 0 14px;font-size:15px}.cli-can td,.cli-can th{border:1px solid var(--line);padding:8px 12px;text-align:left}.cli-can td:first-child{font-weight:700;font-size:18px;text-align:center}
-.cli-pl{display:grid;gap:12px}.cli-pl svg{width:100%;height:auto;max-width:720px}
+/* En pantalla el plano del cliente no se ve (es el mismo que «Planta y tiras LED»): sale al imprimir, en la vista previa y en la página guardada. */
+.cli-pl{display:none;gap:12px}@media print{.cli-pl{display:grid}.cli-nota{display:none}}.cli-pl svg{width:100%;height:auto;max-width:720px}
 .adjbox{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:8px;font-size:13px}.adjbox span{display:flex;flex-wrap:wrap;gap:6px}
 @media print{.zoom{display:none!important}.plantas figcaption button{display:none}.plantas{display:block}.plantas figure{border:0;padding:0;margin:0 0 8px;break-inside:avoid}.plantas svg{max-height:800px;display:block;margin-inline:auto}[data-hoja="cliente"] .cli-pl svg{max-height:800px}}
 main{display:grid;gap:20px;min-width:0}
@@ -3037,7 +3038,7 @@ function pintaCliente(cfg,r,cj){
   const juntos=x=>x.k==="ind"&&(r.canales||[]).some(y=>y.k==="peri"&&y.mi===x.mi&&y.c===x.c&&y.em===x.em&&y.mando===x.mando);
   const filas=(r.canales||[]).filter(x=>!juntos(x)).slice().sort((a,b)=>a.em===b.em?(a.mando||1)-(b.mando||1)||a.c-b.c:0).map(x=>`<tr><td>${x.c}</td><td>${esc(x.k==="peri"&&(r.canales||[]).some(juntos)&&lucesDe(r.plan[x.mi].m).includes("rgb")?"Luz RGB del perímetro (directa e indirecta)":QUE[x.k])}${nm?` · módulo ${x.mi+1}`:""}</td><td>${esc(C[x.em][1])}${x.nM>1?` · mando nº ${x.mando}`:""}</td></tr>`).join("");
   const planos=(cj?`<figure>${cj.svg}</figure>`:"")+r.plan.map(pm=>`<figure><figcaption>${esc(pm.m.nombre)}</figcaption>${dibujaModulo(pm,cfg).replace(/\s*·\s*caída\s+[\d.,]+\s*%/g,"")}<ul class="rutas">${recorridos(pm,cfg).map(x=>`<li>${x.replace(/\s*<b>Aviso para taller:<\/b>[^<]*$/,"").replace(/\s*Caída ≈[^)]*\)[^.]*\.?/g,"").replace(/\s*Caída ≈[^.]*\.[^.]*\./g,"")}</li>`).join("")}</ul></figure>`).join("");
-  $("cliente").innerHTML=`<p>${esc(cfg.obra||"")}</p>${filas?`<table class="cli-can"><thead><tr><th>Canal</th><th>Qué hace</th><th>Mando</th></tr></thead><tbody>${filas}</tbody></table>`:""}${(r.canales||[]).some(x=>x.em==="pop")?`<p class="hint">En el mando Pop Plus, el canal 0 es el común: mueve y enciende todo a la vez.</p>`:""}<div class="cli-pl">${planos}</div>`;
+  $("cliente").innerHTML=`<p>${esc(cfg.obra||"")}</p>${filas?`<table class="cli-can"><thead><tr><th>Canal</th><th>Qué hace</th><th>Mando</th></tr></thead><tbody>${filas}</tbody></table>`:""}${(r.canales||[]).some(x=>x.em==="pop")?`<p class="hint">En el mando Pop Plus, el canal 0 es el común: mueve y enciende todo a la vez.</p>`:""}<p class="hint cli-nota">El plano de esta hoja sale al imprimir y en la vista previa («Imprimir» → «Cliente»). En pantalla, el plano para trabajar es el de «Planta y tiras LED».</p><div class="cli-pl">${planos}</div>`;
 }
 /* Material = lo calculado con los cambios a mano encima. */
 function bomFinal(r){
@@ -3682,14 +3683,14 @@ async function documentoImprimir(tit){
   impCuadro=null;impVert=null;sinTraducir=false;render();
   const d=new DOMParser().parseFromString(html,"text/html");if(tit)d.title=tit;
   d.querySelectorAll("[data-hoja]").forEach(sec=>{if(impPref.hojas[sec.dataset.hoja]===false)sec.remove();});
-  d.querySelectorAll("#vacio,[data-amp],.zoom").forEach(e=>e.remove());
+  d.querySelectorAll("#vacio,[data-amp],.zoom,.cli-nota").forEach(e=>e.remove());
   d.querySelectorAll(".hint").forEach(e=>{if(/^\s*(Plano interactivo|Arriba, toda|Cambia cualquier)/.test(e.textContent))e.remove();});
   if(cli)limpiaCliente(d);
   ponPortada(d,cfg,cli);
   const bar=d.createElement("div");bar.className="barimp";
   bar.innerHTML=`<button onclick="window.print()">Imprimir / Guardar PDF</button><span>En la ventana de imprimir, elige la impresora o «Guardar como PDF».</span>`;
   d.body.prepend(bar);
-  const st=d.createElement("style");st.textContent=`.barimp{display:flex;gap:12px;align-items:center;flex-wrap:wrap;max-width:1100px;margin:12px auto;padding:10px 12px;border:1px solid #c4561d;border-radius:6px;font:14px system-ui}.barimp button{font:600 15px system-ui;padding:8px 14px;background:#c4561d;color:#fff;border:0;border-radius:4px;cursor:pointer}@media print{.barimp{display:none}}
+  const st=d.createElement("style");st.textContent=`.cli-pl{display:grid}.barimp{display:flex;gap:12px;align-items:center;flex-wrap:wrap;max-width:1100px;margin:12px auto;padding:10px 12px;border:1px solid #c4561d;border-radius:6px;font:14px system-ui}.barimp button{font:600 15px system-ui;padding:8px 14px;background:#c4561d;color:#fff;border:0;border-radius:4px;cursor:pointer}@media print{.barimp{display:none}}
 .portada{font-family:Quicksand,var(--f-body);color:var(--ink);padding-bottom:10mm}.portada h1,.portada h2{font-family:inherit}
 .porlogo{background:#b3a889;padding:9mm 10mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}.porlogo img{display:block;width:92mm;max-width:100%;height:auto}
 .portada h1{font-size:44px;font-weight:600;margin:22mm 0 0}.porraya{height:4px;width:64px;background:#b3a889;margin:12px 0 16px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
