@@ -17,6 +17,9 @@ const SISTEMAS=["A-OK WiFi 433","A-OK WiFi 868","A-OK/EON 868","Cable","Cherubin
 const SIS_CATS=["Emisores","Motores","Receptores","Sensores","Centralitas","Centralitas iluminación","Inversores y pulsadores"];
 const sisOf=i=>{const s=String(i.sistema||"").replace(/\s*\(por revisar\)\s*$/i,"").trim();return SISTEMAS.includes(s)?s:"";};
 const sisRev=i=>!!sisOf(i)&&/\(por revisar\)\s*$/i.test(String(i.sistema||""));
+/* Proveedor de compras (columna «Proveedor»): nombre corto → código de proveedor. No es la marca. */
+const PROVEEDORES={"iPixel":{codigo:"300027",nombre:"IPIXEL LED LIGHT CO., LTD"}};
+const provOf=i=>String(i.proveedor||"").trim();
 const freqOf=i=>{const t=i.desc+" "+i.modelo;return /916/.test(t)?916:/868/.test(t)?868:0;};
 const compatOf=i=>{const s=sisOf(i),f=freqOf(i);return s?items.filter(x=>x.code!==i.code&&!x.obsoleta&&sisOf(x)===s&&(!f||!freqOf(x)||freqOf(x)===f)):[];};
 /* Documentación: manuales, guías rápidas y vídeos (hoja «Manuales»; un documento puede servir para varias referencias). */
@@ -36,7 +39,7 @@ const XLSX_URL="https:\/\/cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.m
 
 let S=null;               /* datos del servidor (boot) */
 let refs=[],fotos=[],items=[],revs=[],manuales=[],moveAsk=null;
-let sec=DEFSEC,cur="Todas",marca="Todas",sis="",view="cat",notFound=null,recog=null,confirmCode=null;
+let sec=DEFSEC,cur="Todas",marca="Todas",sis="",prov="",view="cat",notFound=null,recog=null,confirmCode=null;
 let pvOut=null,pvUrls=[];   /* último archivo preparado para la vista previa, para no repetirlo al exportar */
 let selMode=false,expOne=null;const selSet=new Set(),expCats=new Set();let expAddOn=true;
 let lbList=[],lbI=0,lbItem=null;
@@ -165,12 +168,15 @@ function chips(){
   if(sis&&sis!==SIS_PR&&!sl.includes(sis))sis="";if(sis===SIS_PR&&!nPR)sis="";
   $("#sisF").hidden=!sl.length;$("#sisSel").innerHTML=`<option value="">Todos los sistemas</option>`+sl.map(x=>`<option value="${esc(x)}"${x===sis?" selected":""}>${esc(x)} (${nS(x)})</option>`).join("")+
     (nPR?`<option value="${SIS_PR}"${sis===SIS_PR?" selected":""}>⚠ Por revisar (${nPR})</option>`:"");
+  const nP=x=>act.filter(i=>provOf(i)===x).length,pl=[...new Set(act.map(provOf).filter(Boolean))].sort(byAZ);if(prov&&!pl.includes(prov))prov="";
+  $("#provF").hidden=!pl.length;$("#provSel").innerHTML=`<option value="">Todos los proveedores</option>`+pl.map(x=>`<option value="${esc(x)}"${x===prov?" selected":""}>${esc(x)} (${nP(x)})</option>`).join("");
   ["#chips","#mchips"].forEach(id=>{const r=$(id),b=r.querySelector('[aria-pressed="true"]');if(b&&r.scrollWidth>r.clientWidth)r.scrollLeft=b.offsetLeft-r.offsetLeft-(r.clientWidth-b.offsetWidth)/2;});
   updateFab();}
 $("#secs").addEventListener("click",e=>{const b=e.target.closest("button[data-s]");if(!b)return;sec=b.dataset.s;cur="Todas";marca="Todas";moveAsk=null;
   try{localStorage.setItem("cl_apartado",sec);}catch(_){}notFound=null;recog=null;confirmCode=null;$("#q").value="";chips();render();});
 $("#chips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;cur=b.dataset.c;marca="Todas";confirmCode=null;recog=null;chips();render();});
 $("#sisSel").addEventListener("change",e=>{sis=e.target.value;chips();render();});
+$("#provSel").addEventListener("change",e=>{prov=e.target.value;chips();render();});
 $("#mchips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;marca=b.dataset.m;chips();render();});
 /* En el ordenador, la rueda del ratón mueve en horizontal la fila de categorías o marcas. */
 ["#chips","#mchips"].forEach(id=>$(id).addEventListener("wheel",e=>{const r=e.currentTarget;if(r.scrollWidth<=r.clientWidth||Math.abs(e.deltaX)>Math.abs(e.deltaY))return;
@@ -195,7 +201,7 @@ const sim=(a,b)=>{if(a===b)return 1;if(a.length>=3&&b.startsWith(a))return .95;i
 /* Decimales iguales en la hoja y en lo que se dice: «1.50 m», «1,5» y «uno coma cinco» → 1p5; «7.00» → 7. */
 const decs=t=>t.replace(/(\d+)\s*[.,]\s*(\d+)/g,(m,a,b)=>{b=b.replace(/0+$/,"");return b?a+"p"+b:a;});
 const NUMW={cero:"0",uno:"1",una:"1",dos:"2",tres:"3",cuatro:"4",cinco:"5",seis:"6",siete:"7",ocho:"8",nueve:"9",diez:"10",cien:"100",doscientos:"200"};
-const itemWords=i=>i._w||(i._w=[...new Set(decs(norm([i.desc,i.modelo,i.cat,marcaOf(i),i.medida,i.canal,secsOf(i).join(" ")].join(" "))).split(/[^a-z0-9]+/).filter(w=>w.length>1||/\d/.test(w)).map(fon))]);
+const itemWords=i=>i._w||(i._w=[...new Set(decs(norm([i.desc,i.modelo,i.cat,marcaOf(i),provOf(i),i.medida,i.canal,secsOf(i).join(" ")].join(" "))).split(/[^a-z0-9]+/).filter(w=>w.length>1||/\d/.test(w)).map(fon))]);
 /* Palabras de la búsqueda; cada una con sus variantes. La voz a veces parte una palabra («a largo» = alargo): la letra suelta se prueba pegada a la siguiente. */
 function qToks(qRaw){let q=norm(qRaw).replace(/\b(cero|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|cien|doscientos)\b/g,m=>NUMW[m]);
   q=decs(q.replace(/(\d)\s+(?:coma|punto|con)\s+(\d)/g,"$1,$2"));
@@ -251,7 +257,7 @@ function renderList(){
   if(notFound&&$("#q").value===notFound.code){
     $("#list").innerHTML=`<div class="nf"><b>${esc(notFound.code)}</b><p class="sub">Este código no está en ningún apartado.</p><button class="btn-l primary" id="nfAdd">Dar de alta con esta foto</button></div>`;
     $("#nfAdd").onclick=()=>openAdd(notFound.code,notFound.file);return;}
-  const qRaw=$("#q").value.trim(),q=norm(qRaw),match=i=>norm([i.code,i.desc,i.modelo,i.medida,i.canal,i.cat,marcaOf(i)].join(" ")).includes(q);
+  const qRaw=$("#q").value.trim(),q=norm(qRaw),match=i=>norm([i.code,i.desc,i.modelo,i.medida,i.canal,i.cat,marcaOf(i),provOf(i)].join(" ")).includes(q);
   if(q){let vis=items.filter(i=>(cur===OBS?i.obsoleta:!i.obsoleta)&&match(i));
     if(fuzzyQ||!vis.length){const f=fuzzy(qRaw,cur===OBS);
       if(f.length){$("#list").innerHTML=`<p class="note" style="margin:0 0 12px">${fuzzyQ?"Lo que más se parece":"Ninguna coincide exacta. Lo más parecido"} a «${esc(qRaw)}», de más a menos:</p>${grid(f)}`;return;}}
@@ -277,10 +283,10 @@ function renderList(){
     $("#list").innerHTML=`<p class="note" style="margin:0 0 12px">Referencias incompletas: <b>${n("foto de etiqueta")}</b> sin foto de etiqueta, <b>${n("foto de producto")}</b> sin foto de producto y <b>${n("descripción")}</b> sin descripción. Usa «Hacer foto» o «✏ Editar» para completarlas.</p>`+
       catsOf(sec).filter(c=>L.some(i=>i.cat===c)).map(c=>`<section><h2>${esc(c)}</h2><div class="grid">${L.filter(i=>i.cat===c).map(x=>card(x)).join("")}</div></section>`).join("");return;}
   const sisOk=i=>!sis||(sis===SIS_PR?sisRev(i):sisOf(i)===sis);
-  const vis=inSec.filter(i=>!i.obsoleta&&(cur==="Todas"||i.cat===cur)&&(marca==="Todas"||marcaOf(i)===marca)&&sisOk(i));
-  if(!vis.length){$("#list").innerHTML=sis?`<p class="empty">Ninguna referencia de aquí tiene ese sistema.</p>`:`<p class="empty">Todavía no hay referencias en ${esc(sec)}. Pulsa «＋ Referencia» para añadir la primera.</p>`;return;}
+  const vis=inSec.filter(i=>!i.obsoleta&&(cur==="Todas"||i.cat===cur)&&(marca==="Todas"||marcaOf(i)===marca)&&sisOk(i)&&(!prov||provOf(i)===prov));
+  if(!vis.length){$("#list").innerHTML=sis||prov?`<p class="empty">Ninguna referencia de aquí tiene ese ${sis&&prov?"sistema y ese proveedor":sis?"sistema":"proveedor"}.</p>`:`<p class="empty">Todavía no hay referencias en ${esc(sec)}. Pulsa «＋ Referencia» para añadir la primera.</p>`;return;}
   const nRev=vis.filter(sisRev).length,can=!window.__pwa&&sis&&sis!==SIS_PR&&nRev;
-  $("#list").innerHTML=(sis?`<p class="note" style="margin:0 0 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span><b>${vis.length}</b> referencia${vis.length===1?"":"s"} ${sis===SIS_PR?"con el sistema por revisar (lo dedujo Claude de la descripción). Ábrelas y confírmalo o cámbialo en la ficha.":`del sistema <b>${esc(sis)}</b>${nRev?` · ${nRev} por revisar`:""}.`}</span>${can?`<button class="btn-s yes" data-sis-all>✓ Confirmar ${nRev===1?"la que falta":`las ${nRev}`}</button>`:""}</p>`:"")+catsOf(sec).filter(c=>vis.some(i=>i.cat===c)).map(c=>`<section><h2>${esc(c)}${marca!=="Todas"?" · "+esc(marca):""}</h2>${
+  $("#list").innerHTML=(sis?`<p class="note" style="margin:0 0 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span><b>${vis.length}</b> referencia${vis.length===1?"":"s"} ${sis===SIS_PR?"con el sistema por revisar (lo dedujo Claude de la descripción). Ábrelas y confírmalo o cámbialo en la ficha.":`del sistema <b>${esc(sis)}</b>${nRev?` · ${nRev} por revisar`:""}.`}</span>${can?`<button class="btn-s yes" data-sis-all>✓ Confirmar ${nRev===1?"la que falta":`las ${nRev}`}</button>`:""}</p>`:"")+(prov?`<p class="note" style="margin:0 0 12px"><b>${vis.length}</b> referencia${vis.length===1?"":"s"} del proveedor <b>${esc(prov)}</b>${PROVEEDORES[prov]?` (código ${esc(PROVEEDORES[prov].codigo)})`:""}.</p>`:"")+catsOf(sec).filter(c=>vis.some(i=>i.cat===c)).map(c=>`<section><h2>${esc(c)}${marca!=="Todas"?" · "+esc(marca):""}</h2>${
     catBody(c,vis.filter(i=>i.cat===c).sort((a,b)=>b.nueva-a.nueva))}</section>`).join("");}
 
 function pane(i,kind){
@@ -311,7 +317,7 @@ function card(i,ex){
     <div class="body">
       <div class="code"><b>${isSinRef(i.code)?`Sin código <small style="font-weight:400;opacity:.7">${esc(i.code)}</small>`:esc(i.code)}</b><span style="display:flex;gap:6px"><button class="btn-s" data-copy="${esc(i.code)}">Copiar</button><button class="btn-s" data-exp1="${esc(i.code)}" aria-label="Exportar ${esc(i.code)}">⬇</button></span></div>
       <p class="desc">${esc(i.desc)}</p>
-      <div class="tags">${cur===INC&&!ex?faltas(i).map(f=>`<span class="tag" style="background:#FBEFD2;color:#8A5A00">Falta ${esc(f)}</span>`).join(""):""}${i.nueva?`<span class="tag new">Nueva</span>`:""}${sec===ALL?`<span class="tag">${esc(secsOf(i).join(" + "))}</span>`:""}${(()=>{if(sec===ALL)return "";const o=secsOf(i).filter(s=>s!==sec);return o.length&&(i.also||[]).length?`<span class="tag">También en ${esc(o.join(", "))}</span>`:"";})()}${i.obsoleta?`<span class="tag obs">Obsoleta · ${esc(i.cat)}</span>`:""}${marcaOf(i)&&marcaOf(i)!==OTRAS?`<span class="tag">${esc(marcaOf(i))}</span>`:""}${i.medida?`<span class="tag">${esc(i.medida)}</span>`:""}${i.canal?`<span class="tag">${esc(i.canal)}</span>`:""}${hasStock(i)?`<span class="tag">Stock seg.: ${i.stock}</span>`:""}</div>
+      <div class="tags">${cur===INC&&!ex?faltas(i).map(f=>`<span class="tag" style="background:#FBEFD2;color:#8A5A00">Falta ${esc(f)}</span>`).join(""):""}${i.nueva?`<span class="tag new">Nueva</span>`:""}${sec===ALL?`<span class="tag">${esc(secsOf(i).join(" + "))}</span>`:""}${(()=>{if(sec===ALL)return "";const o=secsOf(i).filter(s=>s!==sec);return o.length&&(i.also||[]).length?`<span class="tag">También en ${esc(o.join(", "))}</span>`:"";})()}${i.obsoleta?`<span class="tag obs">Obsoleta · ${esc(i.cat)}</span>`:""}${marcaOf(i)&&marcaOf(i)!==OTRAS?`<span class="tag">${esc(marcaOf(i))}</span>`:""}${i.medida?`<span class="tag">${esc(i.medida)}</span>`:""}${i.canal?`<span class="tag">${esc(i.canal)}</span>`:""}${hasStock(i)?`<span class="tag">Stock seg.: ${i.stock}</span>`:""}${provOf(i)?`<span class="tag prov">Prov.: ${esc(provOf(i))}</span>`:""}</div>
       ${i.modelo?`<p class="mod">${linkify(i.modelo)}</p>`:""}${docBtns(i)}
       ${ex?`<p class="why"><span><span class="tag c-${esc(ex.conf)}">Confianza ${esc(ex.conf)}</span> <span class="tag">${esc(secsOf(i).join(" + "))} · ${esc(i.cat)}</span></span>${ex.motivo?`<span>${esc(ex.motivo)}</span>`:""}</p>`:""}
       <div class="foot">${foot}</div>
@@ -373,7 +379,7 @@ function cardS(i){const p=listPic(i),m=marcaOf(i),nd=docsOf(i.code).length,web=p
   return `<article class="card cs${i.obsoleta?" is-obs":""}" data-open="${esc(i.code)}" tabindex="0" aria-label="Ver la ficha de ${esc(i.desc)}">
     <div class="csph">${p?`<img src="${p.src}" alt="" loading="lazy" class="${p.gen?"gen ":web?"web ":""}${p.rot?"r"+p.rot:""}">`:`<span>Sin foto</span>`}${i.prop.length?`<span class="csnew">📸 Por confirmar</span>`:""}</div>
     <div class="body"><b class="cscode">${isSinRef(i.code)?"Sin código":esc(i.code)}</b><p class="desc">${esc(i.desc)}</p>
-      <div class="tags">${i.nueva?`<span class="tag new">Nueva</span>`:""}${i.obsoleta?`<span class="tag obs">Obsoleta</span>`:""}${m&&m!==OTRAS?`<span class="tag">${esc(m)}</span>`:""}${i.medida?`<span class="tag">${esc(i.medida)}</span>`:""}${i.canal?`<span class="tag">${esc(i.canal)}</span>`:""}${nd?`<span class="tag">📚 ${nd}</span>`:""}</div></div></article>`;}
+      <div class="tags">${i.nueva?`<span class="tag new">Nueva</span>`:""}${i.obsoleta?`<span class="tag obs">Obsoleta</span>`:""}${m&&m!==OTRAS?`<span class="tag">${esc(m)}</span>`:""}${i.medida?`<span class="tag">${esc(i.medida)}</span>`:""}${i.canal?`<span class="tag">${esc(i.canal)}</span>`:""}${nd?`<span class="tag">📚 ${nd}</span>`:""}${provOf(i)?`<span class="tag prov">Prov.: ${esc(provOf(i))}</span>`:""}</div></div></article>`;}
 let fichaCode=null;
 const fichaBox=document.createElement("div");fichaBox.id="ficha";fichaBox.hidden=true;fichaBox.setAttribute("role","dialog");fichaBox.setAttribute("aria-modal","true");document.body.appendChild(fichaBox);
 const host=u=>{try{return new URL(u).hostname.replace(/^www\./,"");}catch(_){return "la web del fabricante";}};
@@ -387,9 +393,12 @@ function renderFicha(){const i=itemOf(fichaCode);if(!i){closeFicha();return;}
       <p class="note">Sacada de${src(pr)||" la web del fabricante"}. Si es esta pieza, será la foto que sale en la lista.</p>
       <div class="acts2"><button class="btn-l" data-ofi-no="${esc(pr.id)}">✕ Descartar</button><button class="btn-l primary" data-ofi-ok="${esc(pr.id)}">✓ Usar esta foto</button></div></div>`:"";
   const ofi=of?`<div class="fofi"><img src="${of.src}" alt="Foto oficial de ${esc(i.desc)}"><p class="note">Foto oficial del fabricante${of.page?" ·"+src(of):""}</p></div>`:"";
-  fichaBox.innerHTML=`<div class="fbar"><button class="btn-s" data-fclose>‹ Volver</button><b>${esc(secsOf(i).join(" + "))} · ${esc(i.cat)}</b></div><div class="fbody">${prop}${card(i)}${sisBox(i)}${ofi}</div>`;
+  fichaBox.innerHTML=`<div class="fbar"><button class="btn-s" data-fclose>‹ Volver</button><b>${esc(secsOf(i).join(" + "))} · ${esc(i.cat)}</b></div><div class="fbody">${prop}${card(i)}${provBox(i)}${sisBox(i)}${ofi}</div>`;
   /* En la ficha, la foto del fabricante a buen tamaño (en la lista basta la miniatura). */
   const big=pr||of,code=i.code;if(big)fullSrc(big).then(u=>{const im=fichaBox.querySelector(".fofi img");if(im&&fichaCode===code)im.src=u;}).catch(()=>{});}
+/* Ficha: proveedor de compras con su código. */
+function provBox(i){const p=provOf(i),d=PROVEEDORES[p];if(!p)return "";
+  return `<div class="fofi fprov"><h3>🏭 Proveedor</h3><p><b>${esc(p)}</b>${d?` · código de proveedor <b>${esc(d.codigo)}</b>`:""}</p>${d?`<p class="note">${esc(d.nombre)}</p>`:""}</div>`;}
 /* Ficha: sistema (editable en la app completa) y «Compatible con», agrupado por categoría. */
 function sisBox(i){const s=sisOf(i),can=!window.__pwa;if(!s&&!SIS_CATS.includes(i.cat))return "";
   const sel=can?`<select data-sis="${esc(i.code)}" aria-label="Sistema de ${esc(i.desc)}"><option value="">— Sin sistema —</option>${SISTEMAS.map(x=>`<option${x===s?" selected":""}>${esc(x)}</option>`).join("")}</select>`:`<b>${s?esc(s):"Sin sistema"}</b>`;
@@ -1042,8 +1051,8 @@ const xlCols=(aoa,desde=0)=>{const n=Math.max(...aoa.map(r=>r.length));return Ar
 const xlName=(t,usadas)=>{let b=String(t).replace(/[[\]:*?/\\]/g," ").trim().slice(0,31)||"Hoja",n=b,k=2;while(usadas.has(n.toLowerCase()))n=b.slice(0,28)+" "+(k++);usadas.add(n.toLowerCase());return n;};
 /* Excel del catálogo: hoja «Todo» y una hoja por categoría (en orden alfabético), cada una con su filtro. */
 async function expXlsx(list,name,msg){msg.textContent="Preparando el Excel…";await loadLib(XLSX_URL,"XLSX");
-  const H=["Apartado","Categoría","Marca","Código","Descripción","Medida / formato","Canal / color","Modelo / notas","Sistema","Stock seguridad","Foto etiqueta","Foto producto","Obsoleta"];
-  const row=i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,i.canal,i.modelo,sisOf(i)?sisOf(i)+(sisRev(i)?SIS_REV:""):"",hasStock(i)?i.stock:"",i.photos.length?"Sí":"No",prodOf(i).length?"Sí":"No",i.obsoleta?"Sí":"No"];
+  const H=["Apartado","Categoría","Marca","Código","Descripción","Medida / formato","Canal / color","Modelo / notas","Sistema","Stock seguridad","Foto etiqueta","Foto producto","Obsoleta","Proveedor","Código proveedor"];
+  const row=i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,i.canal,i.modelo,sisOf(i)?sisOf(i)+(sisRev(i)?SIS_REV:""):"",hasStock(i)?i.stock:"",i.photos.length?"Sí":"No",prodOf(i).length?"Sí":"No",i.obsoleta?"Sí":"No",provOf(i),PROVEEDORES[provOf(i)]?PROVEEDORES[provOf(i)].codigo:""];
   const hoja=L=>{const aoa=[H,...L.map(row)],ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=xlCols(aoa);ws["!autofilter"]={ref:`A1:${XLSX.utils.encode_col(H.length-1)}${aoa.length}`};return ws;};
   const wb=XLSX.utils.book_new(),usadas=new Set();XLSX.utils.book_append_sheet(wb,hoja(list),xlName("Todo",usadas));
   [...new Set(list.map(i=>i.cat))].sort(byAZ).forEach(c=>XLSX.utils.book_append_sheet(wb,hoja(list.filter(i=>i.cat===c)),xlName(c,usadas)));
