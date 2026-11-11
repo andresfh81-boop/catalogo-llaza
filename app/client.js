@@ -19,7 +19,7 @@ const sisOf=i=>{const s=String(i.sistema||"").replace(/\s*\(por revisar\)\s*$/i,
 const sisRev=i=>!!sisOf(i)&&/\(por revisar\)\s*$/i.test(String(i.sistema||""));
 /* Proveedor de compras (columna «Proveedor»): nombre corto → código de proveedor. No es la marca. */
 const PROVEEDORES={"iPixel":{codigo:"300027",nombre:"IPIXEL LED LIGHT CO., LTD"}};
-const provOf=i=>String(i.proveedor||"").trim();
+const provOf=i=>String(i.proveedor||"").trim(),refProvOf=i=>String(i.refProv||"").trim();
 const freqOf=i=>{const t=i.desc+" "+i.modelo;return /916/.test(t)?916:/868/.test(t)?868:0;};
 const compatOf=i=>{const s=sisOf(i),f=freqOf(i);return s?items.filter(x=>x.code!==i.code&&!x.obsoleta&&sisOf(x)===s&&(!f||!freqOf(x)||freqOf(x)===f)):[];};
 /* Documentación: manuales, guías rápidas y vídeos (hoja «Manuales»; un documento puede servir para varias referencias). */
@@ -201,7 +201,7 @@ const sim=(a,b)=>{if(a===b)return 1;if(a.length>=3&&b.startsWith(a))return .95;i
 /* Decimales iguales en la hoja y en lo que se dice: «1.50 m», «1,5» y «uno coma cinco» → 1p5; «7.00» → 7. */
 const decs=t=>t.replace(/(\d+)\s*[.,]\s*(\d+)/g,(m,a,b)=>{b=b.replace(/0+$/,"");return b?a+"p"+b:a;});
 const NUMW={cero:"0",uno:"1",una:"1",dos:"2",tres:"3",cuatro:"4",cinco:"5",seis:"6",siete:"7",ocho:"8",nueve:"9",diez:"10",cien:"100",doscientos:"200"};
-const itemWords=i=>i._w||(i._w=[...new Set(decs(norm([i.desc,i.modelo,i.cat,marcaOf(i),provOf(i),i.medida,i.canal,secsOf(i).join(" ")].join(" "))).split(/[^a-z0-9]+/).filter(w=>w.length>1||/\d/.test(w)).map(fon))]);
+const itemWords=i=>i._w||(i._w=[...new Set(decs(norm([i.desc,i.modelo,i.cat,marcaOf(i),provOf(i),refProvOf(i),i.medida,i.canal,secsOf(i).join(" ")].join(" "))).split(/[^a-z0-9]+/).filter(w=>w.length>1||/\d/.test(w)).map(fon))]);
 /* Palabras de la búsqueda; cada una con sus variantes. La voz a veces parte una palabra («a largo» = alargo): la letra suelta se prueba pegada a la siguiente. */
 function qToks(qRaw){let q=norm(qRaw).replace(/\b(cero|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|cien|doscientos)\b/g,m=>NUMW[m]);
   q=decs(q.replace(/(\d)\s+(?:coma|punto|con)\s+(\d)/g,"$1,$2"));
@@ -257,7 +257,7 @@ function renderList(){
   if(notFound&&$("#q").value===notFound.code){
     $("#list").innerHTML=`<div class="nf"><b>${esc(notFound.code)}</b><p class="sub">Este código no está en ningún apartado.</p><button class="btn-l primary" id="nfAdd">Dar de alta con esta foto</button></div>`;
     $("#nfAdd").onclick=()=>openAdd(notFound.code,notFound.file);return;}
-  const qRaw=$("#q").value.trim(),q=norm(qRaw),match=i=>norm([i.code,i.desc,i.modelo,i.medida,i.canal,i.cat,marcaOf(i),provOf(i)].join(" ")).includes(q);
+  const qRaw=$("#q").value.trim(),q=norm(qRaw),match=i=>norm([i.code,i.desc,i.modelo,i.medida,i.canal,i.cat,marcaOf(i),provOf(i),refProvOf(i)].join(" ")).includes(q);
   if(q){let vis=items.filter(i=>(cur===OBS?i.obsoleta:!i.obsoleta)&&match(i));
     if(fuzzyQ||!vis.length){const f=fuzzy(qRaw,cur===OBS);
       if(f.length){$("#list").innerHTML=`<p class="note" style="margin:0 0 12px">${fuzzyQ?"Lo que más se parece":"Ninguna coincide exacta. Lo más parecido"} a «${esc(qRaw)}», de más a menos:</p>${grid(f)}`;return;}}
@@ -397,8 +397,8 @@ function renderFicha(){const i=itemOf(fichaCode);if(!i){closeFicha();return;}
   /* En la ficha, la foto del fabricante a buen tamaño (en la lista basta la miniatura). */
   const big=pr||of,code=i.code;if(big)fullSrc(big).then(u=>{const im=fichaBox.querySelector(".fofi img");if(im&&fichaCode===code)im.src=u;}).catch(()=>{});}
 /* Ficha: proveedor de compras con su código. */
-function provBox(i){const p=provOf(i),d=PROVEEDORES[p];if(!p)return "";
-  return `<div class="fofi fprov"><h3>🏭 Proveedor</h3><p><b>${esc(p)}</b>${d?` · código de proveedor <b>${esc(d.codigo)}</b>`:""}</p>${d?`<p class="note">${esc(d.nombre)}</p>`:""}</div>`;}
+function provBox(i){const p=provOf(i),d=PROVEEDORES[p],r=refProvOf(i);if(!p&&!r)return "";
+  return `<div class="fofi fprov"><h3>🏭 Proveedor</h3>${p?`<p><b>${esc(p)}</b>${d?` · código de proveedor <b>${esc(d.codigo)}</b>`:""}</p>`:""}${r?`<p>Referencia ${p?"de "+esc(p):"del proveedor"}: <b class="refprov">${esc(r)}</b></p>`:""}${d?`<p class="note">${esc(d.nombre)}</p>`:""}</div>`;}
 /* Ficha: sistema (editable en la app completa) y «Compatible con», agrupado por categoría. */
 function sisBox(i){const s=sisOf(i),can=!window.__pwa;if(!s&&!SIS_CATS.includes(i.cat))return "";
   const sel=can?`<select data-sis="${esc(i.code)}" aria-label="Sistema de ${esc(i.desc)}"><option value="">— Sin sistema —</option>${SISTEMAS.map(x=>`<option${x===s?" selected":""}>${esc(x)}</option>`).join("")}</select>`:`<b>${s?esc(s):"Sin sistema"}</b>`;
@@ -1051,8 +1051,8 @@ const xlCols=(aoa,desde=0)=>{const n=Math.max(...aoa.map(r=>r.length));return Ar
 const xlName=(t,usadas)=>{let b=String(t).replace(/[[\]:*?/\\]/g," ").trim().slice(0,31)||"Hoja",n=b,k=2;while(usadas.has(n.toLowerCase()))n=b.slice(0,28)+" "+(k++);usadas.add(n.toLowerCase());return n;};
 /* Excel del catálogo: hoja «Todo» y una hoja por categoría (en orden alfabético), cada una con su filtro. */
 async function expXlsx(list,name,msg){msg.textContent="Preparando el Excel…";await loadLib(XLSX_URL,"XLSX");
-  const H=["Apartado","Categoría","Marca","Código","Descripción","Medida / formato","Canal / color","Modelo / notas","Sistema","Stock seguridad","Foto etiqueta","Foto producto","Obsoleta","Proveedor","Código proveedor"];
-  const row=i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,i.canal,i.modelo,sisOf(i)?sisOf(i)+(sisRev(i)?SIS_REV:""):"",hasStock(i)?i.stock:"",i.photos.length?"Sí":"No",prodOf(i).length?"Sí":"No",i.obsoleta?"Sí":"No",provOf(i),PROVEEDORES[provOf(i)]?PROVEEDORES[provOf(i)].codigo:""];
+  const H=["Apartado","Categoría","Marca","Código","Descripción","Medida / formato","Canal / color","Modelo / notas","Sistema","Stock seguridad","Foto etiqueta","Foto producto","Obsoleta","Proveedor","Código proveedor","Ref. proveedor"];
+  const row=i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,i.canal,i.modelo,sisOf(i)?sisOf(i)+(sisRev(i)?SIS_REV:""):"",hasStock(i)?i.stock:"",i.photos.length?"Sí":"No",prodOf(i).length?"Sí":"No",i.obsoleta?"Sí":"No",provOf(i),PROVEEDORES[provOf(i)]?PROVEEDORES[provOf(i)].codigo:"",refProvOf(i)];
   const hoja=L=>{const aoa=[H,...L.map(row)],ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=xlCols(aoa);ws["!autofilter"]={ref:`A1:${XLSX.utils.encode_col(H.length-1)}${aoa.length}`};return ws;};
   const wb=XLSX.utils.book_new(),usadas=new Set();XLSX.utils.book_append_sheet(wb,hoja(list),xlName("Todo",usadas));
   [...new Set(list.map(i=>i.cat))].sort(byAZ).forEach(c=>XLSX.utils.book_append_sheet(wb,hoja(list.filter(i=>i.cat===c)),xlName(c,usadas)));
