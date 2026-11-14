@@ -393,9 +393,12 @@ function renderFicha(){const i=itemOf(fichaCode);if(!i){closeFicha();return;}
       <p class="note">Sacada de${src(pr)||" la web del fabricante"}. Si es esta pieza, será la foto que sale en la lista.</p>
       <div class="acts2"><button class="btn-l" data-ofi-no="${esc(pr.id)}">✕ Descartar</button><button class="btn-l primary" data-ofi-ok="${esc(pr.id)}">✓ Usar esta foto</button></div></div>`:"";
   const ofi=of?`<div class="fofi"><img src="${of.src}" alt="Foto oficial de ${esc(i.desc)}"><p class="note">Foto oficial del fabricante${of.page?" ·"+src(of):""}</p></div>`:"";
-  fichaBox.innerHTML=`<div class="fbar"><button class="btn-s" data-fclose>‹ Volver</button><b>${esc(secsOf(i).join(" + "))} · ${esc(i.cat)}</b></div><div class="fbody">${prop}${card(i)}${provBox(i)}${sisBox(i)}${ofi}</div>`;
+  fichaBox.innerHTML=`<div class="fbar"><button class="btn-s" data-fclose>‹ Volver</button><b>${esc(secsOf(i).join(" + "))} · ${esc(i.cat)}</b></div><div class="fbody">${prop}${card(i)}${potBox(i)}${provBox(i)}${sisBox(i)}${ofi}</div>`;
   /* En la ficha, la foto del fabricante a buen tamaño (en la lista basta la miniatura). */
   const big=pr||of,code=i.code;if(big)fullSrc(big).then(u=>{const im=fichaBox.querySelector(".fofi img");if(im&&fichaCode===code)im.src=u;}).catch(()=>{});}
+/* Ficha: vatios máximos de la centralita (columnas «W máx. por salida» y «W máx. totales»; los rellena src/Potencias.js). */
+function potBox(i){const a=String(i.wSalida||"").trim(),b=String(i.wTotal||"").trim();if(!a&&!b)return "";
+  return `<div class="fofi fprov"><h3>⚡ Potencia máxima</h3><p>Por salida: <b>${esc(a||"sin dato")}</b></p><p>En total: <b>${esc(b||"sin dato")}</b></p><p class="note">Con estos máximos avisa el Esquema ELYA si una salida va sobrecargada.</p></div>`;}
 /* Ficha: proveedor de compras con su código. */
 function provBox(i){const p=provOf(i),d=PROVEEDORES[p],r=refProvOf(i);if(!p&&!r)return "";
   return `<div class="fofi fprov"><h3>🏭 Proveedor</h3>${p?`<p><b>${esc(p)}</b>${d?` · código de proveedor <b>${esc(d.codigo)}</b>`:""}</p>`:""}${r?`<p>Referencia ${p?"de "+esc(p):"del proveedor"}: <b class="refprov">${esc(r)}</b></p>`:""}${d?`<p class="note">${esc(d.nombre)}</p>`:""}</div>`;}
@@ -1051,8 +1054,8 @@ const xlCols=(aoa,desde=0)=>{const n=Math.max(...aoa.map(r=>r.length));return Ar
 const xlName=(t,usadas)=>{let b=String(t).replace(/[[\]:*?/\\]/g," ").trim().slice(0,31)||"Hoja",n=b,k=2;while(usadas.has(n.toLowerCase()))n=b.slice(0,28)+" "+(k++);usadas.add(n.toLowerCase());return n;};
 /* Excel del catálogo: hoja «Todo» y una hoja por categoría (en orden alfabético), cada una con su filtro. */
 async function expXlsx(list,name,msg){msg.textContent="Preparando el Excel…";await loadLib(XLSX_URL,"XLSX");
-  const H=["Apartado","Categoría","Marca","Código","Descripción","Medida / formato","Canal / color","Modelo / notas","Sistema","Stock seguridad","Foto etiqueta","Foto producto","Obsoleta","Proveedor","Código proveedor","Ref. proveedor"];
-  const row=i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,i.canal,i.modelo,sisOf(i)?sisOf(i)+(sisRev(i)?SIS_REV:""):"",hasStock(i)?i.stock:"",i.photos.length?"Sí":"No",prodOf(i).length?"Sí":"No",i.obsoleta?"Sí":"No",provOf(i),PROVEEDORES[provOf(i)]?PROVEEDORES[provOf(i)].codigo:"",refProvOf(i)];
+  const H=["Apartado","Categoría","Marca","Código","Descripción","Medida / formato","Canal / color","Modelo / notas","Sistema","Stock seguridad","Foto etiqueta","Foto producto","Obsoleta","Proveedor","Código proveedor","Ref. proveedor","W máx. por salida","W máx. totales"];
+  const row=i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,i.canal,i.modelo,sisOf(i)?sisOf(i)+(sisRev(i)?SIS_REV:""):"",hasStock(i)?i.stock:"",i.photos.length?"Sí":"No",prodOf(i).length?"Sí":"No",i.obsoleta?"Sí":"No",provOf(i),PROVEEDORES[provOf(i)]?PROVEEDORES[provOf(i)].codigo:"",refProvOf(i),String(i.wSalida||""),String(i.wTotal||"")];
   const hoja=L=>{const aoa=[H,...L.map(row)],ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=xlCols(aoa);ws["!autofilter"]={ref:`A1:${XLSX.utils.encode_col(H.length-1)}${aoa.length}`};return ws;};
   const wb=XLSX.utils.book_new(),usadas=new Set();XLSX.utils.book_append_sheet(wb,hoja(list),xlName("Todo",usadas));
   [...new Set(list.map(i=>i.cat))].sort(byAZ).forEach(c=>XLSX.utils.book_append_sheet(wb,hoja(list.filter(i=>i.cat===c)),xlName(c,usadas)));
