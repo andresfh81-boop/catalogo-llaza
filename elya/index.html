@@ -352,6 +352,7 @@ main.vacia>section:not(#vacio),main:not(.vacia)>#vacio{display:none}
   <section class="sheet" data-hoja="consumo">
     <div class="hd"><h2>Consumo</h2><span class="tag" id="sumW"></span></div>
     <div class="bd scroll"><table id="consumo"></table></div>
+    <div class="bd scroll" style="padding-top:0"><h3 class="tit-rec">Carga de cada salida y su máximo</h3><table id="salW"></table><p class="hint" id="salWnota" style="margin-top:6px"></p></div>
     <div class="bd" style="padding-top:0"><p class="hint">Cargas: motor 3,6 A × 24 V, tiras según su W/m, tomas USB 15 W y sensor de lluvia MT-R 4,5 W (a 230 V). En la red (230 V o 120 V, según el país), lo que va por fuente de 24 V se cuenta con un rendimiento del 90 %. Las pérdidas en los cables (caída de tensión × corriente en los alargos LED y en el cable del motor) se suman a las cargas y, por el lado de 24 V, al estimado en la red. No incluye lo que se enchufe a las tomas Schuko.</p></div>
   </section>
 
@@ -586,6 +587,16 @@ const TR_W={tr150:150,tr200:200,tr250:250},trPara=W=>W<=120?"tr150":W<=160?"tr20
 const nTrafos=T=>T<=200?1:Math.ceil(T/200);
 /* Motor lineal C-100 TM: 3,6 A a 24 V DC (dato SAT). */
 const MOTOR_W=3.6*24;
+/* Vatios máximos de cada centralita. COPIA de src/Potencias.js (app del catálogo): la escribe tools/sync_potencias.py; no tocar a mano.
+   mot = W máx. de cada salida de motor · motFab = lo mismo con el ajuste de fábrica · sal = W máx. de cada salida de luces ·
+   tot = W máx. de toda la central · canal = las salidas son canales de color (una tira RGB reparte su consumo entre 3) ·
+   nBl = salidas de blanco · null = sin dato (no se comprueba y se avisa). */
+const POT=/*POT:inicio*/{"48070012000":{"mot":96,"sal":null,"tot":100},"48070016000":{"mot":null,"sal":120,"tot":250},"48070019000":{"mot":null,"sal":100,"tot":100},"48070020000":{"mot":null,"sal":120,"tot":250},"48070018000":{"mot":null,"sal":120,"tot":240},"48009000000":{"mot":144,"sal":96,"tot":360},"48009026000":{"mot":144,"sal":96,"tot":360},"48009004000":{"mot":null,"sal":100,"tot":150,"canal":true,"nBl":1},"48009028000":{"mot":null,"sal":100,"tot":null,"canal":true,"nBl":2},"48045023001":{"mot":null,"sal":90,"tot":240},"48009007000":{"mot":null,"sal":90,"tot":240,"canal":true,"nBl":1},"48045024000":{"mot":132,"motFab":72,"sal":null,"tot":288}}/*POT:fin*/;
+const potK=k=>POT[(C[k]||[])[0]]||{},wMax=v=>v==null?"sin dato":v+" W";
+/* Dos líneas para el rótulo de la central en el unifilar y un texto corto para el material y las conexiones. */
+const potL1=p=>p.mot!=null&&p.sal!=null?`máx. motor ${p.mot} W · luces ${p.sal} W`:p.mot!=null?`máx. ${p.mot} W salida motor`:p.sal!=null?`máx. ${p.sal} W por ${p.canal?"canal":"salida"}`:"máx. por salida: sin dato";
+const potL2=p=>p.tot!=null?`máx. ${p.tot} W en total`:"máx. en total: sin dato";
+const potTxt=code=>{const p=POT[code];return p?`Potencia ${potL1(p)} · ${potL2(p)}`:"";};
 /* Cable del motor: manguera H05VV-F 2×0,75 mm² (catálogo 48008100000): 300/500 V, cobre flexible clase 5,
    aislamiento y cubierta de PVC, 70 °C. Caída de tensión a 3,6 A: ΔU = 2·L·I·ρ/S, ρ = 0,021 Ω·mm²/m (cobre a 70 °C). */
 const CAB_MOT="H05VV-F 2×0,75 mm²",caidaMot=L=>2*L*3.6*0.021/0.75;
@@ -1051,7 +1062,6 @@ function calcular(cfg){
     gr.forEach((g,k)=>{
       /* receptor io LED Somfy: hasta 4 salidas blancas de 90 W (guía de instalación) */
       const n=nTr>1?` ${k+1}/${nTr}`:"",id=`tr${tag}${suf}_${k}`,tr=trPara(g.W),o=reparte(g.items,rx==="somLed"?[1,2,3,4]:[1]);splitters(o,rgbx,tag);
-      if(rx==="somLed")o.forEach(x=>{if(x.W>90)av.push(["bad",`${tag}: salida ${x.s} del receptor io LED${n} con ${w0(x.W)}; el máximo por salida es 90 W. Reparte las tiras en más salidas.`]);});
       const pmR=plan[plan.length-1];if(pmR)(pmR.rx=pmR.rx||[]).push({k:rx,n:k+1,tot:nTr,W:g.W,tr,o});
       if(g.W>200)av.push(["bad",`${tag}: un transformador${n} se queda con ${w0(g.W)}; el de 250 W no se carga a más de 200 W. Reparte las tiras (o pon otro receptor).`]);
       dev.push({id,t:`${tag} · Transformador ${TR_W[tr]} W${n} · ${loc}`,code:C[tr][0],model:C[tr][1],feed:"230",trafo:true,Wfix:g.W,alimenta:`Receptor${n} (24 V DC, cable hacia abajo)`,right:[]});
@@ -1066,10 +1076,10 @@ function calcular(cfg){
   function ledRight(o){return o.filter(x=>x.items.length).flatMap(x=>{
     const f=x.items.filter(i=>i.grp==="focos"),la=x.items.filter(i=>i.grp==="lamas"),r=x.items.filter(i=>i.grp!=="focos"&&i.grp!=="lamas"),out=[];
     if(la.length){const W=la.reduce((a,i)=>a+i.W,0),nT=Math.ceil(la.length/2);
-      out.push({kind:"led",W,t:`${la.length} lama${la.length>1?"s":""} LED`,s:`${la.some(i=>i.man)?"cables a mano":`T 3 m ×${nT} encadenado${nT>1?"s":""}`} · ${m2(la[0].len)} m · ${w0(W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`});}
+      out.push({kind:"led",W,t:`${la.length} lama${la.length>1?"s":""} LED`,s:`${la.some(i=>i.man)?"cables a mano":`T 3 m ×${nT} encadenado${nT>1?"s":""}`} · ${m2(la[0].len)} m · ${w0(W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`,out:x.s});}
     if(r.length){const W=r.reduce((a,i)=>a+i.W,0),cb=[...new Set(r.map(i=>i.cab).filter(Boolean))].join(" / ");
-      out.push({kind:"led",W,t:r.map(i=>i.n).join(" + "),s:`${cb?cb+" · ":""}${m2(r.reduce((a,i)=>a+i.len,0))} m · ${w0(W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`});}
-    f.forEach(i=>out.push({kind:"foco",W:i.W,t:i.n,s:`${i.cab||"cable 3 m 2P + 2 micro en T"} · ${w0(i.W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`}));
+      out.push({kind:"led",W,Wrgb:r.filter(i=>i.rgb).reduce((a,i)=>a+i.W,0),tBl:r.filter(i=>!i.rgb).map(i=>i.n).join(" + "),t:r.map(i=>i.n).join(" + "),s:`${cb?cb+" · ":""}${m2(r.reduce((a,i)=>a+i.len,0))} m · ${w0(W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`,out:x.s});}
+    f.forEach(i=>out.push({kind:"foco",W:i.W,t:i.n,s:`${i.cab||"cable 3 m 2P + 2 micro en T"} · ${w0(i.W)}`,wires:[["p","+"],["m","−"]],pin:`OUT${x.s}`,out:x.s}));
     return out;});}
 
   mods.forEach((m,mi)=>{
@@ -1218,7 +1228,7 @@ function calcular(cfg){
         /* Central(es) de luces, aparte de la del motor (TKM). Auto: las que hagan falta por metros de LED y por 250 W;
            cada central se lleva grupos enteros (una pareja de tiras, todas las lamas, la línea de focos). */
         /* Auto (Nexta sin modelo fijo): STILO que se ajusta a los vatios de cada central; STL100 si cabe (≤ 100 W y ≤ 10 m), si no STL250 */
-        const autoL=!m.ledc&&cfg.sisLuz==="nexta",kc0=m.ledc||(autoL?"stl250":ledGen(cfg)),tkl=kc0==="tkl",maxM=kc0==="stl100"?10:25,maxO=tkl?120:null,maxW=kc0==="stl100"?100:250;
+        const autoL=!m.ledc&&cfg.sisLuz==="nexta",kc0=m.ledc||(autoL?"stl250":ledGen(cfg)),tkl=kc0==="tkl",maxM=kc0==="stl100"?10:25,maxW=potK(kc0).tot||Infinity;
         /* «Otra central en la esquina contraria»: las tiras de esa esquina van a su propia central; el resto se reparte como siempre */
         const remW=white.filter(l=>l.rem),cercaW=white.filter(l=>!l.rem),nRem=new Set(remW.map(l=>l.rem)).size;
         const nAuto=Math.max(1,Math.ceil(cercaW.reduce((a,l)=>a+l.len,0)/maxM-1e-9),Math.ceil(totW(cercaW)/maxW-1e-9)),nC0=m.ledN>0?Math.max(1,m.ledN-nRem):nAuto;
@@ -1244,7 +1254,7 @@ function calcular(cfg){
           nC=sets.length;}
         const pmA=plan[plan.length-1];pmA.salReal={};pmA.xOut={};pmA.nLed=nC;pmA.remLed=sets.map(S=>S.rem||null);const lamO=[],focO=[];
         sets.forEach((S,j)=>{const Lw=S.L;if(!Lw.length)return;const cN=nC>1?` L${j+1}`:"",cS=nC>1?` (L${j+1})`:"";
-        const kc=autoL&&Lw.reduce((a,l)=>a+l.len,0)<=10+1e-6&&totW(Lw)<=100+1e-6?"stl100":kc0,maxMS=kc==="stl100"?10:maxM;
+        const kc=autoL&&Lw.reduce((a,l)=>a+l.len,0)<=10+1e-6&&totW(Lw)<=(potK("stl100").tot||0)+1e-6?"stl100":kc0,maxMS=kc==="stl100"?10:maxM;
         const o=(tkl?[1,2,3,4]:[1,2]).map(s=>({s,items:[],W:0})),put=(s,l)=>{const x=o.find(x=>x.s===s);x.items.push(l);x.W+=l.W;};
         /* Salidas elegidas a mano en el módulo (todas las salidas son iguales); Auto = reparto de siempre. */
         const sal=m.sal||{},nOut=tkl?4:2,okS=v=>{const n=parseInt(v,10);return n>=1&&n<=nOut?n:0;};
@@ -1260,7 +1270,8 @@ function calcular(cfg){
             put(man||(d.length>1?(l.grp==="peri"?d[l.out===1?0:1]:[...o].filter(x=>d.includes(x.s)).sort((a,b)=>a.W-b.W)[0].s):d[0]),l);});
         }else{
         Lw.filter(l=>l.grp==="peri").forEach(l=>{const ind=amb&&l.niv==="i",k=ind?(l.out===1?"i1":"i2"):(l.out===1?"p1":"p2");
-          put(okS(sal[k])||(ind?(tkl?(l.out===1?2:4):2):(l.out===1?1:(tkl?3:(amb?1:2)))),l);});
+          /* STILO con un solo encendido: las dos entradas, una en cada salida (120 W por salida en la STL250) */
+          put(okS(sal[k])||(ind?(tkl?(l.out===1?2:4):(cats.length===1?(l.out===1?1:2):2)):(l.out===1?1:(tkl?3:(amb&&cats.length>1?1:2)))),l);});
         if(okS(sal.lam))lam.forEach(l=>put(okS(sal.lam),l));else reparte(lam,tkl?[2,4]:[1,2]).forEach(r=>r.items.forEach(l=>put(r.s,l)));
         /* focos y productos a mano: a la salida con menos carga; con encendido independiente, mejor una cuya pareja
            (OUT1+3 / OUT2+4) no lleve otra cosa, para que basten 2 canales */
@@ -1285,7 +1296,6 @@ function calcular(cfg){
         const M=Lw.reduce((a,l)=>a+l.len,0);
         if(M>maxMS)av.push(["bad",`${m.nombre}${cS}: ${m2(M)} m de LED blanco, la central da para ${maxMS} m. Hace falta otra central.`]);
         else if(M>maxMS*0.9)av.push(["warn",`${m.nombre}: ${m2(M)} m de LED blanco, cerca del máximo de ${maxMS} m de la central.`]);
-        if(maxO)o.forEach(x=>{if(x.W>maxO)av.push(["bad",`${m.nombre}: OUT${x.s} con ${w0(x.W)}, el máximo por salida de la TKL250 es ${maxO} W. Pásalo a otra salida o pon otra central de luces («Centrales de luces» en Auto o 2).`]);});
         outs.push({k:kc,modo,o,tag:tag+cN,nombre:m.nombre});
         dev.push({id:"led"+mi+(j?"_"+j:""),t:`${tag}${cN} · Luces · `+(tkl?"TKL250 ONE":kc==="stl250"?"STL250":"STL100")+` · ${S.rem?(pilNom(pilDe(m,S.rem))?"pilar "+pilNom(pilDe(m,S.rem)):CN[S.rem]):loc}`,code:C[kc][0],model:C[kc][2],feed:"230",psu:true,right:[...ledRight(o),{kind:"radio",t:C[emL][1],s:emL===emisor?"mismo emisor":C[emL][0],wires:[["r",""]],pin:"Radio"}]});
         add(kc,1);
@@ -1296,7 +1306,7 @@ function calcular(cfg){
         const d=dev.find(d=>d.id==="tel"+mi);
         if(!d){av.push(["bad",`${m.nombre}: la salida LED Teleco va en la central Teleco EU del motor y el motor no es Teleco EU. Elige otro sistema de luces.`]);return;}
         d.right.splice(d.right.length-1,0,...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})));
-        av.push(["info",`${m.nombre}: la luz blanca va a la salida LED de la central Teleco (${w0(totW(white))}). Comprueba la potencia máxima en su etiqueta.`]);
+        av.push(["info",`${m.nombre}: la luz blanca va a la salida LED de la central Teleco (${w0(totW(white))}).`]);
       }else if(sisL==="somfy"){
         const nTr=trafoReceptor(white,tag,loc,false,"somLed",(o,n,k)=>({id:`sl${mi}_${k}`,t:`${tag} · Receptor io LED${n} · ${loc}`,code:C.somLed[0],model:C.somLed[2],right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida LED"})),{kind:"radio",t:(C[emL]||C.situo)[1],s:"io",wires:[["r",""]],pin:"Radio io"}]}));
         if(nTr>1)av.push(["warn",`${m.nombre}: las luces suman ${w0(totW(white))} y el transformador (fuente de 24 V) más grande, el de 250 W, no se carga a más de 200 W (80 %). Por eso van ${nTr} transformadores, cada uno con su receptor io LED, y las tiras se reparten entre ellos.`]);
@@ -1307,13 +1317,11 @@ function calcular(cfg){
         /* una TKL RGBW junto a la centralita y otra por cada esquina con central propia */
         [null,...new Set(rgbL.map(l=>l.rem).filter(Boolean))].forEach((c,j)=>{const Lr=rgbL.filter(l=>(l.rem||null)===c);if(!Lr.length)return;
         const o=reparte(Lr,[1]);splitters(o,true,tag);
-        if(totW(Lr)>250)av.push(["bad",`${m.nombre}: RGB ${w0(totW(Lr))}, supera los 250 W de la TKL RGBW.`]);
         dev.push({id:"rgbw"+mi+(j?"_"+j:""),t:`${tag} · TKL RGBW 250 W · ${c?(pilNom(pilDe(m,c))?"pilar "+pilNom(pilDe(m,c)):CN[c]):loc}`,code:C.tklrgbw[0],model:C.tklrgbw[2],feed:"230",psu:true,right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Conector RGBW"})),{kind:"radio",t:C[emL][1],s:emL===emisor?"mismo emisor":C[emL][0],wires:[["r",""]],pin:"Radio"}]});
         add("tklrgbw",1);add("conRGBW",1);
         if(c&&!white.some(l=>l.rem===c))av.push(["info",`${m.nombre}: TKL RGBW en la esquina ${pilNom(pilDe(m,c))||CN[c]}: necesita su línea de 230 V hasta ese pilar y su canal en el mando.`]);});
       }else if(sisL==="teleco_eu"){
         const o=reparte(rgbL,[1]);splitters(o,true,tag);
-        if(totW(rgbL)>150)av.push(["bad",`${m.nombre}: RGB ${w0(totW(rgbL))}, supera los 150 W del stick TVSTICK.`]);
         dev.push({id:"stick"+mi,t:`${tag} · Stick RGB TVSTICK · ${loc}`,code:C.stick[0],model:C.stick[2],feed:"230",psu:true,right:[...ledRight(o).map(r=>Object.assign(r,{pin:"Salida RGB"})),{kind:"radio",t:C.noonEU[1],s:"canal 3 a 9 (no 1 ni 2)",wires:[["r",""]],pin:"Radio"}]});
         add("stick",1);
       }else if(ulL){
@@ -1352,6 +1360,29 @@ function calcular(cfg){
     add("tr150",1,"tomas USB");add("usb",cfg.usb);
   }
   dev.forEach(d=>d.W=d.Wfix!=null?d.Wfix:d.right.reduce((a,it)=>a+(it.W||0),0));
+  /* ---- Vatios máximos de cada centralita (POT, copia del catálogo): lo que lleva cada salida y el total, contra su máximo.
+     Con canales de color (stick, receptores RGB), una tira RGB cuenta un tercio en cada canal R, G y B. ---- */
+  const salW=[],sinDato=new Set(),NSAL={[C.tkl[0]]:4,[C.stl100[0]]:2,[C.stl250[0]]:2,[C.somLed[0]]:4};
+  dev.forEach(d=>{const P=POT[d.code];if(!P)return;
+    const its=d.right.filter(i=>i.W>0&&(i.kind==="motor"||i.kind==="led"||i.kind==="foco")),luz=its.filter(i=>i.kind!=="motor"),filas=[];
+    its.filter(i=>i.kind==="motor").forEach(i=>filas.push({n:/motor/i.test(i.pin)?"Salida de motor":`Salida de motor (${i.pin})`,W:i.W,max:P.mot,fab:P.motFab,que:i.t,mot:true}));
+    if(P.canal){const Wr=luz.reduce((a,i)=>a+(i.Wrgb||0),0),bl=luz.map(i=>({W:i.W-(i.Wrgb||0),n:i.Wrgb?i.tBl:i.t})).filter(i=>i.W>0.01);
+      if(Wr>0)filas.push({n:"Cada canal de color (R, G, B)",W:Wr/3,max:P.sal,que:`tira RGB de ${w0(Wr)} repartida entre 3 canales`});
+      if(bl.length)reparte(bl,[...Array(P.nBl||1).keys()]).filter(x=>x.items.length).forEach(x=>filas.push({n:`Salida de blanco${(P.nBl||1)>1?" "+(x.s+1):""}`,W:x.W,max:P.sal,que:x.items.map(i=>i.n).join(" + ")}));
+    }else{const g=new Map();luz.forEach(i=>{const k=i.out!=null?i.out:i.pin;if(!g.has(k))g.set(k,[]);g.get(k).push(i);});
+      [...g.entries()].sort((a,b)=>a[0]>b[0]?1:-1).forEach(([k,L])=>filas.push({n:/^OUT/.test(L[0].pin)?L[0].pin:L[0].pin+(NSAL[d.code]>1?" "+k:""),W:totW(L),max:P.sal,que:L.map(i=>i.t).join(" + ")}));}
+    const tot=totW(its),nom=d.t.split(" · ").slice(0,-1).join(" · ")||d.t,nS=NSAL[d.code]||1;
+    filas.forEach(f=>{f.est=f.max==null?"sin":f.W>f.max+1e-6?"bad":"ok";
+      if(f.est==="bad")av.push(["bad",`${nom}: ${f.n} lleva ${w0(f.W)} y admite ${f.max} W como máximo (${f.que}). ${f.mot?"Ese motor necesita una centralita con más potencia en la salida de motor.":nS>1?"Pasa parte a otra salida que tenga hueco o pon otra centralita de luces.":P.canal?"Reparte las tiras con otro receptor igual o usa otra centralita de luces.":"Esta centralita solo tiene esa salida de luces: reparte las tiras con otra centralita (otra en la esquina contraria) o usa un sistema de luces con más potencia."}`]);
+      else if(f.est==="ok"&&f.fab!=null&&f.W>f.fab+1e-6)av.push(["warn",`${nom}: ${f.n} lleva ${w0(f.W)} y de fábrica viene ajustada a ${f.fab} W (admite hasta ${f.max} W). Sube el ajuste de corriente del motor al instalar.`]);});
+    const eT=P.tot==null?"sin":tot>P.tot+1e-6?"bad":"ok";
+    if(eT==="bad")av.push(["bad",`${nom}: lleva ${w0(tot)} en total y admite ${P.tot} W como máximo. Reparte la carga con otra centralita.`]);
+    const sin=[...(filas.some(f=>f.est==="sin")?["por salida"]:[]),...(eT==="sin"&&tot>0?["en total"]:[])];
+    /* un solo aviso de «sin dato» por referencia, aunque haya varias centrales iguales */
+    if(sin.length&&!sinDato.has(d.code+sin)){sinDato.add(d.code+sin);av.push(["info",`${(Object.values(C).find(c=>c[0]===d.code)||[0,nom])[1]} (${d.code}): sin dato de los W máx. ${sin.join(" ni ")} en el catálogo; esa carga no se ha podido comprobar.`]);}
+    d.pot={l1:potL1(P),l2:potL2(P),bad:eT==="bad"||filas.some(f=>f.est==="bad")};
+    filas.forEach(f=>salW.push({dev:nom,code:d.code,n:f.n,que:f.que,W:f.W,max:f.max,est:f.est}));
+    if(its.length)salW.push({dev:nom,code:d.code,n:"Total de la central",que:"",W:tot,max:P.tot,est:eT,tot:true});});
   /* Lo que va por fuente de 24 V se divide por su rendimiento (90 %); lo que es directo a la red (MT-R), tal cual. */
   /* lo que se pierde en los cables va por el lado de 24 V: cuenta en las cargas y, al 90 %, en la red. W230 / I230 = lado
      de red, a la tensión del país (230 V o 120 V). */
@@ -1395,7 +1426,7 @@ function calcular(cfg){
   /* STILO: un solo canal del mando por central; si una STILO lleva dos encendidos, se encienden juntos */
   dev.filter(d=>/STL/.test(d.t||"")).forEach(d=>{const radio=(d.right||[]).find(i=>i.kind==="radio");if(radio&&/·/.test(radio.s||""))
     av.push(["warn",`${d.t.split(" · ")[0]}: la STILO graba en un solo canal del mando; ${radio.s.replace(/canal \d+ /g,"")} se encienden juntos. Para encenderlos aparte, una STILO por encendido («Centrales de luces» en Auto con encendido independiente).`]);});
-  return {av,bom,dev,plan,outs,W24,W230,I230,canales,perd,PW};
+  return {av,bom,dev,plan,outs,W24,W230,I230,canales,perd,PW,salW};
 }
 
 /* ---------- dibujo: esquema unifilar ---------- */
@@ -1423,7 +1454,7 @@ function dibujaUnifilar(cfg,r,cuadro){
   const VR=redDe(cfg).V,W=820,bx=110,bw=230,ix=520,iw=280,itemH=46;
   const dy=cuadro?150:0;let y=78+dy,body="",branches=[],pes=[];const cajas={};
   r.dev.forEach(d=>{
-    const n=Math.max(1,d.right.length),h=Math.max(d.trafo?92:76,14+n*itemH);
+    const n=Math.max(1,d.right.length),h=Math.max(d.trafo?92:76,14+n*itemH,d.pot?(d.code?56:40)+(d.trafo||d.psu?18:0)+58:0);
     const by=y,bh=h-16;cajas[d.id]={by,bh};
     body+=`<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="3" fill="var(--soft)" stroke="var(--ink)" stroke-width="1.5"/>`;
     body+=`<text x="${bx+12}" y="${by+22}" font-size="13" font-weight="600">${esc(trunc(d.t,32))}</text>`;
@@ -1432,6 +1463,9 @@ function dibujaUnifilar(cfg,r,cuadro){
     /* Fuente integrada: entra 230 V y sale 24 V DC dentro de la propia central. */
     if(d.trafo)body+=`<text x="${bx+12}" y="${by+(d.code?74:58)}" font-size="11" class="mono" style="fill:var(--w-p)">${VR} V ~ → 24 V ⎓ · ${d.abajo||"al receptor"} ↓</text>`;
     if(d.psu&&bh>=70)body+=`<text x="${bx+12}" y="${by+(d.code?74:58)}" font-size="11" class="mono" style="fill:var(--w-p)">fuente ${VR} V ~ → 24 V ⎓</text>`;
+    /* vatios máximos de la central (catálogo); en rojo si alguna salida o el total se pasan */
+    if(d.pot){const py=by+(d.code?56:40)+(d.trafo||d.psu?18:0),st=d.pot.bad?' style="fill:var(--bad);font-weight:700"':"";
+      body+=`<text x="${bx+12}" y="${py+16}" font-size="11" class="mono"${st}>${esc(d.pot.l1)}</text><text x="${bx+12}" y="${py+32}" font-size="11" class="mono"${st}>${esc(d.pot.l2)}</text>`;}
     const fy=by+18;
     if(d.feed==="230"){branches.push(fy);if(d.pe)pes.push(fy);
       body+=`<circle cx="40" cy="${fy}" r="3" fill="var(--ink)"/><line x1="40" y1="${fy}" x2="${bx}" y2="${fy}" stroke="var(--ink)" stroke-width="2"/>`;
@@ -1493,7 +1527,7 @@ function dibujaUnifilarV(cfg,r,cuadro){
   let body="",maxY=top;const x0=60;
   cols.forEach((col,ci)=>{const cx=x0+ci*CW;let y=top;
     col.forEach((d,di)=>{
-      const n=d.right.length,bh=d.trafo||d.psu?78:64;
+      const n=d.right.length,bh=(d.trafo||d.psu?78:64)+(d.pot?28:0);
       if(di===0){/* bajada desde la línea general */
         body+=`<circle cx="${cx+BW/2}" cy="${busY}" r="3" fill="var(--ink)"/><line x1="${cx+BW/2}" y1="${busY}" x2="${cx+BW/2}" y2="${y}" stroke="var(--ink)" stroke-width="2"/>`;
         if(d.feed==="230")body+=trazos(cx+BW/2,busY+13,d.pe?3:2,true,d.pe?"L N PE":"L N");}
@@ -1503,6 +1537,8 @@ function dibujaUnifilarV(cfg,r,cuadro){
       if(d.code)body+=`<text x="${cx+10}" y="${y+34}" font-size="11" class="mono mut">${esc(d.code)}</text>`;
       body+=`<text x="${cx+10}" y="${y+(d.code?49:34)}" font-size="11" class="mut">${esc(trunc(d.model+(d.W?" · "+w0(d.W):""),32))}</text>`;
       if(d.trafo||d.psu)body+=`<text x="${cx+10}" y="${y+(d.code?64:49)}" font-size="10" class="mono" style="fill:var(--w-p)">${d.trafo?`${VR} V ~ → 24 V ⎓ ↓`:`fuente ${VR} V ~ → 24 V ⎓`}</text>`;
+      if(d.pot){const py=y+(d.code?49:34)+(d.trafo||d.psu?15:0),st=d.pot.bad?' style="fill:var(--bad);font-weight:700"':"";
+        body+=`<text x="${cx+10}" y="${py+14}" font-size="10" class="mono"${st}>${esc(d.pot.l1)}</text><text x="${cx+10}" y="${py+28}" font-size="10" class="mono"${st}>${esc(d.pot.l2)}</text>`;}
       y+=bh;
       if(n){/* circuitos: bajan por la columna, cada uno con su número de conductores y su sección */
         const sx=cx+18,yEnd=y+14+(n-1)*itemH+itemH/2;
@@ -1899,6 +1935,7 @@ function recorridos(pm,cfg){
 function esquemaSomfy(r){
   const rxs=r.plan.flatMap(pm=>(pm.rx||[]).filter(x=>x.k==="somLed"||x.k==="somRGB").map(x=>Object.assign({tag:pm.tag,nombre:pm.m.nombre},x)));
   if(!rxs.length)return "";
+  const MX=potK("somLed").sal||Infinity; /* W máx. por salida del receptor io LED (catálogo) */
   const L=(x1,y1,x2,y2,c,w=2.4,d="")=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${w}"${d?` stroke-dasharray="${d}"`:""} stroke-linecap="round"/>`,
     Tx=(x,y,t,o={})=>`<text x="${x}" y="${y}" text-anchor="${o.a||"start"}" font-size="${o.fs||11}" font-weight="${o.w||500}" style="fill:${o.c||"var(--ink)"}">${esc(t)}</text>`,
     corta=(t,n)=>t.length>n?t.slice(0,n-1)+"…":t;
@@ -1953,7 +1990,7 @@ function esquemaSomfy(r){
           `<rect x="${tx}" y="${y-11}" width="${W-tx-10}" height="22" rx="3" fill="#f6f2ea" stroke="#cfc4ad"/>`+
           [...Array(n)].map((_,k)=>`<rect x="${tx+12+k*9}" y="${y-4}" width="5" height="8" rx="1" fill="${led}" stroke="#d29a3a" stroke-width=".5"/>`).join("")+
           `<rect x="${tx+2}" y="${y-9}" width="7" height="5" fill="#c9a646"/><rect x="${tx+2}" y="${y+4}" width="7" height="5" fill="#c9a646"/>`+
-          Tx(tx,y-15,corta(o.items.map(i=>i.n).join(" + "),24),{fs:10,w:700})+Tx(W-12,y+24,`${w0(o.W)}${o.W>90?" · ¡más de 90 W!":""}`,{a:"end",fs:9.5,c:o.W>90?"var(--bad)":"var(--muted)"});}
+          Tx(tx,y-15,corta(o.items.map(i=>i.n).join(" + "),24),{fs:10,w:700})+Tx(W-12,y+24,`${w0(o.W)}${o.W>MX?` · ¡más de ${MX} W!`:""}`,{a:"end",fs:9.5,c:o.W>MX?"var(--bad)":"var(--muted)"});}
       else g+=L(c5+36,y,c5+76,y,"var(--muted)",2.4,"4 3")+`<rect x="${c5+76}" y="${y-5}" width="14" height="10" rx="5" fill="var(--muted)"/>`+Tx(c5+96,y+4,`${c} · sin usar: aislar`,{fs:10,c:"var(--muted)"});});
     const libres=[1,2,3,4].filter(c=>!usa(c));
     return `<figure class="somfy"><figcaption><b>${esc(x.tag)} · ${esc(x.nombre)}</b> · ${rgb?`receptor io RGB${itR.some(i=>/indirecto/.test(i.n))?" indirecto":itR.some(i=>/directo/.test(i.n))?" directo":""}`:"receptor io LED blanco"}${x.tot>1?` ${x.n} de ${x.tot}`:""} · ${w0(x.W)} en total (máx. 240 W)</figcaption>
@@ -1988,7 +2025,7 @@ function conexiones(cfg,r){
       "P2 7 veces y mantener 5 s: activa / desactiva el sensor de lluvia.",
       "P1 7 veces y mantener 5 s: activa / desactiva el sensor de temperatura."
     ],src:"ELYA_Luces_Teleco_Guia_Rapida_v3_CORREGIDA.pdf (Drive)"});
-    if(r.dev.some(d=>/^stick/.test(d.id)))out.push({t:"Stick RGB TVSTICK868PB15",code:C.stick[0],li:["Alimentación 230 V, fuente de 150 W incluida.","Memorizar el NOON en un canal del 3 al 9 (no 1 ni 2).","L2 encendido = sobrecarga en una salida."],src:"Guía rápida luces Teleco v3 (Drive)"});
+    if(r.dev.some(d=>/^stick/.test(d.id)))out.push({t:"Stick RGB TVSTICK868PB15",code:C.stick[0],li:["Alimentación 230 V, fuente incluida.","Memorizar el NOON en un canal del 3 al 9 (no 1 ni 2).","L2 encendido = sobrecarga en una salida."],src:"Guía rápida luces Teleco v3 (Drive)"});
     if(r.dev.some(d=>/^rgbww/.test(d.id)))out.push({t:"Receptor TVLRGBWW916ST24",code:C.rgbww[0],li:["Alimentación 24 V DC desde el transformador.","P1 = modo y salidas · P2 = mandos de blanco · P3 = mandos RGB.","Modo RGB + blanco frío/cálido: P1 5 veces y mantener 5 s (3 pitidos lentos)."],src:"Guía rápida luces Teleco v3 (Drive)"});
   }else if(sis==="somfy"){
     if(cfg.emisor==="situoV")out.push({t:"Somfy Situo 5 Variation A/M io",code:C.situoV[0],li:["Antes de enlazar: el grupo debe estar en modo 3 (lamas exteriores; es el de fábrica). Pila CR2430.","Elegir el canal con el selector frontal y pulsar el PROG trasero con los finales de carrera ya ajustados.","La rueda orienta las lamas: giro lento, paso a paso; giro rápido, recorrido completo.","Selector Auto / Manu: en Manu se desactivan los sensores de lluvia y sol."],src:"Guía rápida Louver Control + Situo Variation (SAT Llaza, v2 09/10/2026)"});
@@ -2011,14 +2048,14 @@ function conexiones(cfg,r){
   {const tkl=r.outs.filter(o=>o.k==="tkl"),stl=r.outs.filter(o=>o.k!=="tkl");
     if(tkl.length)out.push({t:"TKL250 ONE (LED blanco, una por módulo)",code:C.tkl[0],li:[
       "Alimentación 230 V: marrón = fase · azul = neutro.",
-      "Salidas LED 24 V: hilos grises 1 a 4 = OUT1 a OUT4. Máx. 120 W por salida y 250 W en total. No poner 250 W en una sola salida.",
+      "Salidas LED 24 V: hilos grises 1 a 4 = OUT1 a OUT4. No poner 250 W en una sola salida.",
       "Canales (P2 mantenido > 2 s, soltar en el color y pulsar P2 para guardar): rojo 1 (las 4 juntas) · verde 2 (OUT1+3 y OUT2+4) · azul 3 (OUT1+2 juntas, OUT3 y OUT4) · amarillo 4 (las 4 sueltas).",
       ...tkl.map(lo=>`${lo.tag}: ${lo.modo}.`),...tkl.flatMap(outLines),
       "Pulsador NA: marrón = salida 1 · verde = común · blanco = salida 2 · negro = salida 3 · gris = salida 4.",
       "Si cambias los canales después de memorizar emisores, se pierden los emisores."
     ],src:"TKL CHERUBINI.pdf (Drive)"});
     if(stl.length)out.push({t:"STILO LED (LED blanco)",code:C[stl[0].k][0],li:["Alimentación 230 V. 2 salidas LED 24 V.",...stl.map(lo=>`${lo.tag}: ${lo.modo}.`),...stl.flatMap(outLines),"Bornas y límites por salida: ver manual STILO LED."],src:"Manual STILO LED (Drive)"});
-    if(r.dev.some(d=>/^rgbw/.test(d.id)))out.push({t:"TKL RGBW 250 W",code:C.tklrgbw[0],li:["Alimentación 230 V.","Salida RGBW por conector "+C.conRGBW[0]+" (CON-EP55/RGBS+W, 4 × RGB + 1 × blanco).","Máx. 250 W en total."],src:"Guía rápida TKL RGBW (Drive)"});
+    if(r.dev.some(d=>/^rgbw/.test(d.id)))out.push({t:"TKL RGBW 250 W",code:C.tklrgbw[0],li:["Alimentación 230 V.","Salida RGBW por conector "+C.conRGBW[0]+" (CON-EP55/RGBS+W, 4 × RGB + 1 × blanco)."],src:"Guía rápida TKL RGBW (Drive)"});
   }
   if(r.canales&&r.canales.length)out.push({t:"Grabar el mando",code:"",li:["Canales: en la hoja «Para el cliente». Pop Plus: canales 1 a 7 y el 0 es el común (todos).","TKM: P1 corto y subida en el canal del motor. TKL: P1 hasta el color del canal de la central y subida en el canal del mando. STILO: un solo canal por central (manuales Cherubini)."],src:"Manuales TKM / TKL / STILO (Drive)"});
   /* Ysia Patio io (guía Somfy, 06/2024): los canales se crean en el propio mando */
@@ -2041,6 +2078,7 @@ function conexiones(cfg,r){
     "24 V DC (ITC-BT-36): muy baja tensión, hasta 75 V en continua. Sin puesta a tierra si es MBTS.",
   ],src:"REBT: ITC-BT-19, 30 y 36 (copias no oficiales; contrastar con el BOE vigente)"});
   manObra=[...new Map(out.filter(c=>MAN_OFICIAL[c.code]).map(c=>[MAN_OFICIAL[c.code][1],MAN_OFICIAL[c.code]])).values()];
+  out.forEach(c=>{if(POT[c.code])c.li.push(potTxt(c.code)+" (dato de la app del catálogo).");});
   return out.map(c=>{const mo=MAN_OFICIAL[c.code];return `<section><h3>${esc(c.t)}</h3>${c.code?`<div class="tag" style="margin-top:4px">${esc(c.code)}</div>`:""}<ul>${c.li.map(l=>`<li>${esc(l)}</li>`).join("")}</ul><p class="src">Fuente: ${esc(c.src)}</p>${mo?`<p class="src"><a href="${mo[1]}" target="_blank" rel="noopener">${esc(mo[0])}</a> · QR en la hoja «Manuales oficiales»</p>`:""}</section>`;}).join("");
 }
 
@@ -3027,6 +3065,9 @@ function render(){
   $("consumo").innerHTML=`<thead><tr><th>Central</th><th>Alimenta</th><th style="text-align:right">W</th></tr></thead><tbody>${
     cw.map(d=>`<tr><td>${esc(d.t)}<div class="hint">${esc(d.code)}</div></td><td>${esc(d.alimenta||d.right.filter(it=>it.W).map(it=>it.t).join(" · "))}</td><td class="qty">${w0(d.W)}</td></tr>`).join("")
   }${PW>=0.05?`<tr><td>Pérdidas en los cables<div class="hint">caída de tensión × corriente, a 24 V</div></td><td>${esc(perdTxt)}</td><td class="qty">${w0(PW)}</td></tr>`:""}</tbody><tfoot><tr><th colspan="2">Total de las cargas</th><th style="text-align:right" class="mono">${w0(TW)}</th></tr><tr><th colspan="2">Estimado en ${redDe(cfg).V} V (fuentes de 24 V al 90 %)</th><th style="text-align:right" class="mono">${w0(W230)} · ${(W230/redDe(cfg).V).toLocaleString("es-ES",{maximumFractionDigits:1})} A</th></tr></tfoot>`;
+  {const S=r.salW||[],col={bad:"color:var(--bad);font-weight:700",sin:"color:var(--muted)",ok:""},est={bad:"SOBRECARGA",sin:"sin dato",ok:"Bien"};
+    $("salW").innerHTML=S.length?`<thead><tr><th>Central</th><th>Salida</th><th>Qué lleva</th><th style="text-align:right">Lleva</th><th style="text-align:right">Admite</th><th>Estado</th></tr></thead><tbody>${S.map(x=>`<tr style="${col[x.est]}"><td>${esc(x.dev)}<div class="hint">${esc(x.code)}</div></td><td>${x.tot?"<b>"+esc(x.n)+"</b>":esc(x.n)}</td><td>${esc(x.que)}</td><td class="qty">${w0(x.W)}</td><td class="qty">${esc(wMax(x.max))}</td><td>${est[x.est]}</td></tr>`).join("")}</tbody>`:"";
+    $("salWnota").textContent=S.length?"Máximos de la app del catálogo (columnas «W máx. por salida» y «W máx. totales»). En las centrales con canales de color, una tira RGB reparte su consumo entre los 3 canales.":"";}
   pintaMaterial(r);pintaOT(r);
   pintaAprendido();
   pintaCliente(cfg,r,cj);
@@ -3055,7 +3096,7 @@ function pintaMaterial(r){
     const c=C[x.k],ud=x.k==="mang"?" m":"";
     if(x.quitado)return `<tr class="quitado"><td class="code">${c[0]}</td><td><s>${esc(c[1])}</s> <span class="hint">quitado</span></td><td class="qty"><s>${x.q}${ud}</s></td><td><button type="button" class="mini" data-pon="${esc(x.id)}">Volver a poner</button></td></tr>`;
     return `<tr${x.cambiado?' class="cambiado"':""}><td class="code">${c[0]}</td>
-      <td><select class="prod" data-id="${esc(x.id)}" aria-label="Producto">${opts(x.k)}</select>${x.rev?'<span class="rev">Revisar</span>':""}${noEnCatalogo(c[0])?`<span class="rev cam">${txtCatalogo(c[0])}</span>`:""}${x.cambiado?'<span class="rev cam">Cambiado</span>':""}<div class="hint">${esc(c[2])}${x.notas.length?" · "+esc(x.notas.join(" · ")):""}</div></td>
+      <td><select class="prod" data-id="${esc(x.id)}" aria-label="Producto">${opts(x.k)}</select>${x.rev?'<span class="rev">Revisar</span>':""}${noEnCatalogo(c[0])?`<span class="rev cam">${txtCatalogo(c[0])}</span>`:""}${x.cambiado?'<span class="rev cam">Cambiado</span>':""}<div class="hint">${esc(c[2])}${POT[c[0]]?" · "+esc(potTxt(c[0])):""}${x.notas.length?" · "+esc(x.notas.join(" · ")):""}</div></td>
       <td class="qty"><input type="number" class="cant" data-id="${esc(x.id)}" min="0" step="1" value="${x.q}" aria-label="Cantidad">${ud}</td>
       <td><button type="button" class="mini del" data-quita="${esc(x.id)}" title="Quitar esta línea">Quitar</button></td></tr>`;}).join("")}</tbody>`;
   $("bomAdd").innerHTML=`<label for="addK">Añadir producto</label><select id="addK">${todos}</select><input type="number" id="addQ" min="1" step="1" value="1" aria-label="Cantidad"><button type="button" id="addGo">Añadir</button>${hay?'<button type="button" id="matReset">Volver al material calculado</button>':""}`;
