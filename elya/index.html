@@ -524,10 +524,10 @@ const C={
   aries:["48009015000","Foco Aries bi-emisión","Haz arriba y abajo"],
   fMiAL:["43009004000","Foco LED mini AL","Aluminio/gris"],
   fMiNG:["43009004002","Foco LED mini NG","Negro"],
-  tkMiH:["48008002000","Conector aéreo mini hembra 2 polos","Tekox WP68"],
-  tkMiM:["48008001000","Conector aéreo mini macho 2 polos","Tekox WP68"],
-  tkWPM:["48008003002","Conector aéreo macho IP68","Tekox WP2/M"],
-  tkWPH:["48008004002","Conector aéreo hembra IP68","Tekox WP2/H"],
+  tkMiH:["48008002000","Conector aéreo mini hembra 2 polos","Tekox WP68 · cable hasta 1,5 mm²"],
+  tkMiM:["48008001000","Conector aéreo mini macho 2 polos","Tekox WP68 · cable hasta 1,5 mm²"],
+  tkWPM:["48008003002","Conector aéreo macho IP68 2 polos","Tekox WP2/M · cable de más de 1,5 mm²"],
+  tkWPH:["48008004002","Conector aéreo hembra IP68 2 polos","Tekox WP2/H · cable de más de 1,5 mm²"],
   /* conector de 5 pines del receptor io LED (dato SAT): sin código Llaza (SINREF-002 / 003 en el catálogo) */
   wp5M:["—","Conector aéreo macho IP68 5 polos (sin código Llaza)","Tekox WP5/M · 15 A 450 V · 0,5–1,5 mm²"],
   wp5H:["—","Conector aéreo hembra IP68 5 polos (sin código Llaza)","Tekox WP5/H · 15 A 450 V · 0,5–1,5 mm²"],
@@ -599,6 +599,8 @@ const potL2=p=>p.tot!=null?`máx. ${p.tot} W en total`:"máx. en total: sin dato
 const potTxt=code=>{const p=POT[code];return p?`Potencia ${potL1(p)} · ${potL2(p)}`:"";};
 /* Cable del motor: manguera H05VV-F 2×0,75 mm² (catálogo 48008100000): 300/500 V, cobre flexible clase 5,
    aislamiento y cubierta de PVC, 70 °C. Caída de tensión a 3,6 A: ΔU = 2·L·I·ρ/S, ρ = 0,021 Ω·mm²/m (cobre a 70 °C). */
+/* Conector aéreo de 2 polos según la sección del cable (dato SAT): el mini (Tekox WP68) vale hasta 1,5 mm²; con más, el normal (WP2 IP68). */
+const conAereo=sec=>sec<=1.5?{M:"tkMiM",H:"tkMiH"}:{M:"tkWPM",H:"tkWPH"};
 const ALARGO_TKM=1.5,conMotor=sis=>sis==="nexta"?4:2,txtConMotor=sis=>sis==="nexta"?`alargo de ${m2(ALARGO_TKM)} m como mínimo, con conector aéreo mini Tekox WP68 en la TKM, macho + hembra en el alargo y el del motor (2 × ${C.tkMiM[0]} + 2 × ${C.tkMiH[0]})`:`el cable sale de la propia centralita a la medida, con un conector aéreo mini Tekox WP68 en su punta y otro en el motor (${C.tkMiM[0]} + ${C.tkMiH[0]})`;
 const CAB_MOT="H05VV-F 2×0,75 mm²",caidaMot=L=>2*L*3.6*0.021/0.75;
 /* Caída de tensión (ITC-BT-19): alumbrado 3 %, resto (motor) 5 %. Alargos LED de 0,75 mm² con ρ = 0,021 Ω·mm²/m (cobre a 70 °C,
@@ -1103,7 +1105,7 @@ function calcular(cfg){
     /* conectores aéreos mini Tekox WP68 del cable del motor (dato SAT): con la TKM (Cherubini) siempre va alargo, de 1,5 m
        como mínimo, con conector en la TKM, macho + hembra en el alargo y el del motor (4); con las demás centralitas el cable
        sale de la propia centralita a la medida, y basta un conector en su punta y otro en el motor (2) */
-    const nCon=conMotor(sis);add("tkMiM",nCon/2,`${tag} ${sis==="nexta"?"TKM ↔ alargo y alargo ↔ motor":"cable de la centralita ↔ motor"}`);add("tkMiH",nCon/2,`${tag} ${sis==="nexta"?"TKM ↔ alargo y alargo ↔ motor":"cable de la centralita ↔ motor"}`);
+    const nCon=conMotor(sis),cm=conAereo(0.75);add(cm.M,nCon/2,`${tag} ${sis==="nexta"?"TKM ↔ alargo y alargo ↔ motor":"cable de la centralita ↔ motor"}`);add(cm.H,nCon/2,`${tag} ${sis==="nexta"?"TKM ↔ alargo y alargo ↔ motor":"cable de la centralita ↔ motor"}`);
     if((m.motor==="izq"&&m.cent[1]==="i")||(m.motor==="der"&&m.cent[1]==="d"))av.push(["info",`${m.nombre}: centralita en el mismo lado que el motor. El manual la pone en el lado contrario (el desagüe va en el lado motor); si el plano lo marca así, vale.`]);
 
     /* --- control del motor --- */
