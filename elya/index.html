@@ -599,6 +599,7 @@ const potL2=p=>p.tot!=null?`máx. ${p.tot} W en total`:"máx. en total: sin dato
 const potTxt=code=>{const p=POT[code];return p?`Potencia ${potL1(p)} · ${potL2(p)}`:"";};
 /* Cable del motor: manguera H05VV-F 2×0,75 mm² (catálogo 48008100000): 300/500 V, cobre flexible clase 5,
    aislamiento y cubierta de PVC, 70 °C. Caída de tensión a 3,6 A: ΔU = 2·L·I·ρ/S, ρ = 0,021 Ω·mm²/m (cobre a 70 °C). */
+const ALARGO_TKM=1.5,conMotor=sis=>sis==="nexta"?4:2,txtConMotor=sis=>sis==="nexta"?`alargo de ${m2(ALARGO_TKM)} m como mínimo, con conector aéreo mini Tekox WP68 en la TKM, macho + hembra en el alargo y el del motor (2 × ${C.tkMiM[0]} + 2 × ${C.tkMiH[0]})`:`el cable sale de la propia centralita a la medida, con un conector aéreo mini Tekox WP68 en su punta y otro en el motor (${C.tkMiM[0]} + ${C.tkMiH[0]})`;
 const CAB_MOT="H05VV-F 2×0,75 mm²",caidaMot=L=>2*L*3.6*0.021/0.75;
 /* Caída de tensión (ITC-BT-19): alumbrado 3 %, resto (motor) 5 %. Alargos LED de 0,75 mm² con ρ = 0,021 Ω·mm²/m (cobre a 70 °C,
    como el motor), ida y vuelta con toda la corriente del grupo (RGB: el común lleva toda y cada color un tercio).
@@ -1094,14 +1095,15 @@ function calcular(cfg){
     const motorPos={x:m.motor==="izq"?0:m.A,y:motY==="i"?dM:m.P-dM};
     const rm=rutaDesde(m,[motorPos.x,motorPos.y],m.motor,m.cent);
     const cx=m.cent[1]==="i"?0:m.A,cy=m.cent[0]==="i"?0:m.P;
-    const run=rm.len+1; /* + 1 m para bajar a la centralita y holgura */
+    const run=Math.max(rm.len+1,sis==="nexta"?ALARGO_TKM:0); /* + 1 m para bajar a la centralita y holgura; con la TKM, alargo de 1,5 m como mínimo */
     /* cable del motor: siempre manguera 2 × 0,75 mm² (dato SAT, también con Teleco) */
     perd.push({tag,t:"cable del motor",W:caidaMot(run)*3.6});
     if(caidaMot(run)/24*100>CAIDA_MOT)av.push(["warn",`AVISO PARA TALLER · ${m.nombre}: cable del motor de ≈ ${Math.ceil(run)} m con 2×0,75 mm²: caída ≈ ${m2(caidaMot(run))} V (${pct1(caidaMot(run)/24*100)} %) a 3,6 A, por encima del ${CAIDA_MOT} % (ITC-BT-19). Corta la manguera a esa medida y comprueba que las lamas abren y cierran bien con este cable antes de enviarla.`]);
     add("motor",1);add("mang",Math.ceil(run),`${tag} motor → centralita`,true);
-    /* alargo del motor (manguera) con conector aéreo mini Tekox WP68 en cada unión, macho + hembra (dato SAT):
-       cable del motor ↔ alargo y alargo ↔ centralita */
-    add("tkMiM",2,`${tag} alargo del motor: motor ↔ alargo y alargo ↔ centralita`);add("tkMiH",2,`${tag} alargo del motor: motor ↔ alargo y alargo ↔ centralita`);
+    /* conectores aéreos mini Tekox WP68 del cable del motor (dato SAT): con la TKM (Cherubini) siempre va alargo, de 1,5 m
+       como mínimo, con conector en la TKM, macho + hembra en el alargo y el del motor (4); con las demás centralitas el cable
+       sale de la propia centralita a la medida, y basta un conector en su punta y otro en el motor (2) */
+    const nCon=conMotor(sis);add("tkMiM",nCon/2,`${tag} ${sis==="nexta"?"TKM ↔ alargo y alargo ↔ motor":"cable de la centralita ↔ motor"}`);add("tkMiH",nCon/2,`${tag} ${sis==="nexta"?"TKM ↔ alargo y alargo ↔ motor":"cable de la centralita ↔ motor"}`);
     if((m.motor==="izq"&&m.cent[1]==="i")||(m.motor==="der"&&m.cent[1]==="d"))av.push(["info",`${m.nombre}: centralita en el mismo lado que el motor. El manual la pone en el lado contrario (el desagüe va en el lado motor); si el plano lo marca así, vale.`]);
 
     /* --- control del motor --- */
@@ -1202,7 +1204,7 @@ function calcular(cfg){
       av.push(["warn",`${m.nombre}: ${m.calN} calefactor(es) de ${w0(m.calW)} (${w0(m.calN*m.calW)}): en pruebas, sin código. Necesitan línea propia desde el cuadro; dimensiona la sección y el PIA. Con Nexta, el emisor HB80-PRG200 tiene 6 canales de calefactores.`]);}
     if(m.altN){add("altav",m.altN,tag,true);av.push(["info",`${m.nombre}: ${m.altN} altavoz(ces) previstos (en pruebas, sin código ni datos de alimentación).`]);}
     if(m.cortN){add("cortina",m.cortN,tag,true);av.push(["info",`${m.nombre}: ${m.cortN} cortina(s) vertical(es) previstas (en pruebas, sin código). Con Nexta, el emisor HB80-PRG200 tiene 9 canales de caídas verticales.`]);}
-    plan.push({m,tiras,lamaLen,tag,rm,run,rutas,sis:sisL,periMan,focos:focR,motorPos,motY,grAl,rgb:rgbM});
+    plan.push({m,tiras,lamaLen,tag,rm,run,rutas,sis:sisL,sisM:sis,periMan,focos:focR,motorPos,motY,grAl,rgb:rgbM});
     /* Focos (dato SAT): entran por el lateral con el cable 3 m 2P + 2 micro en T; si el primer foco queda a más de 3 m
        de la centralita, alargo hasta el cable en T. Entre foco y foco, extensiones de 0,50 m. */
     if(focR&&focR.lam){
@@ -1908,7 +1910,7 @@ function dibujaConjunto(plan,cfg){
 function recorridos(pm,cfg){
   const {m,tiras}=pm,cp=pilNom(pilDe(m,m.cent))||CN[m.cent],nexta=pm.sis==="nexta",out=n=>nexta?` → ${n}`:"";
   const L=[],esq=k=>pilNom(pilDe(m,k))||CN[k];
-  if(pm.rm)L.push(`<b style="color:var(--c-mot)">Motor</b> (lado ${m.motor==="izq"?"izquierdo":"derecho"}, extremo ${pm.motY==="s"?"superior":"inferior"}): manguera ${CAB_MOT} (${C.mang[0]}; 300/500 V, cobre flexible, PVC) de ≈ ${Math.ceil(pm.run)} m por encima de ${esc(vigasDe(m,pm.rm.sides))} (entre la viga y la tapa) hasta la centralita. En cada punta, conector aéreo mini Tekox WP68 macho + hembra (${C.tkMiM[0]} + ${C.tkMiH[0]}): uno para unir el alargo al cable del motor y otro en la centralita. Azul = +, marrón = −. Caída ≈ ${m2(caidaMot(pm.run))} V (${Math.round(caidaMot(pm.run)/24*100)} %) a 3,6 A.${caidaMot(pm.run)/24*100>CAIDA_MOT?` <b>Aviso para taller:</b> pasa del ${CAIDA_MOT} %; corta la manguera a esa medida y comprueba que las lamas abren y cierran bien antes de enviarla.`:""}`);
+  if(pm.rm)L.push(`<b style="color:var(--c-mot)">Motor</b> (lado ${m.motor==="izq"?"izquierdo":"derecho"}, extremo ${pm.motY==="s"?"superior":"inferior"}): manguera ${CAB_MOT} (${C.mang[0]}; 300/500 V, cobre flexible, PVC) de ≈ ${Math.ceil(pm.run)} m por encima de ${esc(vigasDe(m,pm.rm.sides))} (entre la viga y la tapa) hasta la centralita: ${txtConMotor(pm.sisM)}. Azul = +, marrón = −. Caída ≈ ${m2(caidaMot(pm.run))} V (${Math.round(caidaMot(pm.run)/24*100)} %) a 3,6 A.${caidaMot(pm.run)/24*100>CAIDA_MOT?` <b>Aviso para taller:</b> pasa del ${CAIDA_MOT} %; corta la manguera a esa medida y comprueba que las lamas abren y cierran bien antes de enviarla.`:""}`);
   NIV(m).forEach(nv=>gruposTira(m,cfg.periProd).forEach(G=>{const ts=tiras.filter(t=>t.g===G.g&&t.niv===nv);if(!ts.length)return;
     const key=G.corner+(nv==="i"?":i":""),nt=nivTxt(m,nv),sR=(pm.salReal||{})[(nv==="i"&&m.ledPos==="ambos"?"i":"")+G.out]||G.out,oG=luzNiv(m,nv)==="rgb"?(nexta?" → TKL RGBW":""):out("OUT"+sR);
     const una=ts[0].una&&ts[0].sides.length>1,cd=(()=>{const c=((pm.grAl||{})[key]||{}).caida;return c?` Caída ≈ ${m2(c.dAl+c.dT)} V (${pct1(c.pc)} %${c.pc>CAIDA_LUZ?`, más del ${CAIDA_LUZ} %`:""}).`:"";})();
@@ -3430,7 +3432,7 @@ function edPinta(todo){
   else if(tipo==="rx"){const x=(pm.rx||[])[+arg],nom=x&&({somLed:"Receptor io LED",somRGB:"Receptor io RGB",rgbww:"Receptor RGB+BL"}[x.k]||"Receptor");tit=`${nom||"Receptor"}${x&&x.tot>1?" "+x.n:""}`;
     info=x?`<span><b>${esc(C[x.k]?C[x.k][1]:nom)}</b>${C[x.k]?" · "+C[x.k][0]:""}</span><span>+ transformador ${TR_W[x.tr]} W, junto a la centralita del motor</span>`:"";}
   else if(tipo==="motor"){tit="Motor y su cable";loc="v:"+m.motor;
-    info=`<span><b>Manguera ${CAB_MOT}</b> · ${C.mang[0]}</span><span>300/500 V · cobre flexible clase 5 · aislamiento y cubierta PVC · 70 °C · 2 hilos: azul y marrón</span><span>Conectores: 2 × macho ${C.tkMiM[0]} + 2 × hembra ${C.tkMiH[0]} (Tekox WP68 mini): motor ↔ alargo y alargo ↔ centralita</span><span>≈ ${Math.ceil(pm.run)} m hasta la centralita · motor 24 V DC 3,6 A · caída ≈ ${m2(caidaMot(pm.run))} V (${Math.round(caidaMot(pm.run)/24*100)} %)</span>`;
+    info=`<span><b>Manguera ${CAB_MOT}</b> · ${C.mang[0]}</span><span>300/500 V · cobre flexible clase 5 · aislamiento y cubierta PVC · 70 °C · 2 hilos: azul y marrón</span><span>Conectores: ${txtConMotor(pm.sisM)}</span><span>≈ ${Math.ceil(pm.run)} m hasta la centralita · motor 24 V DC 3,6 A · caída ≈ ${m2(caidaMot(pm.run))} V (${Math.round(caidaMot(pm.run)/24*100)} %)</span>`;
     body=edCopia(P+"motor","Lado del motor / desagüe")+edCopia(P+"motY","Extremo del motor");}
   else if(tipo==="lama"){const k=+arg,led=lamLED(m).includes(k),fo=m.focL==="lam"&&(m.focLam||[]).includes(k);tit=`Lama ${k} de ${lamT(m)}`;
     info=`<span>${m2(pm.lamaLen)} m · el cable entra por el lateral (viga ${esc(vigaDe(m,m.cent[1]==="i"?"izq":"der"))}).</span>`;
