@@ -2,19 +2,19 @@
 /* =========================================================
    Catálogo Llaza — cliente
    ========================================================= */
-const SUBCATS=["Centralitas","Centralitas iluminación","Emisores","Receptores","Sensores","Motores","Fuentes de alimentación","Cables y alargadores","Conectores","Tiras y neón LED","Focos","Tomas","Adaptadores y soportes","Inversores y pulsadores","Pilas y accesorios"];
+const SUBCATS=["Centralitas","Centralitas iluminación","HUB","Emisores","Receptores","Sensores","Motores","Fuentes de alimentación","Cables y alargadores","Conectores","Tiras y neón LED","Focos","Tomas","Adaptadores y soportes","Inversores y pulsadores","Pilas y accesorios"];
 const SECS=[{n:"CONSUMIBLES",c:["Cintas y adhesivos","Conectores","Pilas y accesorios","General"]},{n:"ELYA",c:SUBCATS},{n:"PERGOHABITAT",c:SUBCATS}];
 /* Menús en orden alfabético (apartados, categorías y marcas); «Otras marcas» siempre al final. */
 const byAZ=(a,b)=>a.localeCompare(b,"es");
 /* Subcarpetas por marca dentro de estas categorías. Sin marca guardada se deduce de la descripción o el modelo. */
-const MARCAS=["A-OK","Cherubini","Nexta","Somfy","Teleco"],MARCA_CATS=["Centralitas","Centralitas iluminación","Motores","Emisores","Receptores","Sensores","Adaptadores y soportes"],OTRA="Otra",OTRAS="Otras marcas";
+const MARCAS=["A-OK","Cherubini","Nexta","Somfy","Teleco"],MARCA_CATS=["Centralitas","Centralitas iluminación","HUB","Motores","Emisores","Receptores","Sensores","Adaptadores y soportes"],OTRA="Otra",OTRAS="Otras marcas";
 /* Stock de seguridad: cantidad mínima en almacén fijada en la ficha (vacío = sin fijar). */
 const hasStock=i=>i.stock!==""&&i.stock!=null&&!isNaN(i.stock),stockTxt=i=>hasStock(i)?`Stock seg.: ${i.stock}`:"";
 const hasMarca=c=>MARCA_CATS.includes(c);
 /* Sistema de radio o cable (columna «Sistema»): qué mando va con qué motor. « (por revisar)» al final = lo dedujo Claude
    y falta que Andrés lo confirme. Compatibles = mismo sistema (y misma frecuencia si las dos dicen 868 o 916 MHz). */
 const SISTEMAS=["A-OK WiFi 433","A-OK WiFi 868","A-OK/EON 868","Cable","Cherubini RX/ZRX","Nexta","Somfy io","Somfy RTS","Teleco"].sort(byAZ),SIS_REV=" (por revisar)",SIS_PR="__rev";
-const SIS_CATS=["Emisores","Motores","Receptores","Sensores","Centralitas","Centralitas iluminación","Inversores y pulsadores"];
+const SIS_CATS=["Emisores","Motores","Receptores","Sensores","Centralitas","Centralitas iluminación","HUB","Inversores y pulsadores"];
 const sisOf=i=>{const s=String(i.sistema||"").replace(/\s*\(por revisar\)\s*$/i,"").trim();return SISTEMAS.includes(s)?s:"";};
 const sisRev=i=>!!sisOf(i)&&/\(por revisar\)\s*$/i.test(String(i.sistema||""));
 /* Proveedor de compras (columna «Proveedor»): nombre corto → código de proveedor. No es la marca. */
