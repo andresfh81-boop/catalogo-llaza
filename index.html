@@ -79,6 +79,12 @@ setTimeout(function(){if(!window.__appOK&&!window.__appStarted){window.__errs.pu
     </div>
     <label class="field"><span>Modelo / notas</span><input id="fMod" placeholder="Modelo: SPT… (puedes pegar enlaces a instrucciones o vídeos)"></label>
     <label class="field"><span>Stock de seguridad (unidades)</span><input id="fStock" type="number" min="0" step="1" inputmode="numeric" placeholder="Cantidad mínima que debe haber en almacén"></label>
+    <fieldset class="opt provbox" id="fProvs"><legend>🏭 Proveedores</legend>
+      <p class="note" id="fProvNone" style="margin:0">Sin proveedor. Puedes poner uno o varios: el mismo producto se puede comprar a distintos proveedores.</p>
+      <div id="fProvList"></div>
+      <datalist id="provList"></datalist>
+      <button type="button" class="btn-s" id="fProvAdd">＋ Añadir proveedor</button>
+    </fieldset>
     <fieldset class="opt docbox" id="fDocs" hidden><legend>📚 Documentación</legend>
       <div id="fDocList"></div>
       <div class="row2">
