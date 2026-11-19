@@ -92,7 +92,11 @@
       var k = "full/" + args[0];
       return readC(k).then(function (c) { return c || rpc(fn, args).then(function (d) { saveC(k, d); return d; }); });
     }
-    if (fn === "syncSheetsBg") return Promise.resolve(null);
+    /* Después de guardar, la copia del catálogo se pone al día detrás para que al volver a abrir salga ya el cambio. */
+    if (fn === "saveRef" || fn === "renameRef") return rpc(fn, args).then(function (r) {
+      rpc("boot", []).then(function (d) { return saveC("boot", { at: Date.now(), d: d }); }).catch(function () {});
+      return r;
+    });
     return rpc(fn, args);
   }
   window.addEventListener("online", function () { var b = document.getElementById("pwaBar"); if (b && b.className === "off") bar(""); });
@@ -190,7 +194,7 @@
   /* ---------- botones propios: app completa (para editar) e instalar ---------- */
   document.addEventListener("DOMContentLoaded", function () {
     var h = document.querySelector(".hdr-btns");
-    if (h) h.insertAdjacentHTML("afterbegin", '<a class="btn-s" id="pwaFull" href="' + FULL_APP + '" target="_blank" rel="noopener" title="Para editar, añadir, revisar hojas y exportar">✏ App completa</a>');
+    if (h) h.insertAdjacentHTML("afterbegin", '<a class="btn-s" id="pwaFull" href="' + FULL_APP + '" target="_blank" rel="noopener" title="Para añadir referencias, fotos y documentos, revisar hojas y exportar">✏ App completa</a>');
     if (h) { h.insertAdjacentHTML("afterbegin", '<button type="button" class="btn-s" id="pwaDl" title="Baja las fotos grandes y los PDF de los manuales para usarlos sin internet">⬇ Descargar todo</button>'); document.getElementById("pwaDl").onclick = dlEmpieza; }
     var instalada = matchMedia("(display-mode: standalone)").matches || navigator.standalone, aviso = null;
     var oculta = false; try { oculta = localStorage.getItem("catalogoLlazaNoInstalar") === "1"; } catch (e) {}

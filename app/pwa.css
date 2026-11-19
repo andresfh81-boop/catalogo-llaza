@@ -1,8 +1,10 @@
-/* Solo para la app instalable. Fase 1 = consultar: se ocultan los botones de editar, añadir, revisar hojas y exportar
-   (se hacen en la «✏ App completa»). Las fases siguientes los irán activando. */
+/* Solo para la app instalable. Se pueden editar los datos de una referencia; añadir, obsoletas, revisar hojas y exportar
+   se hacen en la «✏ App completa». Las fases siguientes los irán activando. */
 #addBtn, #expBtn, #bnav, #selBar, #recL, #nfAdd, #stkExp,
-[data-edit], [data-obs], [data-restore], [data-exp1], [data-mv], [data-rec-add], .btn-s.pick,
+[data-obs], [data-restore], [data-exp1], [data-mv], [data-rec-add], .btn-s.pick,
 .addmini, #lbRot, #lbAdd, #lbDel { display: none !important; }
+/* En el formulario de editar, las fotos y la documentación siguen yendo por la app completa. */
+#addForm .shots, #fDocs, #fAuto { display: none !important; }
 /* Sin foto: se ve «Falta foto» en vez de «Hacer foto». */
 label.ph.take { pointer-events: none; }
 label.ph.take .cam, label.ph.take input, label.ph.take > span:not(.lab) { display: none; }
