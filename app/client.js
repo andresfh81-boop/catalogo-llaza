@@ -19,7 +19,16 @@ const sisOf=i=>{const s=String(i.sistema||"").replace(/\s*\(por revisar\)\s*$/i,
 const sisRev=i=>!!sisOf(i)&&/\(por revisar\)\s*$/i.test(String(i.sistema||""));
 /* Proveedor de compras (columna «Proveedor»): nombre corto → código de proveedor. No es la marca. */
 const PROVEEDORES={"iPixel":{codigo:"300027",nombre:"IPIXEL LED LIGHT CO., LTD"}};
-const provOf=i=>String(i.proveedor||"").trim(),refProvOf=i=>String(i.refProv||"").trim();
+/* Una referencia puede tener varios proveedores: columnas «Proveedor», «Ref. proveedor» y «Código proveedor» con los valores separados por «; », en el mismo orden. */
+const provSplit=v=>String(v||"").split(";").map(x=>x.trim());
+function provsOf(i){const n=provSplit(i.proveedor),r=provSplit(i.refProv),c=provSplit(i.codProv),L=[];
+  for(let k=0;k<Math.max(n.length,r.length,c.length);k++)if(n[k]||r[k]||c[k])L.push({n:n[k]||"",ref:r[k]||"",cod:c[k]||""});return L;}
+const provNames=i=>[...new Set(provsOf(i).map(p=>p.n).filter(Boolean))],provOf=i=>provNames(i).join(", "),refProvOf=i=>provsOf(i).map(p=>p.ref).filter(Boolean).join(" ");
+/* Código de un proveedor: el que tenga en la fila; si no, el de PROVEEDORES o el que lleve en cualquier otra referencia. */
+function provCode(p){if(p.cod)return p.cod;if(!p.n)return "";const d=Object.keys(PROVEEDORES).find(k=>norm(k)===norm(p.n));if(d)return PROVEEDORES[d].codigo;
+  for(const r of refs)for(const q of provsOf(r))if(q.cod&&norm(q.n)===norm(p.n))return q.cod;return "";}
+/* Proveedores conocidos (para el desplegable del formulario). */
+const provKnown=()=>[...new Set([...Object.keys(PROVEEDORES),...refs.flatMap(r=>provsOf(r).map(p=>p.n)).filter(Boolean)])].sort(byAZ);
 const freqOf=i=>{const t=i.desc+" "+i.modelo;return /916/.test(t)?916:/868/.test(t)?868:0;};
 const compatOf=i=>{const s=sisOf(i),f=freqOf(i);return s?items.filter(x=>x.code!==i.code&&!x.obsoleta&&sisOf(x)===s&&(!f||!freqOf(x)||freqOf(x)===f)):[];};
 /* Documentación: manuales, guías rápidas y vídeos (hoja «Manuales»; un documento puede servir para varias referencias). */
@@ -168,7 +177,7 @@ function chips(){
   if(sis&&sis!==SIS_PR&&!sl.includes(sis))sis="";if(sis===SIS_PR&&!nPR)sis="";
   $("#sisF").hidden=!sl.length;$("#sisSel").innerHTML=`<option value="">Todos los sistemas</option>`+sl.map(x=>`<option value="${esc(x)}"${x===sis?" selected":""}>${esc(x)} (${nS(x)})</option>`).join("")+
     (nPR?`<option value="${SIS_PR}"${sis===SIS_PR?" selected":""}>⚠ Por revisar (${nPR})</option>`:"");
-  const nP=x=>act.filter(i=>provOf(i)===x).length,pl=[...new Set(act.map(provOf).filter(Boolean))].sort(byAZ);if(prov&&!pl.includes(prov))prov="";
+  const nP=x=>act.filter(i=>provNames(i).includes(x)).length,pl=[...new Set(act.flatMap(provNames))].sort(byAZ);if(prov&&!pl.includes(prov))prov="";
   $("#provF").hidden=!pl.length;$("#provSel").innerHTML=`<option value="">Todos los proveedores</option>`+pl.map(x=>`<option value="${esc(x)}"${x===prov?" selected":""}>${esc(x)} (${nP(x)})</option>`).join("");
   ["#chips","#mchips"].forEach(id=>{const r=$(id),b=r.querySelector('[aria-pressed="true"]');if(b&&r.scrollWidth>r.clientWidth)r.scrollLeft=b.offsetLeft-r.offsetLeft-(r.clientWidth-b.offsetWidth)/2;});
   updateFab();}
@@ -283,10 +292,10 @@ function renderList(){
     $("#list").innerHTML=`<p class="note" style="margin:0 0 12px">Referencias incompletas: <b>${n("foto de etiqueta")}</b> sin foto de etiqueta, <b>${n("foto de producto")}</b> sin foto de producto y <b>${n("descripción")}</b> sin descripción. Usa «Hacer foto» o «✏ Editar» para completarlas.</p>`+
       catsOf(sec).filter(c=>L.some(i=>i.cat===c)).map(c=>`<section><h2>${esc(c)}</h2><div class="grid">${L.filter(i=>i.cat===c).map(x=>card(x)).join("")}</div></section>`).join("");return;}
   const sisOk=i=>!sis||(sis===SIS_PR?sisRev(i):sisOf(i)===sis);
-  const vis=inSec.filter(i=>!i.obsoleta&&(cur==="Todas"||i.cat===cur)&&(marca==="Todas"||marcaOf(i)===marca)&&sisOk(i)&&(!prov||provOf(i)===prov));
+  const vis=inSec.filter(i=>!i.obsoleta&&(cur==="Todas"||i.cat===cur)&&(marca==="Todas"||marcaOf(i)===marca)&&sisOk(i)&&(!prov||provNames(i).includes(prov)));
   if(!vis.length){$("#list").innerHTML=sis||prov?`<p class="empty">Ninguna referencia de aquí tiene ese ${sis&&prov?"sistema y ese proveedor":sis?"sistema":"proveedor"}.</p>`:`<p class="empty">Todavía no hay referencias en ${esc(sec)}. Pulsa «＋ Referencia» para añadir la primera.</p>`;return;}
   const nRev=vis.filter(sisRev).length,can=!window.__pwa&&sis&&sis!==SIS_PR&&nRev;
-  $("#list").innerHTML=(sis?`<p class="note" style="margin:0 0 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span><b>${vis.length}</b> referencia${vis.length===1?"":"s"} ${sis===SIS_PR?"con el sistema por revisar (lo dedujo Claude de la descripción). Ábrelas y confírmalo o cámbialo en la ficha.":`del sistema <b>${esc(sis)}</b>${nRev?` · ${nRev} por revisar`:""}.`}</span>${can?`<button class="btn-s yes" data-sis-all>✓ Confirmar ${nRev===1?"la que falta":`las ${nRev}`}</button>`:""}</p>`:"")+(prov?`<p class="note" style="margin:0 0 12px"><b>${vis.length}</b> referencia${vis.length===1?"":"s"} del proveedor <b>${esc(prov)}</b>${PROVEEDORES[prov]?` (código ${esc(PROVEEDORES[prov].codigo)})`:""}.</p>`:"")+catsOf(sec).filter(c=>vis.some(i=>i.cat===c)).map(c=>`<section><h2>${esc(c)}${marca!=="Todas"?" · "+esc(marca):""}</h2>${
+  $("#list").innerHTML=(sis?`<p class="note" style="margin:0 0 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span><b>${vis.length}</b> referencia${vis.length===1?"":"s"} ${sis===SIS_PR?"con el sistema por revisar (lo dedujo Claude de la descripción). Ábrelas y confírmalo o cámbialo en la ficha.":`del sistema <b>${esc(sis)}</b>${nRev?` · ${nRev} por revisar`:""}.`}</span>${can?`<button class="btn-s yes" data-sis-all>✓ Confirmar ${nRev===1?"la que falta":`las ${nRev}`}</button>`:""}</p>`:"")+(prov?`<p class="note" style="margin:0 0 12px"><b>${vis.length}</b> referencia${vis.length===1?"":"s"} del proveedor <b>${esc(prov)}</b>${provCode({n:prov})?` (código ${esc(provCode({n:prov}))})`:""}.</p>`:"")+catsOf(sec).filter(c=>vis.some(i=>i.cat===c)).map(c=>`<section><h2>${esc(c)}${marca!=="Todas"?" · "+esc(marca):""}</h2>${
     catBody(c,vis.filter(i=>i.cat===c).sort((a,b)=>b.nueva-a.nueva))}</section>`).join("");}
 
 function pane(i,kind){
@@ -400,8 +409,9 @@ function renderFicha(){const i=itemOf(fichaCode);if(!i){closeFicha();return;}
 function potBox(i){const a=String(i.wSalida||"").trim(),b=String(i.wTotal||"").trim();if(!a&&!b)return "";
   return `<div class="fofi fprov"><h3>⚡ Potencia máxima</h3><p>Por salida: <b>${esc(a||"sin dato")}</b></p><p>En total: <b>${esc(b||"sin dato")}</b></p><p class="note">Con estos máximos avisa el Esquema ELYA si una salida va sobrecargada.</p></div>`;}
 /* Ficha: proveedor de compras con su código. */
-function provBox(i){const p=provOf(i),d=PROVEEDORES[p],r=refProvOf(i);if(!p&&!r)return "";
-  return `<div class="fofi fprov"><h3>🏭 Proveedor</h3>${p?`<p><b>${esc(p)}</b>${d?` · código de proveedor <b>${esc(d.codigo)}</b>`:""}</p>`:""}${r?`<p>Referencia ${p?"de "+esc(p):"del proveedor"}: <b class="refprov">${esc(r)}</b></p>`:""}${d?`<p class="note">${esc(d.nombre)}</p>`:""}</div>`;}
+function provBox(i){const L=provsOf(i);if(!L.length)return "";
+  return `<div class="fofi fprov"><h3>🏭 ${L.length>1?`Proveedores (${L.length})`:"Proveedor"}</h3>${L.map(p=>{const c=provCode(p),d=PROVEEDORES[p.n];
+    return `<div class="provit">${p.n?`<p><b>${esc(p.n)}</b>${c?` · código de proveedor <b>${esc(c)}</b>`:""}</p>`:""}${p.ref?`<p>Referencia ${p.n?"de "+esc(p.n):"del proveedor"}: <b class="refprov">${esc(p.ref)}</b></p>`:""}${d?`<p class="note">${esc(d.nombre)}</p>`:""}</div>`;}).join("")}</div>`;}
 /* Ficha: sistema (editable en la app completa) y «Compatible con», agrupado por categoría. */
 function sisBox(i){const s=sisOf(i),can=!window.__pwa;if(!s&&!SIS_CATS.includes(i.cat))return "";
   const sel=can?`<select data-sis="${esc(i.code)}" aria-label="Sistema de ${esc(i.desc)}"><option value="">— Sin sistema —</option>${SISTEMAS.map(x=>`<option${x===s?" selected":""}>${esc(x)}</option>`).join("")}</select>`:`<b>${s?esc(s):"Sin sistema"}</b>`;
@@ -498,14 +508,32 @@ function fillAlso(on){const s=$("#fSec").value,keep=on||[...document.querySelect
   $("#fAlso").innerHTML=SECS.filter(x=>x.n!==s).map(x=>`<label><input type="checkbox" value="${esc(x.n)}"${keep.includes(x.n)?" checked":""}> También en ${esc(x.n)}</label>`).join("");}
 $("#fSec").addEventListener("change",()=>{const c=$("#fCat").value.trim();if(c&&!catsOf($("#fSec").value).some(x=>norm(x)===norm(c)))$("#fCat").value="";fillCats();});
 function preview(lab,f){const L=$("#"+lab);L.querySelector("img")?.remove();const im=document.createElement("img");im.alt="";im.src=URL.createObjectURL(f);L.appendChild(im);}
+/* Proveedores en el formulario: una fila por proveedor (nombre, código de proveedor y su referencia). */
+function provRow(p){return `<div class="provrow"><label class="field"><span>Proveedor</span><input data-pv="n" list="provList" value="${esc(p.n)}" placeholder="iPixel…"></label>
+  <label class="field"><span>Código proveedor</span><input data-pv="cod" inputmode="numeric" value="${esc(p.cod)}" placeholder="300027"></label>
+  <label class="field"><span>Ref. del proveedor</span><input data-pv="ref" value="${esc(p.ref)}" placeholder="N012480C1LZ"></label>
+  <button type="button" class="btn-s" data-pvdel aria-label="Quitar este proveedor">✕</button></div>`;}
+function fillProvs(L){$("#provList").innerHTML=provKnown().map(n=>`<option value="${esc(n)}">`).join("");
+  $("#fProvList").innerHTML=L.map(p=>provRow({...p,cod:p.cod||provCode(p)})).join("");syncProvs();$("#fProvList").querySelectorAll("input").forEach(fitInp);}
+/* Texto entero en la casilla: si no cabe, letra más pequeña (hasta 11 px). */
+function fitInp(el){el.style.fontSize="";if(!el.clientWidth)return;let f=parseFloat(getComputedStyle(el).fontSize);while(el.scrollWidth>el.clientWidth&&f>11){f-=.5;el.style.fontSize=f+"px";}}
+function syncProvs(){const n=$("#fProvList").children.length;$("#fProvNone").hidden=!!n;$("#fProvAdd").textContent=n?"＋ Otro proveedor":"＋ Añadir proveedor";}
+function readProvs(){const L=[...$("#fProvList").querySelectorAll(".provrow")].map(r=>{const g=k=>r.querySelector(`[data-pv="${k}"]`).value.replace(/;/g,",").trim();return {n:g("n"),cod:g("cod"),ref:g("ref")};}).filter(p=>p.n||p.ref||p.cod);
+  L.forEach(p=>{const kn=provKnown().find(k=>norm(k)===norm(p.n));if(kn)p.n=kn;});
+  const j=k=>L.some(p=>p[k])?L.map(p=>p[k]).join("; "):"";return {proveedor:j("n"),refProv:j("ref"),codProv:j("cod")};}
+$("#fProvAdd").onclick=()=>{$("#fProvList").insertAdjacentHTML("beforeend",provRow({n:"",ref:"",cod:""}));syncProvs();$("#fProvList").lastElementChild.querySelector("input").focus();};
+$("#fProvList").addEventListener("click",e=>{const b=e.target.closest("[data-pvdel]");if(b){b.closest(".provrow").remove();syncProvs();}});
+/* Al elegir un proveedor conocido se pone su código. */
+$("#fProvList").addEventListener("change",e=>{const t=e.target;if(t.dataset.pv!=="n")return;const c=t.closest(".provrow").querySelector('[data-pv="cod"]');if(!c.value.trim()){c.value=provCode({n:t.value.trim()});fitInp(c);}});
+$("#fProvList").addEventListener("input",e=>{if(e.target.dataset.pv)fitInp(e.target);});
 let editCode=null;
 function openEdit(code){const it=itemOf(code);if(!it)return;openAdd();editCode=code;$("#fTitle").textContent="Editar referencia";const sr=isSinRef(code);$("#fCode").value=sr?"":code;$("#fCode").disabled=!sr;$("#fNoCodeL").hidden=!sr;$("#fNoCode").checked=sr;$("#fCode").placeholder=sr?"Pon aquí el código cuando lo tengas":"48009000000";
-  $("#fDesc").value=it.desc||"";$("#fSec").value=it.sec;fillCats();fillAlso(it.also||[]);$("#fCat").value=it.cat||"";syncCatSel();$("#fMed").value=it.medida||"";$("#fCanal").value=it.canal||"";$("#fMod").value=it.modelo||"";$("#fStock").value=hasStock(it)?it.stock:"";
+  $("#fDesc").value=it.desc||"";$("#fSec").value=it.sec;fillCats();fillAlso(it.also||[]);$("#fCat").value=it.cat||"";syncCatSel();$("#fMed").value=it.medida||"";$("#fCanal").value=it.canal||"";$("#fMod").value=it.modelo||"";$("#fStock").value=hasStock(it)?it.stock:"";fillProvs(provsOf(it));
   const mo=marcaOf(it);$("#fMarca").value=mo===OTRAS?(it.marca?OTRA:""):mo;syncMarca();
   $("#fAuto").textContent="Puedes añadir fotos nuevas aquí; se suman a las que ya tiene.";renderDocBox();(it.medida?$("#fMod"):$("#fMed")).focus();}
 function openAdd(code,file,prodFile){editCode=null;$("#fTitle").textContent="Nueva referencia";$("#fCode").disabled=false;$("#fCode").placeholder="48009000000";$("#fNoCodeL").hidden=false;$("#addForm").reset();slots[0]={f:null,k:"e"};slots[1]={f:null,k:"p"};SLOT_LAB.forEach(id=>$("#"+id).querySelector("img")?.remove());
   $("#fErr").textContent="";$("#fSec").value=sec===ALL?DEFSEC:sec;fillAlso([]);fillCats();$("#fCat").value=cur!=="Todas"&&cur!==OBS&&cur!==INC&&cur!==STK&&cur!==DOC&&cur!==PROP?cur:"";syncCatSel();
-  $("#fMarca").value=MARCAS.includes(marca)?marca:"";syncMarca();
+  $("#fMarca").value=MARCAS.includes(marca)?marca:"";syncMarca();fillProvs(prov?[{n:prov,ref:"",cod:""}]:[]);
   secTouched=false;$("#fAuto").textContent="Consejo: haz primero la foto de la etiqueta y se rellenan solos el código y los datos.";
   if(typeof code==="string")$("#fCode").value=code;if(file instanceof Blob){slots[0].f=file;preview("fEtqL",file);fillFromLabel(file);}if(prodFile instanceof Blob){slots[1].f=prodFile;preview("fProdL",prodFile);}
   syncKinds();renderDocBox();$("#addSheet").hidden=false;(typeof code==="string"?$("#fDesc"):$("#fCode")).focus();}
@@ -544,7 +572,7 @@ $("#addForm").addEventListener("submit",async e=>{e.preventDefault();const err=$
   const ex=itemOf(code);if(ex&&(!editCode||rename)){err.textContent=`Ese código ya existe: ${ex.desc}${ex.obsoleta?" (está en Obsoletas)":""}.`;return;}
   if(!desc){err.textContent="Escribe una descripción.";return;}
   const s=$("#fSec").value,ci=$("#fCat").value.trim(),known=catsOf(s).find(c=>norm(c)===norm(ci)),cat=known||(ci?ci[0].toUpperCase()+ci.slice(1):"General");
-  const ref={code:noCode&&!editCode?"":(rename||code),sinCodigo:noCode&&!editCode,desc,sec:s,cat,medida:$("#fMed").value.trim(),canal:$("#fCanal").value.trim(),modelo:$("#fMod").value.trim(),stock:$("#fStock").value.trim()===""?"":Math.max(0,Math.round(+$("#fStock").value)||0),marca:hasMarca(cat)?$("#fMarca").value:"",also:[...document.querySelectorAll("#fAlso input:checked")].map(x=>x.value).filter(x=>x!==s)};
+  const ref={code:noCode&&!editCode?"":(rename||code),sinCodigo:noCode&&!editCode,desc,sec:s,cat,medida:$("#fMed").value.trim(),canal:$("#fCanal").value.trim(),modelo:$("#fMod").value.trim(),stock:$("#fStock").value.trim()===""?"":Math.max(0,Math.round(+$("#fStock").value)||0),marca:hasMarca(cat)?$("#fMarca").value:"",also:[...document.querySelectorAll("#fAlso input:checked")].map(x=>x.value).filter(x=>x!==s),...readProvs()};
   const btn=$("#fSave");btn.disabled=true;btn.textContent="Guardando…";
   try{if(editCode){if(rename){await api("renameRef",editCode,rename);refs.find(x=>x.code===editCode).code=rename;fotos.forEach(f=>{if(f.code===editCode)f.code=rename;});}
       await api("saveRef",ref,false);Object.assign(refs.find(x=>x.code===ref.code),ref);code=ref.code;}
@@ -1055,7 +1083,7 @@ const xlName=(t,usadas)=>{let b=String(t).replace(/[[\]:*?/\\]/g," ").trim().sli
 /* Excel del catálogo: hoja «Todo» y una hoja por categoría (en orden alfabético), cada una con su filtro. */
 async function expXlsx(list,name,msg){msg.textContent="Preparando el Excel…";await loadLib(XLSX_URL,"XLSX");
   const H=["Apartado","Categoría","Marca","Código","Descripción","Medida / formato","Canal / color","Modelo / notas","Sistema","Stock seguridad","Foto etiqueta","Foto producto","Obsoleta","Proveedor","Código proveedor","Ref. proveedor","W máx. por salida","W máx. totales"];
-  const row=i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,i.canal,i.modelo,sisOf(i)?sisOf(i)+(sisRev(i)?SIS_REV:""):"",hasStock(i)?i.stock:"",i.photos.length?"Sí":"No",prodOf(i).length?"Sí":"No",i.obsoleta?"Sí":"No",provOf(i),PROVEEDORES[provOf(i)]?PROVEEDORES[provOf(i)].codigo:"",refProvOf(i),String(i.wSalida||""),String(i.wTotal||"")];
+  const row=i=>[secsOf(i).join(", "),i.cat,marcaOf(i),i.code,i.desc,i.medida,i.canal,i.modelo,sisOf(i)?sisOf(i)+(sisRev(i)?SIS_REV:""):"",hasStock(i)?i.stock:"",i.photos.length?"Sí":"No",prodOf(i).length?"Sí":"No",i.obsoleta?"Sí":"No",provsOf(i).map(p=>p.n).join("; "),provsOf(i).map(provCode).join("; ").replace(/^(; )+$/,""),provsOf(i).map(p=>p.ref).join("; ").replace(/^(; )+$/,""),String(i.wSalida||""),String(i.wTotal||"")];
   const hoja=L=>{const aoa=[H,...L.map(row)],ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=xlCols(aoa);ws["!autofilter"]={ref:`A1:${XLSX.utils.encode_col(H.length-1)}${aoa.length}`};return ws;};
   const wb=XLSX.utils.book_new(),usadas=new Set();XLSX.utils.book_append_sheet(wb,hoja(list),xlName("Todo",usadas));
   [...new Set(list.map(i=>i.cat))].sort(byAZ).forEach(c=>XLSX.utils.book_append_sheet(wb,hoja(list.filter(i=>i.cat===c)),xlName(c,usadas)));
